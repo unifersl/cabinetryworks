@@ -1,0 +1,1204 @@
+     1→import type {
+     2→  User,
+     3→  SessionUser,
+     4→  JobOrder,
+     5→  Customer,
+     6→  SiteMeasurement,
+     7→  CuttingList,
+     8→  Stats,
+     9→  Role,
+    10→  JobStatus,
+    11→  Priority,
+    12→  JobDetail,
+    13→} from "@/lib/types";
+    14→
+    15→async function request<T>(
+    16→  url: string,
+    17→  options?: RequestInit
+    18→): Promise<T> {
+    19→  let lastError: Error | null = null;
+    20→  const maxRetries = 2;
+    21→
+    22→  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    23→    try {
+    24→      const controller = new AbortController();
+    25→      const timeoutId = setTimeout(() => controller.abort(), 15000);
+    26→
+    27→      const res = await fetch(url, {
+    28→        ...options,
+    29→        headers: {
+    30→          "Content-Type": "application/json",
+    31→          ...(options?.headers || {}),
+    32→        },
+    33→        credentials: "same-origin",
+    34→        signal: controller.signal,
+    35→      });
+    36→
+    37→      clearTimeout(timeoutId);
+    38→
+    39→      let data: unknown = null;
+    40→      try {
+    41→        data = await res.json();
+    42→      } catch {
+    43→        /* non-json response */
+    44→      }
+    45→
+    46→      if (!res.ok) {
+    47→        const msg =
+    48→          (data && typeof data === "object" && "error" in data
+    49→            ? String((data as Record<string, unknown>).error)
+    50→            : null) ?? `Request failed (${res.status})`;
+    51→        const err = new Error(msg) as Error & {
+    52→          status: number;
+    53→          fallback?: string;
+    54→          detail?: string;
+    55→        };
+    56→        err.status = res.status;
+    57→        if (data && typeof data === "object") {
+    58→          const d = data as Record<string, unknown>;
+    59→          if (typeof d.fallback === "string") err.fallback = d.fallback;
+    60→          if (typeof d.detail === "string") err.detail = d.detail;
+    61→        }
+    62→        throw err;
+    63→      }
+    64→      return data as T;
+    65→    } catch (error) {
+    66→      lastError = error as Error;
+    67→      // Retry on network errors (502, connection refused, abort/timeout)
+    68→      // but not on 4xx client errors
+    69→      const status = (error as { status?: number }).status;
+    70→      const isNetworkError =
+    71→        !status ||
+    72→        status === 502 ||
+    73→        status === 503 ||
+    74→        error instanceof TypeError ||
+    75→        (error as Error).name === "AbortError";
+    76→
+    77→      if (isNetworkError && attempt < maxRetries) {
+    78→        // Exponential backoff: 500ms, 1000ms
+    79→        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    80→        continue;
+    81→      }
+    82→      throw error;
+    83→    }
+    84→  }
+    85→
+    86→  throw lastError ?? new Error("Request failed after retries");
+    87→}
+    88→
+    89→/* ---------------- Auth ---------------- */
+    90→export const authApi = {
+    91→  login: (username: string, password: string) =>
+    92→    request<{ user: SessionUser }>("/api/auth/login", {
+    93→      method: "POST",
+    94→      body: JSON.stringify({ username, password }),
+    95→    }),
+    96→  logout: () =>
+    97→    request<{ ok: true }>("/api/auth/logout", { method: "POST" }),
+    98→  me: () => request<{ user: SessionUser | null }>("/api/auth/me"),
+    99→};
+   100→
+   101→/* ---------------- Users ---------------- */
+   102→export interface CreateUserPayload {
+   103→  id: string;
+   104→  p_id: string;
+   105→  username: string;
+   106→  fullName: string;
+   107→  full_name?: string;
+   108→  password: string;
+   109→  role: Role;
+   110→  status: string;
+   111→  created_at: string;
+   112→  email?: string;
+   113→  phone?: string;
+   114→}
+   115→
+   116→export const usersApi = {
+   117→  list: () => request<{ users: User[] }>("/api/users"),
+   118→  /**
+   119→   * Primary create handler (mirrors Supabase RPC `admin_create_user`).
+   120→   * Sends frontend-generated UUID in both `id` and `p_id`.
+   121→   */
+   122→  create: (payload: CreateUserPayload) =>
+   123→    request<{ user: User }>("/api/users", {
+   124→      method: "POST",
+   125→      body: JSON.stringify(payload),
+   126→    }),
+   127→  /**
+   128→   * Mandatory fallback — direct table insert. Invoked by the UI when the
+   129→   * primary handler returns an error or a 4xx/5xx.
+   130→   */
+   131→  createDirect: (payload: CreateUserPayload) =>
+   132→    request<{ user: User }>("/api/users/direct", {
+   133→      method: "POST",
+   134→      body: JSON.stringify(payload),
+   135→    }),
+   136→  update: (id: string, patch: Partial<User> & { password?: string }) =>
+   137→    request<{ user: User }>(`/api/users/${id}`, {
+   138→      method: "PUT",
+   139→      body: JSON.stringify(patch),
+   140→    }),
+   141→  remove: (id: string) =>
+   142→    request<{ ok: true }>(`/api/users/${id}`, { method: "DELETE" }),
+   143→};
+   144→
+   145→/* ---------------- Customers ---------------- */
+   146→export const customersApi = {
+   147→  list: () => request<{ customers: Customer[] }>("/api/customers"),
+   148→  get: (id: string) =>
+   149→    request<{ customer: Customer & { jobOrders: Array<{ id: string; orderNumber: string; title: string; status: string; priority: string; createdAt: string }> } }>(
+   150→      `/api/customers/${id}`
+   151→    ),
+   152→  create: (payload: Partial<Customer>) =>
+   153→    request<{ customer: Customer }>("/api/customers", {
+   154→      method: "POST",
+   155→      body: JSON.stringify(payload),
+   156→    }),
+   157→  update: (id: string, patch: Partial<Customer>) =>
+   158→    request<{ customer: Customer }>(`/api/customers/${id}`, {
+   159→      method: "PUT",
+   160→      body: JSON.stringify(patch),
+   161→    }),
+   162→  remove: (id: string) =>
+   163→    request<{ ok: true }>(`/api/customers/${id}`, { method: "DELETE" }),
+   164→};
+   165→
+   166→/* ---------------- Job Orders ---------------- */
+   167→export const jobsApi = {
+   168→  list: (params?: {
+   169→    status?: JobStatus;
+   170→    assignedToId?: string;
+   171→    includeArchived?: boolean;
+   172→    archived?: boolean;
+   173→  }) => {
+   174→    const qs = new URLSearchParams();
+   175→    if (params?.status) qs.set("status", params.status);
+   176→    if (params?.assignedToId) qs.set("assignedToId", params.assignedToId);
+   177→    if (params?.includeArchived) qs.set("includeArchived", "true");
+   178→    if (params?.archived) qs.set("archived", "true");
+   179→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   180→    return request<{ jobs: JobOrder[] }>(`/api/job-orders${suffix}`);
+   181→  },
+   182→  create: (payload: {
+   183→    title: string;
+   184→    customerId: string;
+   185→    assignedToId?: string;
+   186→    description?: string;
+   187→    priority?: Priority;
+   188→    deliveryDate?: string;
+   189→  }) =>
+   190→    request<{ job: JobOrder }>("/api/job-orders", {
+   191→      method: "POST",
+   192→      body: JSON.stringify(payload),
+   193→    }),
+   194→  get: (id: string) =>
+   195→    request<{ job: JobDetail }>(`/api/job-orders/${id}`),
+   196→  update: (
+   197→    id: string,
+   198→    patch: Partial<{
+   199→      title: string;
+   200→      status: JobStatus;
+   201→      priority: Priority;
+   202→      description: string;
+   203→      assignedToId: string | null;
+   204→      deliveryDate: string | null;
+   205→      archived: boolean;
+   206→    }>
+   207→  ) =>
+   208→    request<{ job: JobOrder }>(`/api/job-orders/${id}`, {
+   209→      method: "PUT",
+   210→      body: JSON.stringify(patch),
+   211→    }),
+   212→  remove: (id: string) =>
+   213→    request<{ ok: true }>(`/api/job-orders/${id}`, { method: "DELETE" }),
+   214→};
+   215→
+   216→/* ---------------- Measurements ---------------- */
+   217→export const measurementsApi = {
+   218→  list: (jobId?: string) => {
+   219→    const qs = jobId ? `?jobId=${jobId}` : "";
+   220→    return request<{ measurements: SiteMeasurement[] }>(
+   221→      `/api/measurements${qs}`
+   222→    );
+   223→  },
+   224→  create: (payload: Partial<SiteMeasurement> & { jobId: string }) =>
+   225→    request<{ measurement: SiteMeasurement }>("/api/measurements", {
+   226→      method: "POST",
+   227→      body: JSON.stringify(payload),
+   228→    }),
+   229→  remove: (id: string) =>
+   230→    request<{ ok: true }>(`/api/measurements/${id}`, { method: "DELETE" }),
+   231→};
+   232→
+   233→/* ---------------- Cutting Lists ---------------- */
+   234→export const cuttingListsApi = {
+   235→  list: (jobId?: string) => {
+   236→    const qs = jobId ? `?jobId=${jobId}` : "";
+   237→    return request<{ cuttingLists: CuttingList[] }>(`/api/cutting-lists${qs}`);
+   238→  },
+   239→  create: (
+   240→    payload: Partial<CuttingList> & { jobId: string; items?: unknown[] }
+   241→  ) =>
+   242→    request<{ cuttingList: CuttingList }>("/api/cutting-lists", {
+   243→      method: "POST",
+   244→      body: JSON.stringify(payload),
+   245→    }),
+   246→  remove: (id: string) =>
+   247→    request<{ ok: true }>(`/api/cutting-lists/${id}`, { method: "DELETE" }),
+   248→};
+   249→
+   250→/* ---------------- Stats & Settings ---------------- */
+   251→export const statsApi = {
+   252→  get: (range?: number) =>
+   253→    request<Stats>(`/api/stats${range ? `?range=${range}` : ""}`),
+   254→};
+   255→
+   256→/* ---------------- Search ---------------- */
+   257→export interface SearchResult {
+   258→  jobs: Array<{
+   259→    id: string;
+   260→    orderNumber: string;
+   261→    title: string;
+   262→    status: string;
+   263→    priority: string;
+   264→    customerId: string;
+   265→    customerName: string | null;
+   266→  }>;
+   267→  customers: Array<{
+   268→    id: string;
+   269→    name: string;
+   270→    email: string | null;
+   271→    phone: string | null;
+   272→  }>;
+   273→  users: Array<{
+   274→    id: string;
+   275→    username: string;
+   276→    fullName: string;
+   277→    role: string;
+   278→    status: string;
+   279→  }>;
+   280→}
+   281→
+   282→export const searchApi = {
+   283→  search: (q: string) =>
+   284→    request<SearchResult>(
+   285→      `/api/search?q=${encodeURIComponent(q)}`
+   286→    ),
+   287→};
+   288→
+   289→export const settingsApi = {
+   290→  get: () =>
+   291→    request<{ settings: Record<string, string> }>("/api/settings"),
+   292→  update: (settings: Record<string, string>) =>
+   293→    request<{ ok: true }>("/api/settings", {
+   294→      method: "PUT",
+   295→      body: JSON.stringify(settings),
+   296→    }),
+   297→};
+   298→
+   299→/* ---------------- Activity Feed ---------------- */
+   300→export interface ActivityEvent {
+   301→  id: string;
+   302→  type: "job_created" | "job_assigned" | "job_status" | "measurement" | "cutting_list";
+   303→  timestamp: string;
+   304→  title: string;
+   305→  description: string;
+   306→  entityId: string;
+   307→  entityType: "job" | "measurement" | "cutting_list";
+   308→  actor: string | null;
+   309→  meta?: Record<string, string | null>;
+   310→}
+   311→
+   312→export const activityApi = {
+   313→  list: (limit = 20) =>
+   314→    request<{ events: ActivityEvent[] }>(`/api/activity?limit=${limit}`),
+   315→};
+   316→
+   317→/* ---------------- Audit Log ---------------- */
+   318→export interface AuditLogEntry {
+   319→  id: string;
+   320→  action: string;
+   321→  entityType: string;
+   322→  entityId: string | null;
+   323→  actorId: string | null;
+   324→  actorName: string | null;
+   325→  summary: string;
+   326→  details: string | null;
+   327→  ipAddress: string | null;
+   328→  createdAt: string;
+   329→  actor?: { id: string; fullName: string; role: string } | null;
+   330→}
+   331→
+   332→export const auditApi = {
+   333→  list: (params?: {
+   334→    action?: string;
+   335→    entityType?: string;
+   336→    entityId?: string;
+   337→    limit?: number;
+   338→  }) => {
+   339→    const qs = new URLSearchParams();
+   340→    if (params?.action) qs.set("action", params.action);
+   341→    if (params?.entityType) qs.set("entityType", params.entityType);
+   342→    if (params?.entityId) qs.set("entityId", params.entityId);
+   343→    if (params?.limit) qs.set("limit", String(params.limit));
+   344→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   345→    return request<{ logs: AuditLogEntry[]; stats: { total: number; todayCount: number } }>(
+   346→      `/api/audit${suffix}`
+   347→    );
+   348→  },
+   349→  retention: (days: number) =>
+   350→    request<{ deleted: number; days: number }>(`/api/audit/retention`, {
+   351→      method: "POST",
+   352→      body: JSON.stringify({ days }),
+   353→    }),
+   354→};
+   355→
+   356→/* ---------------- Material Prices ---------------- */
+   357→export interface MaterialPrice {
+   358→  id: string;
+   359→  name: string;
+   360→  material: string;
+   361→  thickness: string | null;
+   362→  pricePerSqm: number;
+   363→  unit: string;
+   364→  edgeBandingPricePerM: number;
+   365→  laborRatePerHour: number;
+   366→  estimatedHours: number;
+   367→  createdAt?: string;
+   368→  updatedAt?: string;
+   369→}
+   370→
+   371→export const materialPricesApi = {
+   372→  list: () => request<{ prices: MaterialPrice[] }>("/api/material-prices"),
+   373→  create: (payload: Partial<MaterialPrice>) =>
+   374→    request<{ price: MaterialPrice }>("/api/material-prices", {
+   375→      method: "POST",
+   376→      body: JSON.stringify(payload),
+   377→    }),
+   378→  update: (id: string, patch: Partial<MaterialPrice>) =>
+   379→    request<{ price: MaterialPrice }>(`/api/material-prices/${id}`, {
+   380→      method: "PUT",
+   381→      body: JSON.stringify(patch),
+   382→    }),
+   383→  remove: (id: string) =>
+   384→    request<{ ok: true }>(`/api/material-prices/${id}`, { method: "DELETE" }),
+   385→};
+   386→
+   387→/* ---------------- Job Cost ---------------- */
+   388→export interface JobCost {
+   389→  job: {
+   390→    orderNumber: string;
+   391→    title: string;
+   392→    customer: { name: string };
+   393→    deliveryDate: string | null;
+   394→  };
+   395→  currency: string;
+   396→  taxRate: number;
+   397→  lines: Array<{
+   398→    panelName: string;
+   399→    material: string;
+   400→    partName: string;
+   401→    qty: number;
+   402→    areaSqm: number;
+   403→    edgeLengthM: number;
+   404→    materialCost: number;
+   405→    edgeCost: number;
+   406→    unitPrice: number;
+   407→  }>;
+   408→  summary: {
+   409→    totalAreaSqm: number;
+   410→    totalEdgeLengthM: number;
+   411→    materialCost: number;
+   412→    edgeCost: number;
+   413→    laborCost: number;
+   414→    subtotal: number;
+   415→    taxAmount: number;
+   416→    total: number;
+   417→  };
+   418→  formatted: {
+   419→    materialCost: string;
+   420→    edgeCost: string;
+   421→    laborCost: string;
+   422→    subtotal: string;
+   423→    taxAmount: string;
+   424→    total: string;
+   425→  };
+   426→}
+   427→
+   428→export const costApi = {
+   429→  get: (jobId: string) =>
+   430→    request<JobCost>(`/api/job-orders/${jobId}/cost`),
+   431→};
+   432→
+   433→/* ---------------- Bulk Operations ---------------- */
+   434→export const bulkApi = {
+   435→  updateJobs: (ids: string[], action: "archive" | "restore" | "status" | "assign", value?: string) =>
+   436→    request<{ updated: number; action: string }>(`/api/job-orders/bulk`, {
+   437→      method: "POST",
+   438→      body: JSON.stringify({ ids, action, value }),
+   439→    }),
+   440→};
+   441→
+   442→/* ---------------- Saved Quotes ---------------- */
+   443→export interface SavedQuote {
+   444→  id: string;
+   445→  quoteNumber: string;
+   446→  jobId: string;
+   447→  customerId: string;
+   448→  status: "draft" | "sent" | "accepted" | "rejected" | "expired";
+   449→  materialCost: number;
+   450→  edgeCost: number;
+   451→  laborCost: number;
+   452→  subtotal: number;
+   453→  taxRate: number;
+   454→  taxAmount: number;
+   455→  total: number;
+   456→  currency: string;
+   457→  notes: string | null;
+   458→  validUntil: string | null;
+   459→  createdAt: string;
+   460→  updatedAt: string;
+   461→  job?: { id: string; orderNumber: string; title: string };
+   462→  customer?: { id: string; name: string };
+   463→}
+   464→
+   465→export const quotesApi = {
+   466→  list: (params?: { status?: string; customerId?: string }) => {
+   467→    const qs = new URLSearchParams();
+   468→    if (params?.status) qs.set("status", params.status);
+   469→    if (params?.customerId) qs.set("customerId", params.customerId);
+   470→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   471→    return request<{ quotes: SavedQuote[] }>(`/api/quotes${suffix}`);
+   472→  },
+   473→  create: (payload: {
+   474→    jobId: string;
+   475→    materialCost?: number;
+   476→    edgeCost?: number;
+   477→    laborCost?: number;
+   478→    subtotal?: number;
+   479→    taxRate?: number;
+   480→    taxAmount?: number;
+   481→    total?: number;
+   482→    currency?: string;
+   483→    notes?: string;
+   484→    validUntil?: string;
+   485→  }) =>
+   486→    request<{ quote: SavedQuote }>("/api/quotes", {
+   487→      method: "POST",
+   488→      body: JSON.stringify(payload),
+   489→    }),
+   490→  update: (id: string, patch: Partial<{ status: string; notes: string; validUntil: string }>) =>
+   491→    request<{ quote: SavedQuote }>(`/api/quotes/${id}`, {
+   492→      method: "PUT",
+   493→      body: JSON.stringify(patch),
+   494→    }),
+   495→  remove: (id: string) =>
+   496→    request<{ ok: true }>(`/api/quotes/${id}`, { method: "DELETE" }),
+   497→};
+   498→
+   499→/* ---------------- Inventory ---------------- */
+   500→export interface InventoryCategory {
+   501→  id: string;
+   502→  name: string;
+   503→  description: string | null;
+   504→  itemCount?: number;
+   505→  createdAt: string;
+   506→  updatedAt: string;
+   507→}
+   508→
+   509→export interface InventoryItem {
+   510→  id: string;
+   511→  name: string;
+   512→  code: string | null;
+   513→  material: string;
+   514→  thickness: string | null;
+   515→  unit: string;
+   516→  stockLevel: number | string;
+   517→  minStock: number | string;
+   518→  reorderPoint: number | string;
+   519→  unitCost: number | string;
+   520→  supplier: string | null;
+   521→  categoryId: string | null;
+   522→  status: string; // active | disposed | inactive
+   523→  notes: string | null;
+   524→  lastRestocked: string | null;
+   525→  createdAt: string;
+   526→  updatedAt: string;
+   527→  category?: InventoryCategory | null;
+   528→  stockLots?: Array<{ id: string; warehouseId: string; quantity: number | string }>;
+   529→}
+   530→
+   531→export interface InventoryStats {
+   532→  total: number;
+   533→  lowStock: number;
+   534→  outOfStock: number;
+   535→}
+   536→
+   537→export const inventoryApi = {
+   538→  list: () =>
+   539→    request<{ items: InventoryItem[]; stats: InventoryStats }>("/api/inventory"),
+   540→  create: (payload: Partial<InventoryItem>) =>
+   541→    request<{ item: InventoryItem }>("/api/inventory", {
+   542→      method: "POST",
+   543→      body: JSON.stringify(payload),
+   544→    }),
+   545→  update: (id: string, patch: Partial<InventoryItem> & { status?: string }) =>
+   546→    request<{ item: InventoryItem }>(`/api/inventory/${id}`, {
+   547→      method: "PUT",
+   548→      body: JSON.stringify(patch),
+   549→    }),
+   550→  remove: (id: string) =>
+   551→    request<{ ok: true }>(`/api/inventory/${id}`, { method: "DELETE" }),
+   552→};
+   553→
+   554→export const inventoryCategoriesApi = {
+   555→  list: () =>
+   556→    request<{ categories: InventoryCategory[] }>("/api/inventory-categories"),
+   557→  create: (payload: { name: string; description?: string }) =>
+   558→    request<{ category: InventoryCategory }>("/api/inventory-categories", {
+   559→      method: "POST",
+   560→      body: JSON.stringify(payload),
+   561→    }),
+   562→  update: (id: string, patch: { name?: string; description?: string | null }) =>
+   563→    request<{ category: InventoryCategory }>(`/api/inventory-categories/${id}`, {
+   564→      method: "PUT",
+   565→      body: JSON.stringify(patch),
+   566→    }),
+   567→  remove: (id: string) =>
+   568→    request<{ ok: true }>(`/api/inventory-categories/${id}`, { method: "DELETE" }),
+   569→};
+   570→
+   571→/* ---------------- Warehouses ---------------- */
+   572→export interface Warehouse {
+   573→  id: string;
+   574→  code: string;
+   575→  name: string;
+   576→  location: string | null;
+   577→  type: string; // main | site | temporary
+   578→  isActive: boolean;
+   579→  itemCount?: number;
+   580→  _count?: Record<string, number>;
+   581→  stockLots?: Array<{
+   582→    id: string;
+   583→    itemId: string;
+   584→    warehouseId: string;
+   585→    quantity: number | string;
+   586→    batchNo: string | null;
+   587→    receivedDate: string;
+   588→    notes: string | null;
+   589→    item: InventoryItem;
+   590→  }>;
+   591→  createdAt: string;
+   592→  updatedAt: string;
+   593→}
+   594→
+   595→export const warehousesApi = {
+   596→  list: () => request<{ warehouses: Warehouse[] }>("/api/warehouses"),
+   597→  get: (id: string) => request<{ warehouse: Warehouse }>(`/api/warehouses/${id}`),
+   598→  create: (payload: {
+   599→    code: string;
+   600→    name: string;
+   601→    location?: string;
+   602→    type?: string;
+   603→    isActive?: boolean;
+   604→  }) =>
+   605→    request<{ warehouse: Warehouse }>("/api/warehouses", {
+   606→      method: "POST",
+   607→      body: JSON.stringify(payload),
+   608→    }),
+   609→  update: (id: string, patch: Partial<Warehouse>) =>
+   610→    request<{ warehouse: Warehouse }>(`/api/warehouses/${id}`, {
+   611→      method: "PUT",
+   612→      body: JSON.stringify(patch),
+   613→    }),
+   614→  remove: (id: string) =>
+   615→    request<{ ok: true }>(`/api/warehouses/${id}`, { method: "DELETE" }),
+   616→};
+   617→
+   618→/* ---------------- Stock Transfers ---------------- */
+   619→export interface StockTransferItem {
+   620→  id: string;
+   621→  transferId: string;
+   622→  itemId: string;
+   623→  quantity: number | string;
+   624→  batchNo: string | null;
+   625→  item?: InventoryItem;
+   626→}
+   627→
+   628→export interface StockTransfer {
+   629→  id: string;
+   630→  transferNo: string;
+   631→  fromWarehouseId: string;
+   632→  toWarehouseId: string;
+   633→  status: string; // draft | in_transit | received | cancelled
+   634→  notes: string | null;
+   635→  createdBy: string | null;
+   636→  receivedAt: string | null;
+   637→  createdAt: string;
+   638→  updatedAt: string;
+   639→  fromWarehouse?: Warehouse;
+   640→  toWarehouse?: Warehouse;
+   641→  items: StockTransferItem[];
+   642→  itemCount?: number;
+   643→}
+   644→
+   645→export const stockTransfersApi = {
+   646→  list: (params?: { status?: string }) => {
+   647→    const qs = new URLSearchParams();
+   648→    if (params?.status) qs.set("status", params.status);
+   649→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   650→    return request<{ transfers: StockTransfer[] }>(`/api/stock-transfers${suffix}`);
+   651→  },
+   652→  get: (id: string) =>
+   653→    request<{ transfer: StockTransfer }>(`/api/stock-transfers/${id}`),
+   654→  create: (payload: {
+   655→    fromWarehouseId: string;
+   656→    toWarehouseId: string;
+   657→    status?: string;
+   658→    notes?: string;
+   659→    items: Array<{ itemId: string; quantity: number; batchNo?: string }>;
+   660→  }) =>
+   661→    request<{ transfer: StockTransfer }>("/api/stock-transfers", {
+   662→      method: "POST",
+   663→      body: JSON.stringify(payload),
+   664→    }),
+   665→  update: (id: string, patch: { status?: string; notes?: string }) =>
+   666→    request<{ transfer: StockTransfer }>(`/api/stock-transfers/${id}`, {
+   667→      method: "PUT",
+   668→      body: JSON.stringify(patch),
+   669→    }),
+   670→  remove: (id: string) =>
+   671→    request<{ ok: true }>(`/api/stock-transfers/${id}`, { method: "DELETE" }),
+   672→};
+   673→
+   674→/* ---------------- Stock Adjustments ---------------- */
+   675→export interface StockAdjustment {
+   676→  id: string;
+   677→  adjNo: string;
+   678→  itemId: string;
+   679→  warehouseId: string;
+   680→  type: string; // set | add | remove | dispose
+   681→  oldQty: number | string;
+   682→  newQty: number | string;
+   683→  diff: number | string;
+   684→  reason: string | null;
+   685→  notes: string | null;
+   686→  adjustedBy: string | null;
+   687→  createdAt: string;
+   688→  item?: InventoryItem;
+   689→  warehouse?: Warehouse;
+   690→}
+   691→
+   692→export const stockAdjustmentsApi = {
+   693→  list: (params?: { warehouseId?: string; itemId?: string }) => {
+   694→    const qs = new URLSearchParams();
+   695→    if (params?.warehouseId) qs.set("warehouseId", params.warehouseId);
+   696→    if (params?.itemId) qs.set("itemId", params.itemId);
+   697→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   698→    return request<{ adjustments: StockAdjustment[] }>(`/api/stock-adjustments${suffix}`);
+   699→  },
+   700→  create: (payload: {
+   701→    itemId: string;
+   702→    warehouseId: string;
+   703→    type: string;
+   704→    quantity: number;
+   705→    reason?: string;
+   706→    notes?: string;
+   707→    batchNo?: string;
+   708→  }) =>
+   709→    request<{ adjustment: StockAdjustment }>("/api/stock-adjustments", {
+   710→      method: "POST",
+   711→      body: JSON.stringify(payload),
+   712→    }),
+   713→};
+   714→
+   715→/* ---------------- Stock Takes ---------------- */
+   716→export interface StockTakeLine {
+   717→  id: string;
+   718→  takeId: string;
+   719→  itemId: string;
+   720→  systemQty: number | string;
+   721→  countedQty: number | string;
+   722→  diff: number | string;
+   723→  notes: string | null;
+   724→  item?: InventoryItem;
+   725→}
+   726→
+   727→export interface StockTake {
+   728→  id: string;
+   729→  takeNo: string;
+   730→  warehouseId: string;
+   731→  period: string;
+   732→  status: string; // open | counting | completed | closed
+   733→  notes: string | null;
+   734→  createdBy: string | null;
+   735→  closedAt: string | null;
+   736→  createdAt: string;
+   737→  updatedAt: string;
+   738→  warehouse?: Warehouse;
+   739→  lines?: StockTakeLine[];
+   740→  lineCount?: number;
+   741→}
+   742→
+   743→export const stockTakesApi = {
+   744→  list: (params?: { warehouseId?: string }) => {
+   745→    const qs = new URLSearchParams();
+   746→    if (params?.warehouseId) qs.set("warehouseId", params.warehouseId);
+   747→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   748→    return request<{ stockTakes: StockTake[] }>(`/api/stock-takes${suffix}`);
+   749→  },
+   750→  get: (id: string) => request<{ stockTake: StockTake }>(`/api/stock-takes/${id}`),
+   751→  create: (payload: { warehouseId: string; period: string; notes?: string }) =>
+   752→    request<{ stockTake: StockTake }>("/api/stock-takes", {
+   753→      method: "POST",
+   754→      body: JSON.stringify(payload),
+   755→    }),
+   756→  update: (
+   757→    id: string,
+   758→    patch: {
+   759→      status?: string;
+   760→      notes?: string;
+   761→      lines?: Array<{ lineId: string; countedQty: number }>;
+   762→    }
+   763→  ) =>
+   764→    request<{ stockTake: StockTake }>(`/api/stock-takes/${id}`, {
+   765→      method: "PUT",
+   766→      body: JSON.stringify(patch),
+   767→    }),
+   768→  remove: (id: string) =>
+   769→    request<{ ok: true }>(`/api/stock-takes/${id}`, { method: "DELETE" }),
+   770→};
+   771→
+   772→/* ---------------- Stock Requests ---------------- */
+   773→export interface StockRequestLine {
+   774→  id: string;
+   775→  requestId: string;
+   776→  itemId: string;
+   777→  quantity: number | string;
+   778→  item?: InventoryItem;
+   779→}
+   780→
+   781→export interface StockRequest {
+   782→  id: string;
+   783→  reqNo: string;
+   784→  jobId: string | null;
+   785→  warehouseId: string;
+   786→  requestedBy: string | null;
+   787→  status: string; // pending | approved | rejected | issued | cancelled
+   788→  notes: string | null;
+   789→  approvedAt: string | null;
+   790→  approvedBy: string | null;
+   791→  createdAt: string;
+   792→  updatedAt: string;
+   793→  warehouse?: Warehouse;
+   794→  job?: { id: string; orderNumber: string; title: string } | null;
+   795→  lines: StockRequestLine[];
+   796→  lineCount?: number;
+   797→}
+   798→
+   799→export const stockRequestsApi = {
+   800→  list: (params?: { status?: string; warehouseId?: string; jobId?: string }) => {
+   801→    const qs = new URLSearchParams();
+   802→    if (params?.status) qs.set("status", params.status);
+   803→    if (params?.warehouseId) qs.set("warehouseId", params.warehouseId);
+   804→    if (params?.jobId) qs.set("jobId", params.jobId);
+   805→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   806→    return request<{ requests: StockRequest[] }>(`/api/stock-requests${suffix}`);
+   807→  },
+   808→  get: (id: string) => request<{ request: StockRequest }>(`/api/stock-requests/${id}`),
+   809→  create: (payload: {
+   810→    warehouseId: string;
+   811→    jobId?: string | null;
+   812→    notes?: string;
+   813→    lines: Array<{ itemId: string; quantity: number }>;
+   814→  }) =>
+   815→    request<{ request: StockRequest }>("/api/stock-requests", {
+   816→      method: "POST",
+   817→      body: JSON.stringify(payload),
+   818→    }),
+   819→  update: (id: string, patch: { status: string }) =>
+   820→    request<{ request: StockRequest }>(`/api/stock-requests/${id}`, {
+   821→      method: "PUT",
+   822→      body: JSON.stringify(patch),
+   823→    }),
+   824→  remove: (id: string) =>
+   825→    request<{ ok: true }>(`/api/stock-requests/${id}`, { method: "DELETE" }),
+   826→};
+   827→
+   828→/* ---------------- Goods Issues ---------------- */
+   829→export interface GoodsIssueLine {
+   830→  id: string;
+   831→  issueId: string;
+   832→  itemId: string;
+   833→  quantity: number | string;
+   834→  batchNo: string | null;
+   835→  item?: InventoryItem;
+   836→}
+   837→
+   838→export interface GoodsIssue {
+   839→  id: string;
+   840→  issueNo: string;
+   841→  jobId: string | null;
+   842→  warehouseId: string;
+   843→  requestId: string | null;
+   844→  issuedBy: string | null;
+   845→  status: string;
+   846→  notes: string | null;
+   847→  createdAt: string;
+   848→  updatedAt: string;
+   849→  warehouse?: Warehouse;
+   850→  job?: { id: string; orderNumber: string; title: string } | null;
+   851→  lines: GoodsIssueLine[];
+   852→  lineCount?: number;
+   853→}
+   854→
+   855→export const goodsIssuesApi = {
+   856→  list: (params?: { warehouseId?: string; jobId?: string }) => {
+   857→    const qs = new URLSearchParams();
+   858→    if (params?.warehouseId) qs.set("warehouseId", params.warehouseId);
+   859→    if (params?.jobId) qs.set("jobId", params.jobId);
+   860→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   861→    return request<{ issues: GoodsIssue[] }>(`/api/goods-issues${suffix}`);
+   862→  },
+   863→  create: (payload: {
+   864→    warehouseId: string;
+   865→    jobId?: string | null;
+   866→    requestId?: string | null;
+   867→    notes?: string;
+   868→    lines: Array<{ itemId: string; quantity: number; batchNo?: string }>;
+   869→  }) =>
+   870→    request<{ issue: GoodsIssue }>("/api/goods-issues", {
+   871→      method: "POST",
+   872→      body: JSON.stringify(payload),
+   873→    }),
+   874→};
+   875→
+   876→/* ---------------- Goods Returns ---------------- */
+   877→export interface GoodsReturnLine {
+   878→  id: string;
+   879→  returnId: string;
+   880→  itemId: string;
+   881→  quantity: number | string;
+   882→  batchNo: string | null;
+   883→  item?: InventoryItem;
+   884→}
+   885→
+   886→export interface GoodsReturn {
+   887→  id: string;
+   888→  returnNo: string;
+   889→  jobId: string | null;
+   890→  warehouseId: string;
+   891→  issueId: string | null;
+   892→  returnedBy: string | null;
+   893→  status: string;
+   894→  notes: string | null;
+   895→  createdAt: string;
+   896→  updatedAt: string;
+   897→  warehouse?: Warehouse;
+   898→  job?: { id: string; orderNumber: string; title: string } | null;
+   899→  lines: GoodsReturnLine[];
+   900→  lineCount?: number;
+   901→}
+   902→
+   903→export const goodsReturnsApi = {
+   904→  list: (params?: { warehouseId?: string; jobId?: string }) => {
+   905→    const qs = new URLSearchParams();
+   906→    if (params?.warehouseId) qs.set("warehouseId", params.warehouseId);
+   907→    if (params?.jobId) qs.set("jobId", params.jobId);
+   908→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   909→    return request<{ returns: GoodsReturn[] }>(`/api/goods-returns${suffix}`);
+   910→  },
+   911→  create: (payload: {
+   912→    warehouseId: string;
+   913→    jobId?: string | null;
+   914→    issueId?: string | null;
+   915→    notes?: string;
+   916→    lines: Array<{ itemId: string; quantity: number; batchNo?: string }>;
+   917→  }) =>
+   918→    request<{ return: GoodsReturn }>("/api/goods-returns", {
+   919→      method: "POST",
+   920→      body: JSON.stringify(payload),
+   921→    }),
+   922→};
+   923→
+   924→/* ---------------- Outside Purchases ---------------- */
+   925→export interface OutsidePurchaseLine {
+   926→  id: string;
+   927→  purchaseId: string;
+   928→  itemId: string | null;
+   929→  itemName: string;
+   930→  quantity: number | string;
+   931→  unit: string;
+   932→  notes: string | null;
+   933→  item?: InventoryItem | null;
+   934→}
+   935→
+   936→export interface OutsidePurchase {
+   937→  id: string;
+   938→  poNo: string;
+   939→  jobId: string | null;
+   940→  warehouseId: string | null;
+   941→  supplier: string | null;
+   942→  purchasedBy: string | null;
+   943→  status: string; // draft | received | cancelled
+   944→  notes: string | null;
+   945→  receivedAt: string | null;
+   946→  createdAt: string;
+   947→  updatedAt: string;
+   948→  job?: { id: string; orderNumber: string; title: string } | null;
+   949→  warehouse?: Warehouse | null;
+   950→  lines: OutsidePurchaseLine[];
+   951→  lineCount?: number;
+   952→}
+   953→
+   954→export const outsidePurchasesApi = {
+   955→  list: (params?: { status?: string; jobId?: string }) => {
+   956→    const qs = new URLSearchParams();
+   957→    if (params?.status) qs.set("status", params.status);
+   958→    if (params?.jobId) qs.set("jobId", params.jobId);
+   959→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+   960→    return request<{ purchases: OutsidePurchase[] }>(`/api/outside-purchases${suffix}`);
+   961→  },
+   962→  get: (id: string) =>
+   963→    request<{ purchase: OutsidePurchase }>(`/api/outside-purchases/${id}`),
+   964→  create: (payload: {
+   965→    jobId?: string | null;
+   966→    warehouseId?: string | null;
+   967→    supplier?: string;
+   968→    status?: string;
+   969→    notes?: string;
+   970→    lines: Array<{
+   971→      itemId?: string | null;
+   972→      itemName: string;
+   973→      quantity: number;
+   974→      unit?: string;
+   975→      notes?: string;
+   976→    }>;
+   977→  }) =>
+   978→    request<{ purchase: OutsidePurchase }>("/api/outside-purchases", {
+   979→      method: "POST",
+   980→      body: JSON.stringify(payload),
+   981→    }),
+   982→  update: (id: string, patch: { status?: string; notes?: string; supplier?: string }) =>
+   983→    request<{ purchase: OutsidePurchase }>(`/api/outside-purchases/${id}`, {
+   984→      method: "PUT",
+   985→      body: JSON.stringify(patch),
+   986→    }),
+   987→  remove: (id: string) =>
+   988→    request<{ ok: true }>(`/api/outside-purchases/${id}`, { method: "DELETE" }),
+   989→};
+   990→
+   991→/* ---------------- Inventory Reports ---------------- */
+   992→export interface InventoryReportResult {
+   993→  type: string;
+   994→  title: string;
+   995→  headers: string[];
+   996→  rows: Record<string, unknown>[];
+   997→  generatedAt: string;
+   998→}
+   999→
+  1000→export const inventoryReportsApi = {
+  1001→  get: (params: {
+  1002→    type: "stock-level" | "movement" | "job-wise" | "low-stock";
+  1003→    format?: "json" | "csv";
+  1004→    from?: string;
+  1005→    to?: string;
+  1006→    warehouseId?: string;
+  1007→  }) => {
+  1008→    const qs = new URLSearchParams();
+  1009→    qs.set("type", params.type);
+  1010→    if (params.format) qs.set("format", params.format);
+  1011→    if (params.from) qs.set("from", params.from);
+  1012→    if (params.to) qs.set("to", params.to);
+  1013→    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
+  1014→    return request<InventoryReportResult>(`/api/inventory-reports?${qs.toString()}`);
+  1015→  },
+  1016→  csv: (params: {
+  1017→    type: "stock-level" | "movement" | "job-wise" | "low-stock";
+  1018→    from?: string;
+  1019→    to?: string;
+  1020→    warehouseId?: string;
+  1021→  }) => {
+  1022→    const qs = new URLSearchParams();
+  1023→    qs.set("type", params.type);
+  1024→    qs.set("format", "csv");
+  1025→    if (params.from) qs.set("from", params.from);
+  1026→    if (params.to) qs.set("to", params.to);
+  1027→    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
+  1028→    return fetch(`/api/inventory-reports?${qs.toString()}`).then((r) => r.text());
+  1029→  },
+  1030→};
+  1031→
+  1032→/* ---------------- Customer Statement ---------------- */
+  1033→export interface CustomerStatement {
+  1034→  customer: {
+  1035→    id: string;
+  1036→    name: string;
+  1037→    email: string | null;
+  1038→    phone: string | null;
+  1039→    address: string | null;
+  1040→    createdAt: string;
+  1041→  };
+  1042→  jobs: Array<{
+  1043→    id: string;
+  1044→    orderNumber: string;
+  1045→    title: string;
+  1046→    status: string;
+  1047→    priority: string;
+  1048→    createdAt: string;
+  1049→    deliveryDate: string | null;
+  1050→    archived: boolean;
+  1051→    _count: { measurements: number; cuttingLists: number };
+  1052→  }>;
+  1053→  quotes: SavedQuote[];
+  1054→  summary: {
+  1055→    totalJobs: number;
+  1056→    activeJobs: number;
+  1057→    completedJobs: number;
+  1058→    totalQuotes: number;
+  1059→    acceptedQuotes: number;
+  1060→    pendingQuotes: number;
+  1061→    totalQuoted: number;
+  1062→    totalAccepted: number;
+  1063→  };
+  1064→}
+  1065→
+  1066→export const statementsApi = {
+  1067→  get: (customerId: string) =>
+  1068→    request<CustomerStatement>(`/api/customers/${customerId}/statement`),
+  1069→};
+  1070→
+  1071→/* ---------------- Purchase Orders ---------------- */
+  1072→export interface PurchaseOrderItem {
+  1073→  id: string;
+  1074→  purchaseOrderId: string;
+  1075→  inventoryItemId: string | null;
+  1076→  itemName: string;
+  1077→  quantity: number;
+  1078→  unit: string;
+  1079→  unitCost: number;
+  1080→  lineTotal: number;
+  1081→}
+  1082→
+  1083→export interface PurchaseOrder {
+  1084→  id: string;
+  1085→  poNumber: string;
+  1086→  supplier: string;
+  1087→  status: "draft" | "sent" | "received" | "cancelled";
+  1088→  notes: string | null;
+  1089→  totalCost: number;
+  1090→  currency: string;
+  1091→  expectedDate: string | null;
+  1092→  receivedDate: string | null;
+  1093→  createdAt: string;
+  1094→  updatedAt: string;
+  1095→  items: PurchaseOrderItem[];
+  1096→}
+  1097→
+  1098→export const purchaseOrdersApi = {
+  1099→  list: (params?: { status?: string }) => {
+  1100→    const qs = new URLSearchParams();
+  1101→    if (params?.status) qs.set("status", params.status);
+  1102→    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  1103→    return request<{ orders: PurchaseOrder[] }>(`/api/purchase-orders${suffix}`);
+  1104→  },
+  1105→  create: (payload: {
+  1106→    supplier: string;
+  1107→    status?: string;
+  1108→    notes?: string;
+  1109→    expectedDate?: string;
+  1110→    items: Array<{
+  1111→      inventoryItemId?: string;
+  1112→      itemName: string;
+  1113→      quantity: number;
+  1114→      unit?: string;
+  1115→      unitCost: number;
+  1116→    }>;
+  1117→  }) =>
+  1118→    request<{ order: PurchaseOrder }>("/api/purchase-orders", {
+  1119→      method: "POST",
+  1120→      body: JSON.stringify(payload),
+  1121→    }),
+  1122→  update: (id: string, patch: { status?: string; notes?: string; expectedDate?: string }) =>
+  1123→    request<{ order: PurchaseOrder }>(`/api/purchase-orders/${id}`, {
+  1124→      method: "PUT",
+  1125→      body: JSON.stringify(patch),
+  1126→    }),
+  1127→  remove: (id: string) =>
+  1128→    request<{ ok: true }>(`/api/purchase-orders/${id}`, { method: "DELETE" }),
+  1129→};
+  1130→
+  1131→/* ---------------- Suppliers ---------------- */
+  1132→export interface Supplier {
+  1133→  id: string;
+  1134→  name: string;
+  1135→  contactName: string | null;
+  1136→  email: string | null;
+  1137→  phone: string | null;
+  1138→  address: string | null;
+  1139→  website: string | null;
+  1140→  paymentTerms: string | null;
+  1141→  notes: string | null;
+  1142→  createdAt: string;
+  1143→  updatedAt: string;
+  1144→  inventoryCount?: number;
+  1145→  poCount?: number;
+  1146→}
+  1147→
+  1148→export const suppliersApi = {
+  1149→  list: () => request<{ suppliers: Supplier[] }>("/api/suppliers"),
+  1150→  create: (payload: Partial<Supplier>) =>
+  1151→    request<{ supplier: Supplier }>("/api/suppliers", {
+  1152→      method: "POST",
+  1153→      body: JSON.stringify(payload),
+  1154→    }),
+  1155→  update: (id: string, patch: Partial<Supplier>) =>
+  1156→    request<{ supplier: Supplier }>(`/api/suppliers/${id}`, {
+  1157→      method: "PUT",
+  1158→      body: JSON.stringify(patch),
+  1159→    }),
+  1160→  remove: (id: string) =>
+  1161→    request<{ ok: true }>(`/api/suppliers/${id}`, { method: "DELETE" }),
+  1162→};
+  1163→
+  1164→/* ---------------- Reports ---------------- */
+  1165→export interface ConsumptionReport {
+  1166→  type: "consumption";
+  1167→  dateRange: { from: string; to: string };
+  1168→  sheetSizeSqm: number;
+  1169→  summary: Array<{
+  1170→    material: string;
+  1171→    totalAreaSqm: number;
+  1172→    totalSheets: number;
+  1173→    cuttingListCount: number;
+  1174→    jobCount: number;
+  1175→  }>;
+  1176→  details: Array<{
+  1177→    id: string;
+  1178→    orderNumber: string;
+  1179→    jobTitle: string;
+  1180→    customerName: string;
+  1181→    material: string;
+  1182→    panelName: string | null;
+  1183→    areaSqm: number;
+  1184→    sheets: number;
+  1185→    createdAt: string;
+  1186→  }>;
+  1187→  totals: {
+  1188→    totalAreaSqm: number;
+  1189→    totalSheets: number;
+  1190→    totalCuttingLists: number;
+  1191→    totalJobs: number;
+  1192→  };
+  1193→}
+  1194→
+  1195→export const reportsApi = {
+  1196→  consumption: (params?: { from?: string; to?: string }) => {
+  1197→    const qs = new URLSearchParams();
+  1198→    qs.set("type", "consumption");
+  1199→    if (params?.from) qs.set("from", params.from);
+  1200→    if (params?.to) qs.set("to", params.to);
+  1201→    return request<ConsumptionReport>(`/api/reports?${qs.toString()}`);
+  1202→  },
+  1203→};
+  1204→

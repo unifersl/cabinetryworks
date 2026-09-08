@@ -1,0 +1,809 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { workersApi, attendanceApi, jobsApi, ATTENDANCE_STATUSES, type Worker, type AttendanceRecord } from "@/lib/api";
+     6→import { useAuth } from "@/components/providers";
+     7→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+     8→import { Button } from "@/components/ui/button";
+     9→import { Input } from "@/components/ui/input";
+    10→import { Label } from "@/components/ui/label";
+    11→import { Badge } from "@/components/ui/badge";
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from "@/components/ui/dialog";
+    15→import {
+    16→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    17→} from "@/components/ui/select";
+    18→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    19→import { toast } from "sonner";
+    20→import {
+    21→  Calendar, Users, Plus, Pencil, Trash2, Download, Printer, Loader2,
+    22→  UserPlus, Clock, ChevronLeft, ChevronRight, X, Briefcase,
+    23→} from "lucide-react";
+    24→
+    25→// ---- helpers ----
+    26→function monthLabel(d: Date) {
+    27→  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    28→}
+    29→function daysInMonth(d: Date) {
+    30→  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    31→}
+    32→function pad(n: number) { return String(n).padStart(2, "0"); }
+    33→function fmtMonth(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
+    34→function fmtDate(y: number, m: number, day: number) {
+    35→  return `${y}-${pad(m + 1)}-${pad(day)}`;
+    36→}
+    37→function isWeekend(y: number, m: number, day: number) {
+    38→  const dow = new Date(y, m, day).getDay();
+    39→  return dow === 0 || dow === 6;
+    40→}
+    41→function statusInfo(status: string) {
+    42→  return ATTENDANCE_STATUSES.find((s) => s.value === status) ?? ATTENDANCE_STATUSES[0];
+    43→}
+    44→
+    45→export function AttendanceView() {
+    46→  const { user } = useAuth();
+    47→  const canEdit = user?.role === "Admin" || user?.role === "SuperAdmin";
+    48→  const [tab, setTab] = React.useState("calendar");
+    49→
+    50→  return (
+    51→    <div className="space-y-4">
+    52→      <div className="flex items-center justify-between">
+    53→        <div>
+    54→          <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+    55→            <Calendar className="h-5 w-5 text-primary shrink-0" />
+    56→            <span>Attendance Tracking</span>
+    57→          </h1>
+    58→          <p className="text-xs text-muted-foreground">
+    59→            Worker attendance — factory &amp; on-site — synced with Job Orders
+    60→          </p>
+    61→        </div>
+    62→      </div>
+    63→
+    64→      <Tabs value={tab} onValueChange={setTab}>
+    65→        <TabsList>
+    66→          <TabsTrigger value="calendar" className="gap-1.5 text-xs sm:text-sm">
+    67→            <Calendar className="h-3.5 w-3.5" />
+    68→            Calendar
+    69→          </TabsTrigger>
+    70→          <TabsTrigger value="workers" className="gap-1.5 text-xs sm:text-sm">
+    71→            <Users className="h-3.5 w-3.5" />
+    72→            Workers
+    73→          </TabsTrigger>
+    74→          <TabsTrigger value="summary" className="gap-1.5 text-xs sm:text-sm">
+    75→            <Clock className="h-3.5 w-3.5" />
+    76→            Summary
+    77→          </TabsTrigger>
+    78→        </TabsList>
+    79→
+    80→        <TabsContent value="calendar" className="space-y-4">
+    81→          <CalendarTab canEdit={canEdit} />
+    82→        </TabsContent>
+    83→        <TabsContent value="workers" className="space-y-4">
+    84→          <WorkersTab canEdit={canEdit} />
+    85→        </TabsContent>
+    86→        <TabsContent value="summary" className="space-y-4">
+    87→          <SummaryTab />
+    88→        </TabsContent>
+    89→      </Tabs>
+    90→    </div>
+    91→  );
+    92→}
+    93→
+    94→/* ============================================================
+    95→ *  Calendar Tab — month grid: workers × days
+    96→ * ========================================================== */
+    97→function CalendarTab({ canEdit }: { canEdit: boolean }) {
+    98→  const qc = useQueryClient();
+    99→  const [currentMonth, setCurrentMonth] = React.useState(() => {
+   100→    const d = new Date();
+   101→    return new Date(d.getFullYear(), d.getMonth(), 1);
+   102→  });
+   103→  const [selectedJob, setSelectedJob] = React.useState<string>("all");
+   104→  const [editingCell, setEditingCell] = React.useState<{
+   105→    workerId: string;
+   106→    workerName: string;
+   107→    date: string;
+   108→    record?: AttendanceRecord;
+   109→  } | null>(null);
+   110→
+   111→  const y = currentMonth.getFullYear();
+   112→  const m = currentMonth.getMonth();
+   113→  const dim = daysInMonth(currentMonth);
+   114→  const days = Array.from({ length: dim }, (_, i) => i + 1);
+   115→
+   116→  const { data: workersData } = useQuery({
+   117→    queryKey: ["workers", "active"],
+   118→    queryFn: () => workersApi.list({ status: "active" }),
+   119→  });
+   120→  const workers = workersData?.workers ?? [];
+   121→
+   122→  const { data: jobsData } = useQuery({
+   123→    queryKey: ["jobs", "for-attendance"],
+   124→    queryFn: () => jobsApi.list(),
+   125→  });
+   126→  const jobs = (jobsData as any)?.jobs ?? [];
+   127→
+   128→  const { data: attData, isLoading } = useQuery({
+   129→    queryKey: ["attendance", "month", fmtMonth(currentMonth)],
+   130→    queryFn: () => attendanceApi.list({ month: fmtMonth(currentMonth) }),
+   131→  });
+   132→
+   133→  const records = attData?.records ?? [];
+   134→  const summary = attData?.summary ?? [];
+   135→
+   136→  // Build lookup: { workerId_date: record }
+   137→  const recordMap = React.useMemo(() => {
+   138→    const map: Record<string, AttendanceRecord> = {};
+   139→    for (const r of records) {
+   140→      const d = new Date(r.date);
+   141→      const key = `${r.workerId}_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+   142→      map[key] = r;
+   143→    }
+   144→    return map;
+   145→  }, [records]);
+   146→
+   147→  // Summary lookup by workerId
+   148→  const summaryMap = React.useMemo(() => {
+   149→    const map: Record<string, any> = {};
+   150→    for (const s of summary) map[s.workerId] = s;
+   151→    return map;
+   152→  }, [summary]);
+   153→
+   154→  const upsertMut = useMutation({
+   155→    mutationFn: (payload: Partial<AttendanceRecord> & { workerId: string; date: string }) =>
+   156→      attendanceApi.upsert(payload),
+   157→    onSuccess: () => {
+   158→      qc.invalidateQueries({ queryKey: ["attendance", "month", fmtMonth(currentMonth)] });
+   159→    },
+   160→    onError: () => toast.error("Failed to save attendance"),
+   161→  });
+   162→
+   163→  function quickSet(workerId: string, workerName: string, day: number, status: string) {
+   164→    if (!canEdit) return;
+   165→    const date = fmtDate(y, m, day);
+   166→    const existing = recordMap[`${workerId}_${date}`];
+   167→    upsertMut.mutate({
+   168→      workerId,
+   169→      date,
+   170→      status,
+   171→      clockIn: existing?.clockIn ?? null,
+   172→      clockOut: existing?.clockOut ?? null,
+   173→      jobId: selectedJob !== "all" ? selectedJob : existing?.jobId ?? null,
+   174→    });
+   175→  }
+   176→
+   177→  function exportCSV() {
+   178→    const header = ["Worker", "Code", "Role", ...days.map((d) => pad(d)), "Total Days", "Total Hours"];
+   179→    const rows = workers.map((w) => {
+   180→      const s = summaryMap[w.id];
+   181→      const cells = days.map((d) => {
+   182→        const r = recordMap[`${w.id}_${fmtDate(y, m, d)}`];
+   183→        return r ? statusInfo(r.status).symbol : "";
+   184→      });
+   185→      return [w.name, w.code ?? "", w.role ?? "", ...cells, String(s?.totalDays ?? 0), String(s?.totalHours ?? 0)];
+   186→    });
+   187→    const csv = [header, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+   188→    const blob = new Blob([csv], { type: "text/csv" });
+   189→    const url = URL.createObjectURL(blob);
+   190→    const a = document.createElement("a");
+   191→    a.href = url;
+   192→    a.download = `attendance-${fmtMonth(currentMonth)}.csv`;
+   193→    a.click();
+   194→    URL.revokeObjectURL(url);
+   195→  }
+   196→
+   197→  function printReport() {
+   198→    const w = window.open("", "_blank");
+   199→    if (!w) return;
+   200→    const rows = workers.map((wk) => {
+   201→      const s = summaryMap[wk.id];
+   202→      const cells = days.map((d) => {
+   203→        const r = recordMap[`${wk.id}_${fmtDate(y, m, d)}`];
+   204→        return `<td style="text-align:center">${r ? statusInfo(r.status).symbol : ""}</td>`;
+   205→      }).join("");
+   206→      return `<tr><td>${wk.name}</td><td>${wk.code ?? ""}</td>${cells}<td style="text-align:center;font-weight:bold">${s?.totalDays ?? 0}</td><td style="text-align:center;font-weight:bold">${s?.totalHours ?? 0}</td></tr>`;
+   207→    }).join("");
+   208→    const dayHeaders = days.map((d) => `<th style="width:28px">${d}</th>`).join("");
+   209→    w.document.write(`<html><head><title>Attendance ${monthLabel(currentMonth)}</title>
+   210→      <style>body{font-family:Arial;padding:16px;font-size:10px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:2px 3px}th{background:#f0f0f0}h1{font-size:16px}</style>
+   211→      </head><body><h1>Attendance — ${monthLabel(currentMonth)}</h1>
+   212→      <table><tr><th>Worker</th><th>Code</th>${dayHeaders}<th>Days</th><th>Hrs</th></tr>${rows}</table>
+   213→      <p style="margin-top:12px">Legend: P=Present A=Absent H=Half Day SL=Short Leave FL=Full Leave S=Sick HO=Holiday</p>
+   214→      </body></html>`);
+   215→    w.document.close();
+   216→    w.print();
+   217→  }
+   218→
+   219→  return (
+   220→    <div className="space-y-3">
+   221→      {/* Toolbar */}
+   222→      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+   223→        <div className="flex items-center gap-1">
+   224→          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
+   225→            <ChevronLeft className="h-4 w-4" />
+   226→          </Button>
+   227→          <span className="min-w-[140px] text-center text-sm font-semibold">{monthLabel(currentMonth)}</span>
+   228→          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>
+   229→            <ChevronRight className="h-4 w-4" />
+   230→          </Button>
+   231→          <Button variant="ghost" size="sm" className="h-8 ml-1" onClick={() => { const d = new Date(); setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>
+   232→            Today
+   233→          </Button>
+   234→        </div>
+   235→
+   236→        <div className="flex items-center gap-2 ml-auto">
+   237→          <Select value={selectedJob} onValueChange={setSelectedJob}>
+   238→            <SelectTrigger className="h-8 w-48 text-xs">
+   239→              <Briefcase className="h-3 w-3 mr-1" />
+   240→              <SelectValue />
+   241→            </SelectTrigger>
+   242→            <SelectContent>
+   243→              <SelectItem value="all">All jobs</SelectItem>
+   244→              {jobs.map((j: any) => (
+   245→                <SelectItem key={j.id} value={j.id}>{j.orderNumber} — {j.title}</SelectItem>
+   246→              ))}
+   247→            </SelectContent>
+   248→          </Select>
+   249→          <Button variant="outline" size="sm" className="h-8" onClick={exportCSV} disabled={workers.length === 0}>
+   250→            <Download className="mr-1 h-3.5 w-3.5" /> CSV
+   251→          </Button>
+   252→          <Button variant="outline" size="sm" className="h-8" onClick={printReport} disabled={workers.length === 0}>
+   253→            <Printer className="mr-1 h-3.5 w-3.5" /> Print
+   254→          </Button>
+   255→        </div>
+   256→      </div>
+   257→
+   258→      {/* Legend */}
+   259→      <div className="flex flex-wrap items-center gap-2 text-xs">
+   260→        <span className="text-muted-foreground">Legend:</span>
+   261→        {ATTENDANCE_STATUSES.map((s) => (
+   262→          <span key={s.value} className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${s.color}`}>
+   263→            {s.symbol} = {s.label}
+   264→          </span>
+   265→        ))}
+   266→        <span className="ml-auto text-muted-foreground">
+   267→          {workers.length} workers · Click a cell to set status
+   268→        </span>
+   269→      </div>
+   270→
+   271→      {/* Calendar grid */}
+   272→      {isLoading ? (
+   273→        <div className="flex items-center justify-center py-12">
+   274→          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+   275→        </div>
+   276→      ) : workers.length === 0 ? (
+   277→        <div className="flex flex-col items-center gap-3 py-12 text-center">
+   278→          <div className="rounded-full bg-muted p-4">
+   279→            <Users className="h-8 w-8 text-muted-foreground" />
+   280→          </div>
+   281→          <div>
+   282→            <p className="font-medium">No workers yet</p>
+   283→            <p className="text-sm text-muted-foreground">Add workers in the Workers tab to start tracking attendance.</p>
+   284→          </div>
+   285→        </div>
+   286→      ) : (
+   287→        <div className="overflow-x-auto rounded-lg border border-border">
+   288→          <table className="w-full border-collapse text-xs">
+   289→            <thead>
+   290→              <tr className="bg-muted/50">
+   291→                <th className="sticky left-0 z-10 border-b border-r border-border bg-muted/50 px-2 py-1.5 text-left font-semibold min-w-[140px]">Worker</th>
+   292→                {days.map((d) => (
+   293→                  <th key={d} className={`border-b border-r border-border px-0.5 py-1 text-center font-mono text-[10px] ${isWeekend(y, m, d) ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}>
+   294→                    {d}
+   295→                  </th>
+   296→                ))}
+   297→                <th className="border-b border-l border-border px-2 py-1 text-center font-semibold">Σ Days</th>
+   298→                <th className="border-b border-l border-border px-2 py-1 text-center font-semibold">Σ Hrs</th>
+   299→              </tr>
+   300→            </thead>
+   301→            <tbody>
+   302→              {workers.map((w) => {
+   303→                const s = summaryMap[w.id];
+   304→                return (
+   305→                  <tr key={w.id} className="hover:bg-muted/20">
+   306→                    <td className="sticky left-0 z-10 border-r border-border bg-card px-2 py-1">
+   307→                      <div className="font-medium truncate">{w.name}</div>
+   308→                      <div className="text-[9px] text-muted-foreground">{w.code ?? ""} {w.role ? `· ${w.role}` : ""}</div>
+   309→                    </td>
+   310→                    {days.map((d) => {
+   311→                      const date = fmtDate(y, m, d);
+   312→                      const r = recordMap[`${w.id}_${date}`];
+   313→                      const si = r ? statusInfo(r.status) : null;
+   314→                      return (
+   315→                        <td
+   316→                          key={d}
+   317→                          className={`border-r border-border p-0 text-center ${isWeekend(y, m, d) ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}
+   318→                        >
+   319→                          <button
+   320→                            disabled={!canEdit}
+   321→                            onClick={() => setEditingCell({ workerId: w.id, workerName: w.name, date, record: r })}
+   322→                            className={`flex h-7 w-full items-center justify-center text-[10px] font-bold transition-colors ${
+   323→                              si ? si.color : "text-transparent hover:bg-muted"
+   324→                            } ${canEdit ? "cursor-pointer" : "cursor-default"}`}
+   325→                            title={r ? `${si?.label}${r.clockIn ? ` · ${r.clockIn}-${r.clockOut}` : ""}${r.hoursWorked ? ` · ${r.hoursWorked}h` : ""}` : "Click to set"}
+   326→                          >
+   327→                            {si?.symbol ?? ""}
+   328→                          </button>
+   329→                        </td>
+   330→                      );
+   331→                    })}
+   332→                    <td className="border-l border-border px-2 py-1 text-center font-bold tabular-nums">{s?.totalDays ?? 0}</td>
+   333→                    <td className="border-l border-border px-2 py-1 text-center font-bold tabular-nums">{s?.totalHours ?? 0}</td>
+   334→                  </tr>
+   335→                );
+   336→              })}
+   337→            </tbody>
+   338→          </table>
+   339→        </div>
+   340→      )}
+   341→
+   342→      {/* Quick-set buttons (for selected worker/day) */}
+   343→      {canEdit && editingCell && (
+   344→        <CellEditDialog
+   345→          cell={editingCell}
+   346→          jobs={jobs}
+   347→          onClose={() => setEditingCell(null)}
+   348→          onSave={(payload) => {
+   349→            upsertMut.mutate(payload);
+   350→            setEditingCell(null);
+   351→          }}
+   352→          onClear={() => {
+   353→            if (editingCell.record) {
+   354→              attendanceApi.remove(editingCell.record.id).then(() => {
+   355→                qc.invalidateQueries({ queryKey: ["attendance", "month", fmtMonth(currentMonth)] });
+   356→                toast.success("Attendance cleared");
+   357→              });
+   358→            }
+   359→            setEditingCell(null);
+   360→          }}
+   361→        />
+   362→      )}
+   363→    </div>
+   364→  );
+   365→}
+   366→
+   367→/* ---- Cell edit dialog — click a cell to open ---- */
+   368→function CellEditDialog({
+   369→  cell,
+   370→  jobs,
+   371→  onClose,
+   372→  onSave,
+   373→  onClear,
+   374→}: {
+   375→  cell: { workerId: string; workerName: string; date: string; record?: AttendanceRecord };
+   376→  jobs: any[];
+   377→  onClose: () => void;
+   378→  onSave: (payload: Partial<AttendanceRecord> & { workerId: string; date: string }) => void;
+   379→  onClear: () => void;
+   380→}) {
+   381→  const [status, setStatus] = React.useState(cell.record?.status ?? "present");
+   382→  const [clockIn, setClockIn] = React.useState(cell.record?.clockIn ?? "08:00");
+   383→  const [clockOut, setClockOut] = React.useState(cell.record?.clockOut ?? "17:00");
+   384→  const [breakStart, setBreakStart] = React.useState(cell.record?.breakStart ?? "12:00");
+   385→  const [breakEnd, setBreakEnd] = React.useState(cell.record?.breakEnd ?? "12:30");
+   386→  const [jobId, setJobId] = React.useState(cell.record?.jobId ?? "none");
+   387→  const [workLocation, setWorkLocation] = React.useState(cell.record?.workLocation ?? "");
+   388→  const [notes, setNotes] = React.useState(cell.record?.notes ?? "");
+   389→
+   390→  // Auto-calc hours preview
+   391→  function calcHours() {
+   392→    const toMin = (t: string) => { const m = t.match(/^(\d{1,2}):(\d{2})$/); return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null; };
+   393→    const ci = toMin(clockIn); const co = toMin(clockOut);
+   394→    if (ci === null || co === null || co <= ci) return 0;
+   395→    let gross = co - ci;
+   396→    const bs = toMin(breakStart); const be = toMin(breakEnd);
+   397→    if (bs !== null && be !== null && be > bs) gross -= (be - bs);
+   398→    return Math.round((gross / 60) * 100) / 100;
+   399→  }
+   400→
+   401→  const hours = calcHours();
+   402→
+   403→  function handleSave() {
+   404→    onSave({
+   405→      workerId: cell.workerId,
+   406→      date: cell.date,
+   407→      status,
+   408→      clockIn: clockIn || null,
+   409→      clockOut: clockOut || null,
+   410→      breakStart: breakStart || null,
+   411→      breakEnd: breakEnd || null,
+   412→      jobId: jobId && jobId !== "none" ? jobId : null,
+   413→      workLocation: workLocation || null,
+   414→      notes: notes || null,
+   415→    });
+   416→  }
+   417→
+   418→  return (
+   419→    <Dialog open onOpenChange={(o) => !o && onClose()}>
+   420→      <DialogContent showCloseButton={false} aria-describedby={undefined} className="sm:max-w-[420px]">
+   421→        <DialogHeader>
+   422→          <DialogTitle className="flex items-center gap-2">
+   423→            <Clock className="h-5 w-5 text-primary" />
+   424→            {cell.workerName}
+   425→          </DialogTitle>
+   426→          <DialogDescription>
+   427→            {new Date(cell.date).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+   428→          </DialogDescription>
+   429→        </DialogHeader>
+   430→
+   431→        <div className="space-y-3 py-2">
+   432→          {/* Status — click-to-select buttons */}
+   433→          <div className="space-y-1.5">
+   434→            <Label className="text-xs">Status</Label>
+   435→            <div className="flex flex-wrap gap-1">
+   436→              {ATTENDANCE_STATUSES.map((s) => (
+   437→                <button
+   438→                  key={s.value}
+   439→                  onClick={() => setStatus(s.value)}
+   440→                  className={`rounded border px-2 py-1 text-[11px] font-bold transition-all ${
+   441→                    status === s.value ? `${s.color} ring-2 ring-offset-1 ring-primary` : "border-border bg-card text-muted-foreground hover:bg-muted"
+   442→                  }`}
+   443→                >
+   444→                  {s.symbol} {s.label}
+   445→                </button>
+   446→              ))}
+   447→            </div>
+   448→          </div>
+   449→
+   450→          {/* Time fields */}
+   451→          <div className="grid grid-cols-2 gap-2">
+   452→            <div className="space-y-1">
+   453→              <Label className="text-xs">Time In</Label>
+   454→              <Input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} className="h-9 text-sm" />
+   455→            </div>
+   456→            <div className="space-y-1">
+   457→              <Label className="text-xs">Time Out</Label>
+   458→              <Input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} className="h-9 text-sm" />
+   459→            </div>
+   460→            <div className="space-y-1">
+   461→              <Label className="text-xs">Break Start</Label>
+   462→              <Input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="h-9 text-sm" />
+   463→            </div>
+   464→            <div className="space-y-1">
+   465→              <Label className="text-xs">Break End</Label>
+   466→              <Input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="h-9 text-sm" />
+   467→            </div>
+   468→          </div>
+   469→
+   470→          {/* Hours preview */}
+   471→          <div className="rounded-md bg-primary/5 border border-primary/20 px-3 py-2 text-center">
+   472→            <span className="text-xs text-muted-foreground">Net Hours: </span>
+   473→            <span className="text-lg font-bold text-primary tabular-nums">{hours}h</span>
+   474→          </div>
+   475→
+   476→          {/* Job link */}
+   477→          <div className="space-y-1">
+   478→            <Label className="text-xs">Job / Project (for onsite work)</Label>
+   479→            <Select value={jobId} onValueChange={setJobId}>
+   480→              <SelectTrigger className="h-9 text-sm">
+   481→                <SelectValue placeholder="Select job…" />
+   482→              </SelectTrigger>
+   483→              <SelectContent>
+   484→                <SelectItem value="none">— No job —</SelectItem>
+   485→                {jobs.map((j: any) => (
+   486→                  <SelectItem key={j.id} value={j.id}>{j.orderNumber} — {j.title}</SelectItem>
+   487→                ))}
+   488→              </SelectContent>
+   489→            </Select>
+   490→          </div>
+   491→
+   492→          <div className="space-y-1">
+   493→            <Label className="text-xs">Work Location</Label>
+   494→            <Input placeholder="e.g. Factory / Site A" value={workLocation} onChange={(e) => setWorkLocation(e.target.value)} className="h-9 text-sm" />
+   495→          </div>
+   496→
+   497→          <div className="space-y-1">
+   498→            <Label className="text-xs">Notes</Label>
+   499→            <Input placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} className="h-9 text-sm" />
+   500→          </div>
+   501→        </div>
+   502→
+   503→        <DialogFooter>
+   504→          {cell.record && (
+   505→            <Button variant="outline" size="sm" className="text-destructive mr-auto" onClick={onClear}>
+   506→              <Trash2 className="mr-1 h-3.5 w-3.5" /> Clear
+   507→            </Button>
+   508→          )}
+   509→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   510→          <Button onClick={handleSave}>Save</Button>
+   511→        </DialogFooter>
+   512→      </DialogContent>
+   513→    </Dialog>
+   514→  );
+   515→}
+   516→
+   517→/* ============================================================
+   518→ *  Workers Tab — CRUD
+   519→ * ========================================================== */
+   520→function WorkersTab({ canEdit }: { canEdit: boolean }) {
+   521→  const qc = useQueryClient();
+   522→  const [dialogOpen, setDialogOpen] = React.useState(false);
+   523→  const [editing, setEditing] = React.useState<Worker | null>(null);
+   524→
+   525→  const { data, isLoading } = useQuery({
+   526→    queryKey: ["workers"],
+   527→    queryFn: () => workersApi.list(),
+   528→  });
+   529→  const workers = data?.workers ?? [];
+   530→
+   531→  const createMut = useMutation({
+   532→    mutationFn: (p: Partial<Worker> & { name: string }) => workersApi.create(p),
+   533→    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workers"] }); qc.invalidateQueries({ queryKey: ["workers", "active"] }); toast.success("Worker added"); setDialogOpen(false); },
+   534→  });
+   535→  const updateMut = useMutation({
+   536→    mutationFn: ({ id, patch }: { id: string; patch: Partial<Worker> }) => workersApi.update(id, patch),
+   537→    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workers"] }); qc.invalidateQueries({ queryKey: ["workers", "active"] }); toast.success("Worker updated"); setDialogOpen(false); },
+   538→  });
+   539→  const deleteMut = useMutation({
+   540→    mutationFn: (id: string) => workersApi.remove(id),
+   541→    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workers"] }); qc.invalidateQueries({ queryKey: ["workers", "active"] }); toast.success("Worker deleted"); },
+   542→  });
+   543→
+   544→  return (
+   545→    <div className="space-y-3">
+   546→      <div className="flex items-center justify-between">
+   547→        <div>
+   548→          <h3 className="text-lg font-semibold">Workers ({workers.length})</h3>
+   549→          <p className="text-sm text-muted-foreground">Manage workers for attendance tracking</p>
+   550→        </div>
+   551→        {canEdit && (
+   552→          <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }}>
+   553→            <UserPlus className="mr-1.5 h-4 w-4" /> Add Worker
+   554→          </Button>
+   555→        )}
+   556→      </div>
+   557→
+   558→      {isLoading ? (
+   559→        <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+   560→      ) : workers.length === 0 ? (
+   561→        <div className="flex flex-col items-center gap-3 py-12 text-center">
+   562→          <div className="rounded-full bg-muted p-4"><Users className="h-8 w-8 text-muted-foreground" /></div>
+   563→          <div><p className="font-medium">No workers yet</p><p className="text-sm text-muted-foreground">Add workers to start tracking attendance.</p></div>
+   564→          {canEdit && <Button onClick={() => { setEditing(null); setDialogOpen(true); }}><UserPlus className="mr-2 h-4 w-4" /> Add First Worker</Button>}
+   565→        </div>
+   566→      ) : (
+   567→        <div className="overflow-x-auto rounded-lg border border-border">
+   568→          <table className="w-full text-sm">
+   569→            <thead className="bg-muted/50">
+   570→              <tr>
+   571→                <th className="px-3 py-2 text-left font-semibold">Code</th>
+   572→                <th className="px-3 py-2 text-left font-semibold">Name</th>
+   573→                <th className="px-3 py-2 text-left font-semibold">Role</th>
+   574→                <th className="px-3 py-2 text-left font-semibold">Type</th>
+   575→                <th className="px-3 py-2 text-left font-semibold">Phone</th>
+   576→                <th className="px-3 py-2 text-right font-semibold">Rate/hr</th>
+   577→                <th className="px-3 py-2 text-center font-semibold">Status</th>
+   578→                {canEdit && <th className="px-3 py-2 text-right font-semibold">Actions</th>}
+   579→              </tr>
+   580→            </thead>
+   581→            <tbody>
+   582→              {workers.map((w) => (
+   583→                <tr key={w.id} className="border-t border-border hover:bg-muted/20">
+   584→                  <td className="px-3 py-2 font-mono text-xs">{w.code ?? "—"}</td>
+   585→                  <td className="px-3 py-2 font-medium">{w.name}</td>
+   586→                  <td className="px-3 py-2 text-xs">{w.role ?? "—"}</td>
+   587→                  <td className="px-3 py-2"><Badge variant="outline" className="text-[10px]">{w.type}</Badge></td>
+   588→                  <td className="px-3 py-2 text-xs">{w.phone ?? "—"}</td>
+   589→                  <td className="px-3 py-2 text-right font-mono">{w.hourlyRate > 0 ? `${w.hourlyRate.toLocaleString()}` : "—"}</td>
+   590→                  <td className="px-3 py-2 text-center"><Badge variant={w.status === "active" ? "default" : "secondary"} className="text-[10px]">{w.status}</Badge></td>
+   591→                  {canEdit && (
+   592→                    <td className="px-3 py-2 text-right">
+   593→                      <div className="flex justify-end gap-1">
+   594→                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(w); setDialogOpen(true); }}><Pencil className="h-3 w-3" /></Button>
+   595→                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate(w.id)}><Trash2 className="h-3 w-3" /></Button>
+   596→                      </div>
+   597→                    </td>
+   598→                  )}
+   599→                </tr>
+   600→              ))}
+   601→            </tbody>
+   602→          </table>
+   603→        </div>
+   604→      )}
+   605→
+   606→      {dialogOpen && (
+   607→        <WorkerDialog
+   608→          worker={editing}
+   609→          onClose={() => setDialogOpen(false)}
+   610→          onSubmit={(p) => editing ? updateMut.mutate({ id: editing.id, patch: p }) : createMut.mutate(p as any)}
+   611→          loading={createMut.isPending || updateMut.isPending}
+   612→        />
+   613→      )}
+   614→    </div>
+   615→  );
+   616→}
+   617→
+   618→function WorkerDialog({ worker, onClose, onSubmit, loading }: {
+   619→  worker: Worker | null;
+   620→  onClose: () => void;
+   621→  onSubmit: (p: Partial<Worker> & { name: string }) => void;
+   622→  loading: boolean;
+   623→}) {
+   624→  const [name, setName] = React.useState(worker?.name ?? "");
+   625→  const [code, setCode] = React.useState(worker?.code ?? "");
+   626→  const [role, setRole] = React.useState(worker?.role ?? "");
+   627→  const [phone, setPhone] = React.useState(worker?.phone ?? "");
+   628→  const [type, setType] = React.useState(worker?.type ?? "factory");
+   629→  const [status, setStatus] = React.useState(worker?.status ?? "active");
+   630→  const [hourlyRate, setHourlyRate] = React.useState(worker ? String(worker.hourlyRate) : "");
+   631→
+   632→  function save() {
+   633→    if (!name.trim()) { toast.error("Name is required"); return; }
+   634→    onSubmit({
+   635→      name: name.trim(),
+   636→      code: code.trim() || undefined,
+   637→      role: role.trim() || undefined,
+   638→      phone: phone.trim() || undefined,
+   639→      type, status,
+   640→      hourlyRate: hourlyRate ? Number(hourlyRate) : 0,
+   641→    });
+   642→  }
+   643→
+   644→  return (
+   645→    <Dialog open onOpenChange={(o) => !o && onClose()}>
+   646→      <DialogContent showCloseButton={false} aria-describedby={undefined} className="sm:max-w-[420px]">
+   647→        <DialogHeader>
+   648→          <DialogTitle>{worker ? "Edit Worker" : "Add Worker"}</DialogTitle>
+   649→        </DialogHeader>
+   650→        <div className="grid grid-cols-2 gap-3 py-2">
+   651→          <div className="space-y-1">
+   652→            <Label className="text-xs">Name *</Label>
+   653→            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm" autoFocus />
+   654→          </div>
+   655→          <div className="space-y-1">
+   656→            <Label className="text-xs">Code</Label>
+   657→            <Input placeholder="W001" value={code} onChange={(e) => setCode(e.target.value)} className="h-9 text-sm" />
+   658→          </div>
+   659→          <div className="space-y-1">
+   660→            <Label className="text-xs">Role</Label>
+   661→            <Input placeholder="Carpenter" value={role} onChange={(e) => setRole(e.target.value)} className="h-9 text-sm" />
+   662→          </div>
+   663→          <div className="space-y-1">
+   664→            <Label className="text-xs">Phone</Label>
+   665→            <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="h-9 text-sm" />
+   666→          </div>
+   667→          <div className="space-y-1">
+   668→            <Label className="text-xs">Type</Label>
+   669→            <Select value={type} onValueChange={setType}>
+   670→              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   671→              <SelectContent>
+   672→                <SelectItem value="factory">Factory</SelectItem>
+   673→                <SelectItem value="onsite">On-site</SelectItem>
+   674→                <SelectItem value="both">Both</SelectItem>
+   675→              </SelectContent>
+   676→            </Select>
+   677→          </div>
+   678→          <div className="space-y-1">
+   679→            <Label className="text-xs">Status</Label>
+   680→            <Select value={status} onValueChange={setStatus}>
+   681→              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+   682→              <SelectContent>
+   683→                <SelectItem value="active">Active</SelectItem>
+   684→                <SelectItem value="inactive">Inactive</SelectItem>
+   685→              </SelectContent>
+   686→            </Select>
+   687→          </div>
+   688→          <div className="col-span-2 space-y-1">
+   689→            <Label className="text-xs">Hourly Rate (LKR)</Label>
+   690→            <Input type="number" min="0" placeholder="0" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} className="h-9 text-sm" />
+   691→          </div>
+   692→        </div>
+   693→        <DialogFooter>
+   694→          <Button variant="outline" onClick={onClose}>Cancel</Button>
+   695→          <Button onClick={save} disabled={loading}>{loading && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{worker ? "Update" : "Add"} Worker</Button>
+   696→        </DialogFooter>
+   697→      </DialogContent>
+   698→    </Dialog>
+   699→  );
+   700→}
+   701→
+   702→/* ============================================================
+   703→ *  Summary Tab — monthly per-worker summary
+   704→ * ========================================================== */
+   705→function SummaryTab() {
+   706→  const [currentMonth, setCurrentMonth] = React.useState(() => {
+   707→    const d = new Date();
+   708→    return new Date(d.getFullYear(), d.getMonth(), 1);
+   709→  });
+   710→
+   711→  const { data, isLoading } = useQuery({
+   712→    queryKey: ["attendance", "month", fmtMonth(currentMonth)],
+   713→    queryFn: () => attendanceApi.list({ month: fmtMonth(currentMonth) }),
+   714→  });
+   715→  const summary = data?.summary ?? [];
+   716→
+   717→  function exportCSV() {
+   718→    const rows = [
+   719→      ["Worker", "Present", "Absent", "Half Day", "Short Leave", "Full Leave", "Sick", "Holiday", "Total Days", "Total Hours"],
+   720→      ...summary.map((s) => [s.workerName, String(s.present), String(s.absent), String(s.halfDay), String(s.shortLeave), String(s.fullLeave), String(s.sick), String(s.holiday), String(s.totalDays), String(s.totalHours)]),
+   721→    ];
+   722→    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+   723→    const blob = new Blob([csv], { type: "text/csv" });
+   724→    const url = URL.createObjectURL(blob);
+   725→    const a = document.createElement("a");
+   726→    a.href = url;
+   727→    a.download = `attendance-summary-${fmtMonth(currentMonth)}.csv`;
+   728→    a.click();
+   729→    URL.revokeObjectURL(url);
+   730→  }
+   731→
+   732→  return (
+   733→    <div className="space-y-3">
+   734→      <div className="flex flex-wrap items-center justify-between gap-2">
+   735→        <div className="flex items-center gap-1">
+   736→          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>
+   737→            <ChevronLeft className="h-4 w-4" />
+   738→          </Button>
+   739→          <span className="min-w-[140px] text-center text-sm font-semibold">{monthLabel(currentMonth)}</span>
+   740→          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>
+   741→            <ChevronRight className="h-4 w-4" />
+   742→          </Button>
+   743→        </div>
+   744→        <Button variant="outline" size="sm" className="h-8" onClick={exportCSV} disabled={summary.length === 0}>
+   745→          <Download className="mr-1 h-3.5 w-3.5" /> Export CSV
+   746→        </Button>
+   747→      </div>
+   748→
+   749→      {isLoading ? (
+   750→        <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+   751→      ) : summary.length === 0 ? (
+   752→        <div className="flex flex-col items-center gap-3 py-12 text-center">
+   753→          <div className="rounded-full bg-muted p-4"><Clock className="h-8 w-8 text-muted-foreground" /></div>
+   754→          <div><p className="font-medium">No attendance data</p><p className="text-sm text-muted-foreground">No records for {monthLabel(currentMonth)}.</p></div>
+   755→        </div>
+   756→      ) : (
+   757→        <div className="overflow-x-auto rounded-lg border border-border">
+   758→          <table className="w-full text-sm">
+   759→            <thead className="bg-muted/50">
+   760→              <tr>
+   761→                <th className="px-3 py-2 text-left font-semibold">Worker</th>
+   762→                <th className="px-2 py-2 text-center font-semibold"><span className="text-green-600">P</span></th>
+   763→                <th className="px-2 py-2 text-center font-semibold"><span className="text-red-600">A</span></th>
+   764→                <th className="px-2 py-2 text-center font-semibold"><span className="text-amber-600">H</span></th>
+   765→                <th className="px-2 py-2 text-center font-semibold"><span className="text-sky-600">SL</span></th>
+   766→                <th className="px-2 py-2 text-center font-semibold"><span className="text-purple-600">FL</span></th>
+   767→                <th className="px-2 py-2 text-center font-semibold"><span className="text-orange-600">S</span></th>
+   768→                <th className="px-2 py-2 text-center font-semibold"><span className="text-slate-600">HO</span></th>
+   769→                <th className="px-3 py-2 text-center font-semibold">Days</th>
+   770→                <th className="px-3 py-2 text-center font-semibold">Hours</th>
+   771→              </tr>
+   772→            </thead>
+   773→            <tbody>
+   774→              {summary.map((s) => (
+   775→                <tr key={s.workerId} className="border-t border-border hover:bg-muted/20">
+   776→                  <td className="px-3 py-2 font-medium">{s.workerName}</td>
+   777→                  <td className="px-2 py-2 text-center tabular-nums">{s.present || ""}</td>
+   778→                  <td className="px-2 py-2 text-center tabular-nums">{s.absent || ""}</td>
+   779→                  <td className="px-2 py-2 text-center tabular-nums">{s.halfDay || ""}</td>
+   780→                  <td className="px-2 py-2 text-center tabular-nums">{s.shortLeave || ""}</td>
+   781→                  <td className="px-2 py-2 text-center tabular-nums">{s.fullLeave || ""}</td>
+   782→                  <td className="px-2 py-2 text-center tabular-nums">{s.sick || ""}</td>
+   783→                  <td className="px-2 py-2 text-center tabular-nums">{s.holiday || ""}</td>
+   784→                  <td className="px-3 py-2 text-center font-bold tabular-nums">{s.totalDays}</td>
+   785→                  <td className="px-3 py-2 text-center font-bold tabular-nums">{s.totalHours}</td>
+   786→                </tr>
+   787→              ))}
+   788→            </tbody>
+   789→            <tfoot>
+   790→              <tr className="border-t-2 border-border bg-muted/30 font-bold">
+   791→                <td className="px-3 py-2">Total</td>
+   792→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.present, 0)}</td>
+   793→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.absent, 0)}</td>
+   794→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.halfDay, 0)}</td>
+   795→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.shortLeave, 0)}</td>
+   796→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.fullLeave, 0)}</td>
+   797→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.sick, 0)}</td>
+   798→                <td className="px-2 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.holiday, 0)}</td>
+   799→                <td className="px-3 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.totalDays, 0)}</td>
+   800→                <td className="px-3 py-2 text-center tabular-nums">{summary.reduce((a, s) => a + s.totalHours, 0)}</td>
+   801→              </tr>
+   802→            </tfoot>
+   803→          </table>
+   804→        </div>
+   805→      )}
+   806→    </div>
+   807→  );
+   808→}
+   809→

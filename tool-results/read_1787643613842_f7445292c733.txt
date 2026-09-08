@@ -1,0 +1,889 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useQueryClient } from "@tanstack/react-query";
+     5→import { jobsApi, measurementsApi, cuttingListsApi, usersApi } from "@/lib/api";
+     6→import type { JobStatus, Priority, CuttingListItem } from "@/lib/types";
+     7→import {
+     8→  Sheet,
+     9→  SheetContent,
+    10→  SheetTitle,
+    11→} from "@/components/ui/sheet";
+    12→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    13→import { Badge } from "@/components/ui/badge";
+    14→import { Button } from "@/components/ui/button";
+    15→import {
+    16→  Select,
+    17→  SelectContent,
+    18→  SelectItem,
+    19→  SelectTrigger,
+    20→  SelectValue,
+    21→} from "@/components/ui/select";
+    22→import {
+    23→  Table,
+    24→  TableBody,
+    25→  TableCell,
+    26→  TableHead,
+    27→  TableHeader,
+    28→  TableRow,
+    29→} from "@/components/ui/table";
+    30→import { useAuth } from "@/components/providers";
+    31→import { toast } from "sonner";
+    32→import {
+    33→  X,
+    34→  Loader2,
+    35→  Calendar,
+    36→  User as UserIcon,
+    37→  Phone,
+    38→  Mail,
+    39→  MapPin,
+    40→  Ruler,
+    41→  Scissors,
+    42→  ClipboardList,
+    43→  Clock,
+    44→  FileText,
+    45→  Package,
+    46→  ArrowDownToLine,
+    47→  DoorOpen,
+    48→  Printer,
+    49→  CheckCircle2,
+    50→  AlertCircle,
+    51→  Plus,
+    52→  Trash2,
+    53→  Archive,
+    54→  RotateCcw,
+    55→} from "lucide-react";
+    56→
+    57→const STATUSES: JobStatus[] = [
+    58→  "Pending",
+    59→  "Measured",
+    60→  "Design",
+    61→  "In Production",
+    62→  "Cutting",
+    63→  "Assembly",
+    64→  "Installation",
+    65→  "Completed",
+    66→  "Cancelled",
+    67→];
+    68→const PRIORITIES: Priority[] = ["Low", "Normal", "High", "Urgent"];
+    69→
+    70→const STATUS_BADGE: Record<string, string> = {
+    71→  Pending: "bg-amber-500/15 text-amber-700 border-amber-500/30",
+    72→  Measured: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+    73→  Design: "bg-violet-500/15 text-violet-700 border-violet-500/30",
+    74→  "In Production": "bg-orange-500/15 text-orange-700 border-orange-500/30",
+    75→  Cutting: "bg-rose-500/15 text-rose-700 border-rose-500/30",
+    76→  Assembly: "bg-teal-500/15 text-teal-700 border-teal-500/30",
+    77→  Installation: "bg-cyan-500/15 text-cyan-700 border-cyan-500/30",
+    78→  Completed: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+    79→  Cancelled: "bg-zinc-500/15 text-zinc-600 border-zinc-500/30",
+    80→};
+    81→
+    82→const PRIORITY_BADGE: Record<string, string> = {
+    83→  Low: "bg-zinc-500/10 text-zinc-600",
+    84→  Normal: "bg-sky-500/10 text-sky-600",
+    85→  High: "bg-orange-500/10 text-orange-600",
+    86→  Urgent: "bg-rose-500/10 text-rose-600",
+    87→};
+    88→
+    89→export function JobDetailSheet({
+    90→  jobId,
+    91→  open,
+    92→  onOpenChange,
+    93→}: {
+    94→  jobId: string | null;
+    95→  open: boolean;
+    96→  onOpenChange: (o: boolean) => void;
+    97→}) {
+    98→  const queryClient = useQueryClient();
+    99→  const { user } = useAuth();
+   100→  const canEdit = user?.role === "Admin" || user?.role === "SuperAdmin";
+   101→
+   102→  const { data, isLoading } = useQuery({
+   103→    queryKey: ["job-detail", jobId],
+   104→    queryFn: () => jobsApi.get(jobId!),
+   105→    enabled: !!jobId && open,
+   106→  });
+   107→
+   108→  const { data: usersData } = useQuery({
+   109→    queryKey: ["users"],
+   110→    queryFn: usersApi.list,
+   111→    enabled: canEdit && open,
+   112→  });
+   113→  const technicians = (usersData?.users ?? []).filter(
+   114→    (u) => u.role === "Technician" && u.status === "active"
+   115→  );
+   116→
+   117→  const job = data?.job;
+   118→
+   119→  async function patchJob(patch: Record<string, unknown>) {
+   120→    if (!jobId) return;
+   121→    try {
+   122→      await jobsApi.update(jobId, patch as Parameters<typeof jobsApi.update>[1]);
+   123→      queryClient.invalidateQueries({ queryKey: ["job-detail", jobId] });
+   124→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   125→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   126→      queryClient.invalidateQueries({ queryKey: ["my-jobs"] });
+   127→      toast.success("Job updated");
+   128→    } catch (e) {
+   129→      toast.error(e instanceof Error ? e.message : "Update failed");
+   130→    }
+   131→  }
+   132→
+   133→  async function deleteMeasurement(id: string) {
+   134→    try {
+   135→      await measurementsApi.remove(id);
+   136→      queryClient.invalidateQueries({ queryKey: ["job-detail", jobId] });
+   137→      queryClient.invalidateQueries({ queryKey: ["measurements"] });
+   138→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   139→      toast.success("Measurement deleted");
+   140→    } catch (e) {
+   141→      toast.error(e instanceof Error ? e.message : "Delete failed");
+   142→    }
+   143→  }
+   144→
+   145→  async function deleteCuttingList(id: string) {
+   146→    try {
+   147→      await cuttingListsApi.remove(id);
+   148→      queryClient.invalidateQueries({ queryKey: ["job-detail", jobId] });
+   149→      queryClient.invalidateQueries({ queryKey: ["cutting-lists"] });
+   150→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   151→      toast.success("Cutting list deleted");
+   152→    } catch (e) {
+   153→      toast.error(e instanceof Error ? e.message : "Delete failed");
+   154→    }
+   155→  }
+   156→
+   157→  async function deleteJob() {
+   158→    if (!jobId) return;
+   159→    try {
+   160→      await jobsApi.remove(jobId);
+   161→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   162→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   163→      queryClient.invalidateQueries({ queryKey: ["my-jobs"] });
+   164→      toast.success("Job deleted");
+   165→      onOpenChange(false);
+   166→    } catch (e) {
+   167→      toast.error(e instanceof Error ? e.message : "Delete failed");
+   168→    }
+   169→  }
+   170→
+   171→  function exportCuttingListCsv(items: CuttingListItem[], panelName: string) {
+   172→    const headers = ["Part", "Qty", "Length", "Width", "Thickness", "Edge Banding"];
+   173→    const rows = items.map((i) => [
+   174→      i.part,
+   175→      i.qty,
+   176→      i.length,
+   177→      i.width,
+   178→      i.thickness,
+   179→      i.edge ?? "",    ]);
+   180→    const csv = [headers, ...rows]
+   181→      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+   182→      .join("\n");
+   183→    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+   184→    const url = URL.createObjectURL(blob);
+   185→    const a = document.createElement("a");
+   186→    a.href = url;
+   187→    a.download = `cutting-list-${panelName ?? "list"}-${Date.now()}.csv`;
+   188→    a.click();
+   189→    URL.revokeObjectURL(url);
+   190→    toast.success("Cutting list exported as CSV");
+   191→  }
+   192→
+   193→  return (
+   194→    <Sheet open={open} onOpenChange={onOpenChange}>
+   195→      <SheetContent
+   196→        side="right"
+   197→        className="w-full overflow-y-auto scrollbar-warm p-0 sm:max-w-2xl"
+   198→      >
+   199→        <SheetTitle className="sr-only">Job details</SheetTitle>
+   200→        {isLoading || !job ? (
+   201→          <div className="flex h-full items-center justify-center">
+   202→            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+   203→          </div>
+   204→        ) : (
+   205→          <div className="flex h-full flex-col">
+   206→            {/* Header */}
+   207→            <div className="border-b border-border bg-gradient-to-br from-primary/5 to-background p-5">
+   208→              <div className="flex items-start justify-between gap-3">
+   209→                <div className="min-w-0">
+   210→                  <p className="font-mono text-xs text-primary">
+   211→                    {job.orderNumber}
+   212→                  </p>
+   213→                  <h2 className="mt-0.5 text-lg font-bold leading-tight">
+   214→                    {job.title}
+   215→                  </h2>
+   216→                  <div className="mt-2 flex flex-wrap items-center gap-2">
+   217→                    <Badge variant="outline" className={STATUS_BADGE[job.status]}>
+   218→                      {job.status}
+   219→                    </Badge>
+   220→                    <Badge variant="outline" className={PRIORITY_BADGE[job.priority]}>
+   221→                      {job.priority} priority
+   222→                    </Badge>
+   223→                    {job.archived && (
+   224→                      <Badge className="bg-zinc-500/15 text-zinc-600 border-zinc-500/30">
+   225→                        <Archive className="mr-1 h-3 w-3" />
+   226→                        Archived
+   227→                      </Badge>
+   228→                    )}
+   229→                  </div>
+   230→                </div>
+   231→                <div className="flex items-center gap-1">
+   232→                  {canEdit && (
+   233→                    <>
+   234→                      <Button
+   235→                        variant="ghost"
+   236→                        size="sm"
+   237→                        className="h-8 gap-1.5 text-xs"
+   238→                        onClick={() =>
+   239→                          patchJob({ archived: !job.archived })
+   240→                        }
+   241→                      >
+   242→                        {job.archived ? (
+   243→                          <>
+   244→                            <RotateCcw className="h-3.5 w-3.5" />
+   245→                            Restore
+   246→                          </>
+   247→                        ) : (
+   248→                          <>
+   249→                            <Archive className="h-3.5 w-3.5" />
+   250→                            Archive
+   251→                          </>
+   252→                        )}
+   253→                      </Button>
+   254→                      <Button
+   255→                        variant="ghost"
+   256→                        size="icon"
+   257→                        className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+   258→                        onClick={() => {
+   259→                          if (confirm(`Delete ${job.orderNumber}? This cannot be undone.`)) {
+   260→                            deleteJob();
+   261→                          }
+   262→                        }}
+   263→                        aria-label="Delete job"
+   264→                      >
+   265→                        <Trash2 className="h-4 w-4" />
+   266→                      </Button>
+   267→                    </>
+   268→                  )}
+   269→                </div>
+   270→              </div>
+   271→            </div>
+   272→
+   273→            {/* Tabs */}
+   274→            <div className="flex-1 overflow-y-auto scrollbar-warm">
+   275→              <Tabs defaultValue="overview" className="w-full">
+   276→                <TabsList className="sticky top-0 z-10 w-full justify-start rounded-none border-b border-border bg-card px-3">
+   277→                  <TabsTrigger value="overview" className="gap-1.5">
+   278→                    <ClipboardList className="h-3.5 w-3.5" />
+   279→                    Overview
+   280→                  </TabsTrigger>
+   281→                  <TabsTrigger value="measurements" className="gap-1.5">
+   282→                    <Ruler className="h-3.5 w-3.5" />
+   283→                    Measurements
+   284→                    <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
+   285→                      {job.measurements.length}
+   286→                    </span>
+   287→                  </TabsTrigger>
+   288→                  <TabsTrigger value="cutting" className="gap-1.5">
+   289→                    <Scissors className="h-3.5 w-3.5" />
+   290→                    Cutting Lists
+   291→                    <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
+   292→                      {job.cuttingLists.length}
+   293→                    </span>
+   294→                  </TabsTrigger>
+   295→                </TabsList>
+   296→
+   297→                {/* Overview tab */}
+   298→                <TabsContent value="overview" className="space-y-4 p-5">
+   299→                  {canEdit && (
+   300→                    <div className="grid grid-cols-2 gap-3">
+   301→                      <div className="space-y-1.5">
+   302→                        <label className="text-xs font-medium text-muted-foreground">
+   303→                          Status
+   304→                        </label>
+   305→                        <Select
+   306→                          value={job.status}
+   307→                          onValueChange={(v) => patchJob({ status: v })}
+   308→                        >
+   309→                          <SelectTrigger className="h-9">
+   310→                            <SelectValue />
+   311→                          </SelectTrigger>
+   312→                          <SelectContent>
+   313→                            {STATUSES.map((s) => (
+   314→                              <SelectItem key={s} value={s}>
+   315→                                {s}
+   316→                              </SelectItem>
+   317→                            ))}
+   318→                          </SelectContent>
+   319→                        </Select>
+   320→                      </div>
+   321→                      <div className="space-y-1.5">
+   322→                        <label className="text-xs font-medium text-muted-foreground">
+   323→                          Priority
+   324→                        </label>
+   325→                        <Select
+   326→                          value={job.priority}
+   327→                          onValueChange={(v) =>
+   328→                            patchJob({ priority: v as Priority })
+   329→                          }
+   330→                        >
+   331→                          <SelectTrigger className="h-9">
+   332→                            <SelectValue />
+   333→                          </SelectTrigger>
+   334→                          <SelectContent>
+   335→                            {PRIORITIES.map((p) => (
+   336→                              <SelectItem key={p} value={p}>
+   337→                                {p}
+   338→                              </SelectItem>
+   339→                            ))}
+   340→                          </SelectContent>
+   341→                        </Select>
+   342→                      </div>
+   343→                    </div>
+   344→                  )}
+   345→
+   346→                  {canEdit && (
+   347→                    <div className="space-y-1.5">
+   348→                      <label className="text-xs font-medium text-muted-foreground">
+   349→                        Assigned Technician
+   350→                      </label>
+   351→                      <Select
+   352→                        value={job.assignedToId ?? "__unassigned"}
+   353→                        onValueChange={(v) =>
+   354→                          patchJob({
+   355→                            assignedToId: v === "__unassigned" ? null : v,
+   356→                          })
+   357→                        }
+   358→                      >
+   359→                        <SelectTrigger className="h-9">
+   360→                          <SelectValue />
+   361→                        </SelectTrigger>
+   362→                        <SelectContent>
+   363→                          <SelectItem value="__unassigned">
+   364→                            Unassigned
+   365→                          </SelectItem>
+   366→                          {technicians.map((t) => (
+   367→                            <SelectItem key={t.id} value={t.id}>
+   368→                              {t.fullName}
+   369→                            </SelectItem>
+   370→                          ))}
+   371→                        </SelectContent>
+   372→                      </Select>
+   373→                    </div>
+   374→                  )}
+   375→
+   376→                  {/* Customer card */}
+   377→                  {job.customer && (
+   378→                    <div className="rounded-lg border border-border bg-card p-4">
+   379→                      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+   380→                        <UserIcon className="h-3.5 w-3.5" />
+   381→                        CUSTOMER
+   382→                      </div>
+   383→                      <p className="font-medium">{job.customer.name}</p>
+   384→                      <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+   385→                        {job.customer.phone && (
+   386→                          <p className="flex items-center gap-2">
+   387→                            <Phone className="h-3.5 w-3.5" />
+   388→                            {job.customer.phone}
+   389→                          </p>
+   390→                        )}
+   391→                        {job.customer.email && (
+   392→                          <p className="flex items-center gap-2">
+   393→                            <Mail className="h-3.5 w-3.5" />
+   394→                            {job.customer.email}
+   395→                          </p>
+   396→                        )}
+   397→                        {job.customer.address && (
+   398→                          <p className="flex items-center gap-2">
+   399→                            <MapPin className="h-3.5 w-3.5" />
+   400→                            {job.customer.address}
+   401→                          </p>
+   402→                        )}
+   403→                      </div>
+   404→                    </div>
+   405→                  )}
+   406→
+   407→                  {/* Metadata */}
+   408→                  <div className="grid grid-cols-2 gap-3">
+   409→                    <InfoTile
+   410→                      icon={Calendar}
+   411→                      label="Created"
+   412→                      value={new Date(job.createdAt ?? "").toLocaleDateString()}
+   413→                    />
+   414→                    <InfoTile
+   415→                      icon={Clock}
+   416→                      label="Delivery"
+   417→                      value={
+   418→                        job.deliveryDate
+   419→                          ? new Date(job.deliveryDate).toLocaleDateString()
+   420→                          : "Not set"
+   421→                      }
+   422→                    />
+   423→                  </div>
+   424→
+   425→                  {job.description && (
+   426→                    <div className="rounded-lg border border-border bg-muted/30 p-4">
+   427→                      <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+   428→                        <FileText className="h-3.5 w-3.5" />
+   429→                        DESCRIPTION
+   430→                      </div>
+   431→                      <p className="text-sm leading-relaxed">{job.description}</p>
+   432→                    </div>
+   433→                  )}
+   434→
+   435→                  {/* Status Stepper */}
+   436→                  <div>
+   437→                    <h3 className="mb-3 text-sm font-medium">Production Pipeline</h3>
+   438→                    <StatusStepper
+   439→                      currentStatus={job.status}
+   440→                      onStepClick={(status) => canEdit && patchJob({ status })}
+   441→                      canEdit={canEdit}
+   442→                    />
+   443→                  </div>
+   444→
+   445→                  {/* Activity timeline */}
+   446→                  <div>
+   447→                    <h3 className="mb-3 text-sm font-medium">Activity Timeline</h3>
+   448→                    <div className="space-y-3">
+   449→                      <TimelineItem
+   450→                        icon={Plus}
+   451→                        title="Job created"
+   452→                        time={job.createdAt}
+   453→                        done
+   454→                      />
+   455→                      {job.measurements.length > 0 && (
+   456→                        <TimelineItem
+   457→                          icon={Ruler}
+   458→                          title="Site measurement captured"
+   459→                          time={job.measurements[0].createdAt}
+   460→                          done
+   461→                        />
+   462→                      )}
+   463→                      {job.cuttingLists.length > 0 && (
+   464→                        <TimelineItem
+   465→                          icon={Scissors}
+   466→                          title="Cutting list generated"
+   467→                          time={job.cuttingLists[0].createdAt}
+   468→                          done
+   469→                        />
+   470→                      )}
+   471→                      {job.status === "Completed" && (
+   472→                        <TimelineItem
+   473→                          icon={CheckCircle2}
+   474→                          title="Job completed"
+   475→                          time={job.updatedAt}
+   476→                          done
+   477→                        />
+   478→                      )}
+   479→                      {job.status === "Cancelled" && (
+   480→                        <TimelineItem
+   481→                          icon={AlertCircle}
+   482→                          title="Job cancelled"
+   483→                          time={job.updatedAt}
+   484→                          done
+   485→                          danger
+   486→                        />
+   487→                      )}
+   488→                    </div>
+   489→                  </div>
+   490→                </TabsContent>
+   491→
+   492→                {/* Measurements tab */}
+   493→                <TabsContent value="measurements" className="p-5">
+   494→                  {job.measurements.length === 0 ? (
+   495→                    <EmptyState
+   496→                      icon={Ruler}
+   497→                      title="No measurements yet"
+   498→                      description="Site measurements captured for this job will appear here."
+   499→                    />
+   500→                  ) : (
+   501→                    <div className="space-y-3">
+   502→                      {job.measurements.map((m) => (
+   503→                        <div
+   504→                          key={m.id}
+   505→                          className="rounded-lg border border-border bg-card p-4"
+   506→                        >
+   507→                          <div className="mb-2 flex items-start justify-between gap-2">
+   508→                            <div className="flex items-center gap-2">
+   509→                              <div className="rounded-md bg-primary/10 p-1.5">
+   510→                                <DoorOpen className="h-4 w-4 text-primary" />
+   511→                              </div>
+   512→                              <div>
+   513→                                <p className="text-sm font-medium">
+   514→                                  {m.roomType ?? "Measurement"}
+   515→                                </p>
+   516→                                <p className="text-xs text-muted-foreground">
+   517→                                  by {m.takenBy?.fullName ?? "Unknown"} ·{" "}
+   518→                                  {m.createdAt &&
+   519→                                    new Date(m.createdAt).toLocaleDateString()}
+   520→                                </p>
+   521→                              </div>
+   522→                            </div>
+   523→                            <div className="flex items-center gap-1">
+   524→                              <Badge
+   525→                                variant="outline"
+   526→                                className={
+   527→                                  m.status === "Approved"
+   528→                                    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+   529→                                    : m.status === "Submitted"
+   530→                                      ? "bg-amber-500/15 text-amber-700 border-amber-500/30"
+   531→                                      : "bg-zinc-500/15 text-zinc-600 border-zinc-500/30"
+   532→                                }
+   533→                              >
+   534→                                {m.status}
+   535→                              </Badge>
+   536→                              {canEdit && (
+   537→                                <Button
+   538→                                  variant="ghost"
+   539→                                  size="icon"
+   540→                                  className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   541→                                  onClick={() => deleteMeasurement(m.id)}
+   542→                                >
+   543→                                  <Trash2 className="h-3.5 w-3.5" />
+   544→                                </Button>
+   545→                              )}
+   546→                            </div>
+   547→                          </div>
+   548→                          <div className="grid grid-cols-2 gap-2 text-xs">
+   549→                            {m.wallLength && (
+   550→                              <div className="flex items-center gap-1.5 text-muted-foreground">
+   551→                                <Ruler className="h-3 w-3" />
+   552→                                <span className="font-medium text-foreground">
+   553→                                  {m.wallLength}
+   554→                                </span>
+   555→                              </div>
+   556→                            )}
+   557→                            {m.ceilingHt && (
+   558→                              <div className="flex items-center gap-1.5 text-muted-foreground">
+   559→                                <ArrowDownToLine className="h-3 w-3" />
+   560→                                <span className="font-medium text-foreground">
+   561→                                  {m.ceilingHt}
+   562→                                </span>
+   563→                              </div>
+   564→                            )}
+   565→                          </div>
+   566→                          {m.notes && (
+   567→                            <p className="mt-2 rounded bg-muted/50 p-2 text-xs text-muted-foreground">
+   568→                              {m.notes}
+   569→                            </p>
+   570→                          )}
+   571→                        </div>
+   572→                      ))}
+   573→                    </div>
+   574→                  )}
+   575→                </TabsContent>
+   576→
+   577→                {/* Cutting lists tab */}
+   578→                <TabsContent value="cutting" className="p-5">
+   579→                  {job.cuttingLists.length === 0 ? (
+   580→                    <EmptyState
+   581→                      icon={Scissors}
+   582→                      title="No cutting lists yet"
+   583→                      description="Factory-ready cut lists generated for this job will appear here."
+   584→                    />
+   585→                  ) : (
+   586→                    <div className="space-y-4">
+   587→                      {job.cuttingLists.map((cl) => {
+   588→                        let items: CuttingListItem[] = [];
+   589→                        try {
+   590→                          items = cl.items ? JSON.parse(cl.items) : [];
+   591→                        } catch {
+   592→                          items = [];
+   593→                        }
+   594→                        const totalPieces = items.reduce(
+   595→                          (s, i) => s + (Number(i.qty) || 0),
+   596→                          0
+   597→                        );
+   598→                        return (
+   599→                          <div
+   600→                            key={cl.id}
+   601→                            className="rounded-lg border border-border bg-card"
+   602→                          >
+   603→                            <div className="flex items-center justify-between gap-2 border-b border-border p-4">
+   604→                              <div className="flex items-center gap-2">
+   605→                                <div className="rounded-md bg-primary/10 p-1.5">
+   606→                                  <Package className="h-4 w-4 text-primary" />
+   607→                                </div>
+   608→                                <div>
+   609→                                  <p className="text-sm font-medium">
+   610→                                    {cl.panelName ?? "Cutting List"}
+   611→                                  </p>
+   612→                                  <p className="text-xs text-muted-foreground">
+   613→                                    {cl.material} · {items.length} parts ·{" "}
+   614→                                    {totalPieces} pieces
+   615→                                  </p>
+   616→                                </div>
+   617→                              </div>
+   618→                              <div className="flex items-center gap-1">
+   619→                                <Badge
+   620→                                  variant="outline"
+   621→                                  className={
+   622→                                    cl.status === "Done"
+   623→                                      ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+   624→                                      : cl.status === "In Cutting"
+   625→                                        ? "bg-rose-500/15 text-rose-700 border-rose-500/30"
+   626→                                        : "bg-amber-500/15 text-amber-700 border-amber-500/30"
+   627→                                  }
+   628→                                >
+   629→                                  {cl.status}
+   630→                                </Badge>
+   631→                                <Button
+   632→                                  variant="ghost"
+   633→                                  size="icon"
+   634→                                  className="h-7 w-7"
+   635→                                  onClick={() =>
+   636→                                    exportCuttingListCsv(
+   637→                                      items,
+   638→                                      cl.panelName ?? "list"
+   639→                                    )
+   640→                                  }
+   641→                                  title="Export CSV"
+   642→                                >
+   643→                                  <Printer className="h-3.5 w-3.5" />
+   644→                                </Button>
+   645→                                {canEdit && (
+   646→                                  <Button
+   647→                                    variant="ghost"
+   648→                                    size="icon"
+   649→                                    className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   650→                                    onClick={() => deleteCuttingList(cl.id)}
+   651→                                  >
+   652→                                    <Trash2 className="h-3.5 w-3.5" />
+   653→                                  </Button>
+   654→                                )}
+   655→                              </div>
+   656→                            </div>
+   657→                            <div className="overflow-x-auto">
+   658→                              <Table>
+   659→                                <TableHeader>
+   660→                                  <TableRow className="hover:bg-transparent">
+   661→                                    <TableHead className="h-8 text-xs">Part</TableHead>
+   662→                                    <TableHead className="h-8 text-center text-xs">Qty</TableHead>
+   663→                                    <TableHead className="h-8 text-xs">Length</TableHead>
+   664→                                    <TableHead className="h-8 text-xs">Width</TableHead>
+   665→                                    <TableHead className="h-8 text-xs">Thk</TableHead>
+   666→                                  </TableRow>
+   667→                                </TableHeader>
+   668→                                <TableBody>
+   669→                                  {items.map((it, i) => (
+   670→                                    <TableRow key={i}>
+   671→                                      <TableCell className="py-1.5 text-xs font-medium">
+   672→                                        {it.part}
+   673→                                      </TableCell>
+   674→                                      <TableCell className="py-1.5 text-center text-xs tabular-nums">
+   675→                                        {it.qty}
+   676→                                      </TableCell>
+   677→                                      <TableCell className="py-1.5 text-xs tabular-nums">
+   678→                                        {it.length}
+   679→                                      </TableCell>
+   680→                                      <TableCell className="py-1.5 text-xs tabular-nums">
+   681→                                        {it.width}
+   682→                                      </TableCell>
+   683→                                      <TableCell className="py-1.5 text-xs tabular-nums">
+   684→                                        {it.thickness}
+   685→                                      </TableCell>
+   686→                                    </TableRow>
+   687→                                  ))}
+   688→                                </TableBody>
+   689→                              </Table>
+   690→                            </div>
+   691→                          </div>
+   692→                        );
+   693→                      })}
+   694→                    </div>
+   695→                  )}
+   696→                </TabsContent>
+   697→              </Tabs>
+   698→            </div>
+   699→          </div>
+   700→        )}
+   701→      </SheetContent>
+   702→    </Sheet>
+   703→  );
+   704→}
+   705→
+   706→function InfoTile({
+   707→  icon: Icon,
+   708→  label,
+   709→  value,
+   710→}: {
+   711→  icon: typeof Calendar;
+   712→  label: string;
+   713→  value: string;
+   714→}) {
+   715→  return (
+   716→    <div className="rounded-lg border border-border bg-card p-3">
+   717→      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+   718→        <Icon className="h-3.5 w-3.5" />
+   719→        {label}
+   720→      </div>
+   721→      <p className="mt-1 text-sm font-medium">{value}</p>
+   722→    </div>
+   723→  );
+   724→}
+   725→
+   726→function TimelineItem({
+   727→  icon: Icon,
+   728→  title,
+   729→  time,
+   730→  done,
+   731→  danger,
+   732→}: {
+   733→  icon: typeof Calendar;
+   734→  title: string;
+   735→  time?: string | null;
+   736→  done?: boolean;
+   737→  danger?: boolean;
+   738→}) {
+   739→  return (
+   740→    <div className="flex gap-3">
+   741→      <div className="flex flex-col items-center">
+   742→        <div
+   743→          className={`flex h-7 w-7 items-center justify-center rounded-full ${
+   744→            danger
+   745→              ? "bg-destructive/10 text-destructive"
+   746→              : done
+   747→                ? "bg-emerald-500/10 text-emerald-600"
+   748→                : "bg-muted text-muted-foreground"
+   749→          }`}
+   750→        >
+   751→          <Icon className="h-3.5 w-3.5" />
+   752→        </div>
+   753→        <div className="mt-1 w-px flex-1 bg-border" />
+   754→      </div>
+   755→      <div className="pb-3">
+   756→        <p className="text-sm font-medium">{title}</p>
+   757→        {time && (
+   758→          <p className="text-xs text-muted-foreground">
+   759→            {new Date(time).toLocaleString()}
+   760→          </p>
+   761→        )}
+   762→      </div>
+   763→    </div>
+   764→  );
+   765→}
+   766→
+   767→function EmptyState({
+   768→  icon: Icon,
+   769→  title,
+   770→  description,
+   771→}: {
+   772→  icon: typeof Ruler;
+   773→  title: string;
+   774→  description: string;
+   775→}) {
+   776→  return (
+   777→    <div className="flex flex-col items-center gap-2 py-12 text-center">
+   778→      <div className="rounded-full bg-muted p-3">
+   779→        <Icon className="h-6 w-6 text-muted-foreground" />
+   780→      </div>
+   781→      <p className="text-sm font-medium">{title}</p>
+   782→      <p className="max-w-xs text-xs text-muted-foreground">{description}</p>
+   783→    </div>
+   784→  );
+   785→}
+   786→
+   787→const PIPELINE_STEPS: { status: JobStatus; label: string; short: string }[] = [
+   788→  { status: "Pending", label: "Pending", short: "1" },
+   789→  { status: "Measured", label: "Measured", short: "2" },
+   790→  { status: "Design", label: "Design", short: "3" },
+   791→  { status: "In Production", label: "Production", short: "4" },
+   792→  { status: "Cutting", label: "Cutting", short: "5" },
+   793→  { status: "Assembly", label: "Assembly", short: "6" },
+   794→  { status: "Installation", label: "Install", short: "7" },
+   795→  { status: "Completed", label: "Completed", short: "8" },
+   796→];
+   797→
+   798→function StatusStepper({
+   799→  currentStatus,
+   800→  onStepClick,
+   801→  canEdit,
+   802→}: {
+   803→  currentStatus: JobStatus;
+   804→  onStepClick: (status: JobStatus) => void;
+   805→  canEdit?: boolean;
+   806→}) {
+   807→  const currentIndex = PIPELINE_STEPS.findIndex((s) => s.status === currentStatus);
+   808→  const isCancelled = currentStatus === "Cancelled";
+   809→
+   810→  return (
+   811→    <div className="overflow-x-auto scrollbar-warm">
+   812→      <div className="flex min-w-[560px] items-start gap-0">
+   813→        {PIPELINE_STEPS.map((step, i) => {
+   814→          const isCompleted = !isCancelled && i < currentIndex;
+   815→          const isCurrent = !isCancelled && i === currentIndex;
+   816→          const isLast = i === PIPELINE_STEPS.length - 1;
+   817→
+   818→          return (
+   819→            <div key={step.status} className="flex flex-1 flex-col items-center">
+   820→              <div className="flex w-full items-center">
+   821→                {/* Connector line before */}
+   822→                {i > 0 && (
+   823→                  <div
+   824→                    className={`h-0.5 flex-1 ${
+   825→                      isCompleted || isCurrent
+   826→                        ? "bg-primary"
+   827→                        : "bg-border"
+   828→                    }`}
+   829→                  />
+   830→                )}
+   831→                {/* Step circle */}
+   832→                <button
+   833→                  type="button"
+   834→                  disabled={!canEdit}
+   835→                  onClick={() => onStepClick(step.status)}
+   836→                  className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-all ${
+   837→                    isCancelled
+   838→                      ? "border-zinc-300 bg-zinc-100 text-zinc-400"
+   839→                      : isCompleted
+   840→                        ? "border-primary bg-primary text-primary-foreground"
+   841→                        : isCurrent
+   842→                          ? "border-primary bg-primary/10 text-primary ring-4 ring-primary/10"
+   843→                          : "border-border bg-card text-muted-foreground"
+   844→                  } ${canEdit ? "cursor-pointer hover:scale-110" : "cursor-default"}`}
+   845→                  title={canEdit ? `Move to ${step.label}` : step.label}
+   846→                >
+   847→                  {isCompleted ? (
+   848→                    <CheckCircle2 className="h-4 w-4" />
+   849→                  ) : isCancelled ? (
+   850→                    <AlertCircle className="h-4 w-4" />
+   851→                  ) : (
+   852→                    step.short
+   853→                  )}
+   854→                </button>
+   855→                {/* Connector line after */}
+   856→                {!isLast && (
+   857→                  <div
+   858→                    className={`h-0.5 flex-1 ${
+   859→                      isCompleted ? "bg-primary" : "bg-border"
+   860→                    }`}
+   861→                  />
+   862→                )}
+   863→              </div>
+   864→              {/* Label */}
+   865→              <span
+   866→                className={`mt-1.5 text-[10px] font-medium leading-tight ${
+   867→                  isCurrent
+   868→                    ? "text-primary"
+   869→                    : isCompleted
+   870→                      ? "text-foreground"
+   871→                      : "text-muted-foreground"
+   872→                }`}
+   873→              >
+   874→                {step.label}
+   875→              </span>
+   876→            </div>
+   877→          );
+   878→        })}
+   879→      </div>
+   880→      {isCancelled && (
+   881→        <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+   882→          <AlertCircle className="h-3.5 w-3.5" />
+   883→          This job was cancelled
+   884→        </p>
+   885→      )}
+   886→    </div>
+   887→  );
+   888→}
+   889→

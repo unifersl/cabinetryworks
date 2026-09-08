@@ -1,0 +1,1430 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import * as React from "react";
+     4→     4→import { useQuery } from "@tanstack/react-query";
+     5→     5→import {
+     6→     6→  statsApi,
+     7→     7→  activityApi,
+     8→     8→  inventoryApi,
+     9→     9→  jobsApi,
+    10→    10→  type ActivityEvent,
+    11→    11→} from "@/lib/api";
+    12→    12→import {
+    13→    13→  Card,
+    14→    14→  CardContent,
+    15→    15→  CardDescription,
+    16→    16→  CardHeader,
+    17→    17→  CardTitle,
+    18→    18→} from "@/components/ui/card";
+    19→    19→import { Badge } from "@/components/ui/badge";
+    20→    20→import { Progress } from "@/components/ui/progress";
+    21→    21→import { Button } from "@/components/ui/button";
+    22→    22→import { ScrollArea } from "@/components/ui/scroll-area";
+    23→    23→import {
+    24→    24→  Users,
+    25→    25→  ClipboardList,
+    26→    26→  Ruler,
+    27→    27→  Scissors,
+    28→    28→  TrendingUp,
+    29→    29→  TrendingDown,
+    30→    30→  Clock,
+    31→    31→  CheckCircle2,
+    32→    32→  UserCheck,
+    33→    33→  Building2,
+    34→    34→  ArrowUpRight,
+    35→    35→  ArrowDownRight,
+    36→    36→  Activity,
+    37→    37→  Layers,
+    38→    38→  HardHat,
+    39→    39→  RefreshCw,
+    40→    40→  Printer,
+    41→    41→  AlertTriangle,
+    42→    42→  Package,
+    43→    43→  CalendarCheck,
+    44→    44→  BarChart3,
+    45→    45→  Camera,
+    46→    46→  Sparkles,
+    47→    47→  X,
+    48→    48→  CalendarRange,
+    49→    49→  Bug,
+    50→    50→  GitBranch,
+    51→    51→  Wrench,
+    52→    52→  Flag,
+    53→    53→  PackageSearch,
+    54→    54→  ClipboardCheck,
+    55→    55→  ChevronRight,
+    56→    56→  ChevronDown,
+    57→    57→  ShoppingCart,
+    58→    58→  ArrowRight,
+    59→    59→  Calendar,
+    60→    60→  Filter,
+    61→    61→  Sun,
+    62→    62→} from "lucide-react";
+    63→    63→import {
+    64→    64→  ResponsiveContainer,
+    65→    65→  AreaChart,
+    66→    66→  Area,
+    67→    67→  XAxis,
+    68→    68→  YAxis,
+    69→    69→  CartesianGrid,
+    70→    70→  Tooltip,
+    71→    71→  PieChart,
+    72→    72→  Pie,
+    73→    73→  Cell,
+    74→    74→  BarChart,
+    75→    75→  Bar,
+    76→    76→  Legend,
+    77→    77→} from "recharts";
+    78→    78→
+    79→    79→const STATUS_COLORS: Record<string, string> = {
+    80→    80→  Pending: "#f59e0b",
+    81→    81→  Measured: "#0ea5e9",
+    82→    82→  Design: "#8b5cf6",
+    83→    83→  "In Production": "#f97316",
+    84→    84→  Cutting: "#f43f5e",
+    85→    85→  Assembly: "#14b8a6",
+    86→    86→  Installation: "#06b6d4",
+    87→    87→  Completed: "#10b981",
+    88→    88→  Cancelled: "#a1a1aa",
+    89→    89→};
+    90→    90→
+    91→    91→const MATERIAL_COLORS = [
+    92→    92→  "#b45309",
+    93→    93→  "#0d9488",
+    94→    94→  "#7c3aed",
+    95→    95→  "#be123c",
+    96→    96→  "#0369a1",
+    97→    97→  "#ca8a04",
+    98→    98→];
+    99→    99→
+   100→   100→const PRIORITY_COLORS: Record<string, string> = {
+   101→   101→  Low: "#a1a1aa",
+   102→   102→  Normal: "#0ea5e9",
+   103→   103→  High: "#f97316",
+   104→   104→  Urgent: "#f43f5e",
+   105→   105→};
+   106→   106→
+   107→   107→const ACTIVITY_ICONS: Record<string, typeof Activity> = {
+   108→   108→  job_created: ClipboardList,
+   109→   109→  job_assigned: UserCheck,
+   110→   110→  job_status: RefreshCw,
+   111→   111→  measurement: Ruler,
+   112→   112→  cutting_list: Scissors,
+   113→   113→};
+   114→   114→
+   115→   115→const ACTIVITY_TINTS: Record<string, string> = {
+   116→   116→  job_created: "bg-orange-500/10 text-orange-600",
+   117→   117→  job_assigned: "bg-violet-500/10 text-violet-600",
+   118→   118→  job_status: "bg-sky-500/10 text-sky-600",
+   119→   119→  measurement: "bg-teal-500/10 text-teal-600",
+   120→   120→  cutting_list: "bg-rose-500/10 text-rose-600",
+   121→   121→};
+   122→   122→
+   123→   123→function timeAgo(iso: string): string {
+   124→   124→  const diff = Date.now() - new Date(iso).getTime();
+   125→   125→  const mins = Math.floor(diff / 60000);
+   126→   126→  if (mins < 1) return "just now";
+   127→   127→  if (mins < 60) return `${mins}m ago`;
+   128→   128→  const hours = Math.floor(mins / 60);
+   129→   129→  if (hours < 24) return `${hours}h ago`;
+   130→   130→  const days = Math.floor(hours / 24);
+   131→   131→  if (days < 7) return `${days}d ago`;
+   132→   132→  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+   133→   133→}
+   134→   134→
+   135→   135→function greetingFor(date: Date): string {
+   136→   136→  const h = date.getHours();
+   137→   137→  if (h < 12) return "Good morning";
+   138→   138→  if (h < 17) return "Good afternoon";
+   139→   139→  if (h < 21) return "Good evening";
+   140→   140→  return "Working late";
+   141→   141→}
+   142→   142→
+   143→   143→/** Returns "Today" / "Yesterday" / "Aug 19" (short locale). */
+   144→   144→function dayBucket(iso: string): string {
+   145→   145→  const d = new Date(iso);
+   146→   146→  const now = new Date();
+   147→   147→  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+   148→   148→  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+   149→   149→  const diffDays = Math.round(
+   150→   150→    (startOfToday.getTime() - startOfDay.getTime()) / 86400000
+   151→   151→  );
+   152→   152→  if (diffDays === 0) return "Today";
+   153→   153→  if (diffDays === 1) return "Yesterday";
+   154→   154→  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+   155→   155→}
+   156→   156→
+   157→   157→type ActivityFilter = "all" | "jobs" | "measurements" | "cutting";
+   158→   158→
+   159→   159→function filterActivity(
+   160→   160→  events: ActivityEvent[],
+   161→   161→  filter: ActivityFilter
+   162→   162→): ActivityEvent[] {
+   163→   163→  if (filter === "all") return events;
+   164→   164→  if (filter === "jobs")
+   165→   165→    return events.filter((e) =>
+   166→   166→      ["job_created", "job_assigned", "job_status"].includes(e.type)
+   167→   167→    );
+   168→   168→  if (filter === "measurements")
+   169→   169→    return events.filter((e) => e.type === "measurement");
+   170→   170→  return events.filter((e) => e.type === "cutting_list");
+   171→   171→}
+   172→   172→
+   173→   173→export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => void }) {
+   174→   174→  // Default to 30d so the throughput chart shows real activity (the 7d window
+   175→   175→  // is often empty in steady-state operation).
+   176→   176→  const [range, setRange] = React.useState<number>(30);
+   177→   177→  const [activityFilter, setActivityFilter] =
+   178→   178→    React.useState<ActivityFilter>("all");
+   179→   179→  const { data, isLoading } = useQuery({
+   180→   180→    queryKey: ["stats", range],
+   181→   181→    queryFn: () => statsApi.get(range),
+   182→   182→  });
+   183→   183→  // Load activity and inventory only after stats are loaded to reduce
+   184→   184→  // concurrent API calls and memory pressure on first render.
+   185→   185→  const { data: activityData } = useQuery({
+   186→   186→    queryKey: ["activity", 8],
+   187→   187→    queryFn: () => activityApi.list(8),
+   188→   188→    enabled: !!data,
+   189→   189→  });
+   190→   190→  const { data: inventoryData } = useQuery({
+   191→   191→    queryKey: ["inventory"],
+   192→   192→    queryFn: inventoryApi.list,
+   193→   193→    enabled: !!data,
+   194→   194→  });
+   195→   195→  // Fetch jobs only to compute the Overdue count for Needs Attention.
+   196→   196→  const { data: jobsForOverdue } = useQuery({
+   197→   197→    queryKey: ["jobs", "overview-overdue"],
+   198→   198→    queryFn: () => jobsApi.list(),
+   199→   199→    enabled: !!data,
+   200→   200→  });
+   201→   201→  const overdueJobs = React.useMemo(() => {
+   202→   202→    const now = new Date();
+   203→   203→    return (jobsForOverdue?.jobs ?? []).filter(
+   204→   204→      (j) =>
+   205→   205→        j.deliveryDate &&
+   206→   206→        new Date(j.deliveryDate) < now &&
+   207→   207→        j.status !== "Completed" &&
+   208→   208→        j.status !== "Cancelled"
+   209→   209→    ).length;
+   210→   210→  }, [jobsForOverdue]);
+   211→   211→
+   212→   212→  const counts = data?.counts;
+   213→   213→  const breakdown = data?.jobStatusBreakdown ?? {};
+   214→   214→  const priority = data?.priorityBreakdown ?? {};
+   215→   215→  const throughput = data?.throughput ?? [];
+   216→   216→  const materials = data?.materialBreakdown ?? {};
+   217→   217→  const workload = data?.technicianWorkload ?? [];
+   218→   218→
+   219→   219→  const totalJobs = Object.values(breakdown).reduce((a, b) => a + b, 0) || 1;
+   220→   220→  const totalMaterials = Object.values(materials).reduce((a, b) => a + b, 0) || 1;
+   221→   221→
+   222→   222→  const statusPieData = Object.entries(breakdown).map(([name, value]) => ({
+   223→   223→    name,
+   224→   224→    value,
+   225→   225→  }));
+   226→   226→  const materialPieData = Object.entries(materials).map(([name, value]) => ({
+   227→   227→    name,
+   228→   228→    value,
+   229→   229→  }));
+   230→   230→  const priorityData = Object.entries(priority).map(([name, value]) => ({
+   231→   231→    name,
+   232→   232→    value,
+   233→   233→  }));
+   234→   234→
+   235→   235→  const cards = [
+   236→   236→    {
+   237→   237→      label: "Total Users",
+   238→   238→      value: counts?.users ?? 0,
+   239→   239→      sub: `${counts?.activeUsers ?? 0} active`,
+   240→   240→      icon: Users,
+   241→   241→      tint: "text-amber-600 bg-amber-500/10",
+   242→   242→      trend: "+12%",
+   243→   243→      up: true,
+   244→   244→      view: "users",
+   245→   245→    },
+   246→   246→    {
+   247→   247→      label: "Job Orders",
+   248→   248→      value: counts?.jobOrders ?? 0,
+   249→   249→      sub: `${counts?.pendingJobs ?? 0} pending`,
+   250→   250→      icon: ClipboardList,
+   251→   251→      tint: "text-orange-600 bg-orange-500/10",
+   252→   252→      trend: "+8%",
+   253→   253→      up: true,
+   254→   254→      view: "job-orders",
+   255→   255→    },
+   256→   256→    {
+   257→   257→      label: "Site Measurements",
+   258→   258→      value: counts?.measurements ?? 0,
+   259→   259→      sub: "captured",
+   260→   260→      icon: Ruler,
+   261→   261→      tint: "text-teal-600 bg-teal-500/10",
+   262→   262→      trend: "+15%",
+   263→   263→      up: true,
+   264→   264→      view: "measurements",
+   265→   265→    },
+   266→   266→    {
+   267→   267→      label: "Cutting Lists",
+   268→   268→      value: counts?.cuttingLists ?? 0,
+   269→   269→      sub: "generated",
+   270→   270→      icon: Scissors,
+   271→   271→      tint: "text-rose-600 bg-rose-500/10",
+   272→   272→      trend: "-3%",
+   273→   273→      up: false,
+   274→   274→      view: "cutting-lists",
+   275→   275→    },
+   276→   276→  ];
+   277→   277→
+   278→   278→  return (
+   279→   279→    <div className="space-y-4">
+   280→   280→      {/* What's New banner — dismissible */}
+   281→   281→      <WhatsNewBanner onNavigate={onNavigate} />
+   282→   282→
+   283→   283→      {/* Compact welcome banner */}
+   284→   284→      <Card className="overflow-hidden border-primary/20">
+   285→   285→        <div className="relative bg-gradient-to-br from-primary/10 via-accent/40 to-background p-4">
+   286→   286→          <div className="relative z-10 flex items-center justify-between gap-3">
+   287→   287→            <div>
+   288→   288→              <h1 className="text-lg font-bold tracking-tight sm:text-xl">
+   289→   289→                Cabinetry production at a glance
+   290→   290→              </h1>
+   291→   291→              <p className="text-xs text-muted-foreground">
+   292→   292→                Monitor jobs from measurement through installation.
+   293→   293→              </p>
+   294→   294→            </div>
+   295→   295→            <Button variant="outline" size="sm" className="no-print shrink-0 gap-1.5" onClick={() => window.print()}>
+   296→   296→              <Printer className="h-3.5 w-3.5" />
+   297→   297→              <span className="hidden sm:inline">Export</span>
+   298→   298→            </Button>
+   299→   299→          </div>
+   300→   300→          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+   301→   301→        </div>
+   302→   302→      </Card>
+   303→   303→
+   304→   304→      {/* Today's Snapshot — compact summary bar */}
+   305→   305→      <TodaysSnapshot
+   306→   306→        activeJobs={(counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) >= 0 ? (counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) : (counts?.jobOrders ?? 0)}
+   307→   307→        pendingJobs={counts?.pendingJobs ?? 0}
+   308→   308→        overdueJobs={overdueJobs}
+   309→   309→        onNavigate={onNavigate}
+   310→   310→      />
+   311→   311→
+   312→   312→      {/* Stat cards + Quick Actions — bento grid */}
+   313→   313→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   314→   314→        {cards.map((c) => {
+   315→   315→          const Icon = c.icon;
+   316→   316→          return (
+   317→   317→            <Card
+   318→   318→              key={c.label}
+   319→   319→              className="card-lift group relative cursor-pointer overflow-hidden p-3 hover:shadow-md"
+   320→   320→              onClick={() => onNavigate?.(c.view)}
+   321→   321→            >
+   322→   322→              <div className="flex items-center justify-between">
+   323→   323→                <div className={`rounded-lg p-1.5 ${c.tint}`}>
+   324→   324→                  <Icon className="h-4 w-4" />
+   325→   325→                </div>
+   326→   326→                <span
+   327→   327→                  className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[10px] font-semibold opacity-90 ${c.up ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}
+   328→   328→                  title={`Trend ${c.up ? "up" : "down"}`}
+   329→   329→                >
+   330→   330→                  {c.up ? (
+   331→   331→                    <ArrowUpRight className="h-2.5 w-2.5" />
+   332→   332→                  ) : (
+   333→   333→                    <ArrowDownRight className="h-2.5 w-2.5" />
+   334→   334→                  )}
+   335→   335→                  {c.trend}
+   336→   336→                </span>
+   337→   337→              </div>
+   338→   338→              {isLoading ? (
+   339→   339→                <div className="mt-1.5 h-6 w-12 animate-pulse rounded bg-muted" />
+   340→   340→              ) : (
+   341→   341→                <p className="mt-1.5 text-xl font-bold tabular-nums">{c.value}</p>
+   342→   342→              )}
+   343→   343→              <p className="text-[10px] text-muted-foreground">{c.label}</p>
+   344→   344→            </Card>
+   345→   345→          );
+   346→   346→        })}
+   347→   347→      </div>
+   348→   348→
+   349→   349→      {/* Quick Actions — compact inline row */}
+   350→   350→      <div className="flex flex-wrap gap-2">
+   351→   351→        {[
+   352→   352→          { label: "New Job", icon: ClipboardList, view: "job-orders" },
+   353→   353→          { label: "Inventory", icon: Package, view: "inventory" },
+   354→   354→          { label: "Attendance", icon: CalendarCheck, view: "attendance" },
+   355→   355→          { label: "Customers", icon: Building2, view: "customers" },
+   356→   356→          { label: "Reports", icon: BarChart3, view: "reports" },
+   357→   357→          { label: "Notebook", icon: Camera, view: "blueprints" },
+   358→   358→        ].map((a) => {
+   359→   359→          const Icon = a.icon;
+   360→   360→          return (
+   361→   361→            <button
+   362→   362→              key={a.label}
+   363→   363→              onClick={() => onNavigate?.(a.view)}
+   364→   364→              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+   365→   365→            >
+   366→   366→              <Icon className="h-3.5 w-3.5 text-primary" />
+   367→   367→              {a.label}
+   368→   368→            </button>
+   369→   369→          );
+   370→   370→        })}
+   371→   371→      </div>
+   372→   372→
+   373→   373→      {/* Needs Attention — critical panels for daily standup */}
+   374→   374→      <NeedsAttention
+   375→   375→        pendingJobs={counts?.pendingJobs ?? 0}
+   376→   376→        urgentJobs={(priority?.Urgent as number) ?? 0}
+   377→   377→        highJobs={(priority?.High as number) ?? 0}
+   378→   378→        lowStock={inventoryData?.stats.lowStock ?? 0}
+   379→   379→        overdueJobs={overdueJobs}
+   380→   380→        totalJobs={counts?.jobOrders ?? 0}
+   381→   381→        onNavigate={onNavigate}
+   382→   382→        isLoading={isLoading}
+   383→   383→      />
+   384→   384→
+   385→   385→      {/* Throughput chart */}
+   386→   386→      <Card>
+   387→   387→        <CardHeader>
+   388→   388→          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+   389→   389→            <div>
+   390→   390→              <CardTitle className="flex items-center gap-2 text-base">
+   391→   391→                <Activity className="h-4 w-4 text-primary" />
+   392→   392→                Job Throughput
+   393→   393→                {!isLoading && (() => {
+   394→   394→                  const totalCreated = throughput.reduce((a, b) => a + (b.created ?? 0), 0);
+   395→   395→                  const totalCompleted = throughput.reduce((a, b) => a + (b.completed ?? 0), 0);
+   396→   396→                  return (
+   397→   397→                    <span className="ml-1 flex items-center gap-2 text-xs font-normal text-muted-foreground">
+   398→   398→                      <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-primary">
+   399→   399→                        {totalCreated} created
+   400→   400→                      </span>
+   401→   401→                      <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600">
+   402→   402→                        {totalCompleted} completed
+   403→   403→                      </span>
+   404→   404→                    </span>
+   405→   405→                  );
+   406→   406→                })()}
+   407→   407→              </CardTitle>
+   408→   408→              <CardDescription>
+   409→   409→                Jobs created vs completed over the last {range} days
+   410→   410→              </CardDescription>
+   411→   411→            </div>
+   412→   412→            <div className="flex items-center gap-2">
+   413→   413→              <div className="flex rounded-lg border border-border p-0.5">
+   414→   414→                {[7, 30, 90].map((d) => (
+   415→   415→                  <Button
+   416→   416→                    key={d}
+   417→   417→                    variant={range === d ? "default" : "ghost"}
+   418→   418→                    size="sm"
+   419→   419→                    className="h-7 px-2.5 text-xs"
+   420→   420→                    onClick={() => setRange(d)}
+   421→   421→                  >
+   422→   422→                    {d}d
+   423→   423→                  </Button>
+   424→   424→                ))}
+   425→   425→              </div>
+   426→   426→              <div className="hidden items-center gap-3 text-xs sm:flex">
+   427→   427→                <span className="flex items-center gap-1.5">
+   428→   428→                  <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+   429→   429→                  Created
+   430→   430→                </span>
+   431→   431→                <span className="flex items-center gap-1.5">
+   432→   432→                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   433→   433→                  Completed
+   434→   434→                </span>
+   435→   435→              </div>
+   436→   436→            </div>
+   437→   437→          </div>
+   438→   438→        </CardHeader>
+   439→   439→        <CardContent>
+   440→   440→          {isLoading ? (
+   441→   441→            <div className="h-[260px] animate-pulse rounded bg-muted" />
+   442→   442→          ) : throughput.every((t) => (t.created ?? 0) === 0 && (t.completed ?? 0) === 0) ? (
+   443→   443→            <div className="flex h-[260px] flex-col items-center justify-center gap-2 text-center">
+   444→   444→              <div className="rounded-full bg-muted p-3">
+   445→   445→                <Activity className="h-6 w-6 text-muted-foreground" />
+   446→   446→              </div>
+   447→   447→              <p className="text-sm font-medium">No activity in this period</p>
+   448→   448→              <p className="text-xs text-muted-foreground">
+   449→   449→                Try switching to a wider range (30d or 90d) to see historical throughput.
+   450→   450→              </p>
+   451→   451→            </div>
+   452→   452→          ) : (
+   453→   453→            <ResponsiveContainer width="100%" height={260}>
+   454→   454→              <AreaChart
+   455→   455→                data={throughput}
+   456→   456→                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+   457→   457→              >
+   458→   458→                <defs>
+   459→   459→                  <linearGradient id="createdGrad" x1="0" y1="0" x2="0" y2="1">
+   460→   460→                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+   461→   461→                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+   462→   462→                  </linearGradient>
+   463→   463→                  <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
+   464→   464→                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+   465→   465→                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+   466→   466→                  </linearGradient>
+   467→   467→                </defs>
+   468→   468→                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+   469→   469→                <XAxis
+   470→   470→                  dataKey="date"
+   471→   471→                  tickFormatter={(d) => {
+   472→   472→                    const date = new Date(d);
+   473→   473→                    return `${date.getMonth() + 1}/${date.getDate()}`;
+   474→   474→                  }}
+   475→   475→                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   476→   476→                  tickLine={false}
+   477→   477→                  axisLine={false}
+   478→   478→                  interval={4}
+   479→   479→                />
+   480→   480→                <YAxis
+   481→   481→                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   482→   482→                  tickLine={false}
+   483→   483→                  axisLine={false}
+   484→   484→                  allowDecimals={false}
+   485→   485→                />
+   486→   486→                <Tooltip
+   487→   487→                  contentStyle={{
+   488→   488→                    background: "var(--card)",
+   489→   489→                    border: "1px solid var(--border)",
+   490→   490→                    borderRadius: "8px",
+   491→   491→                    fontSize: "12px",
+   492→   492→                  }}
+   493→   493→                  labelFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+   494→   494→                />
+   495→   495→                <Area
+   496→   496→                  type="monotone"
+   497→   497→                  dataKey="created"
+   498→   498→                  stroke="var(--primary)"
+   499→   499→                  strokeWidth={2.5}
+   500→   500→                  fill="url(#createdGrad)"
+   501→   501→                  name="Created"
+   502→   502→                  dot={false}
+   503→   503→                  activeDot={{ r: 4 }}
+   504→   504→                />
+   505→   505→                <Area
+   506→   506→                  type="monotone"
+   507→   507→                  dataKey="completed"
+   508→   508→                  stroke="#10b981"
+   509→   509→                  strokeWidth={2.5}
+   510→   510→                  fill="url(#completedGrad)"
+   511→   511→                  name="Completed"
+   512→   512→                  dot={false}
+   513→   513→                  activeDot={{ r: 4 }}
+   514→   514→                />
+   515→   515→              </AreaChart>
+   516→   516→            </ResponsiveContainer>
+   517→   517→          )}
+   518→   518→        </CardContent>
+   519→   519→      </Card>
+   520→   520→
+   521→   521→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+   522→   522→        {/* Status donut */}
+   523→   523→        <Card>
+   524→   524→          <CardHeader>
+   525→   525→            <CardTitle className="flex items-center gap-2 text-base">
+   526→   526→              <ClipboardList className="h-4 w-4 text-primary" />
+   527→   527→              Job Status Distribution
+   528→   528→            </CardTitle>
+   529→   529→            <CardDescription>
+   530→   530→              Current pipeline state across {totalJobs} jobs
+   531→   531→            </CardDescription>
+   532→   532→          </CardHeader>
+   533→   533→          <CardContent>
+   534→   534→            {isLoading ? (
+   535→   535→              <div className="h-[220px] animate-pulse rounded bg-muted" />
+   536→   536→            ) : statusPieData.length === 0 ? (
+   537→   537→              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+   538→   538→                No job data yet
+   539→   539→              </div>
+   540→   540→            ) : (
+   541→   541→              <div className="flex flex-col items-center gap-4 sm:flex-row">
+   542→   542→                <ResponsiveContainer width="100%" height={220} className="!w-[50%]">
+   543→   543→                  <PieChart>
+   544→   544→                    <Pie
+   545→   545→                      data={statusPieData}
+   546→   546→                      dataKey="value"
+   547→   547→                      nameKey="name"
+   548→   548→                      cx="50%"
+   549→   549→                      cy="50%"
+   550→   550→                      innerRadius={50}
+   551→   551→                      outerRadius={80}
+   552→   552→                      paddingAngle={2}
+   553→   553→                    >
+   554→   554→                      {statusPieData.map((entry) => (
+   555→   555→                        <Cell
+   556→   556→                          key={entry.name}
+   557→   557→                          fill={STATUS_COLORS[entry.name] ?? "#a1a1aa"}
+   558→   558→                          stroke="var(--card)"
+   559→   559→                          strokeWidth={2}
+   560→   560→                        />
+   561→   561→                      ))}
+   562→   562→                    </Pie>
+   563→   563→                    <Tooltip
+   564→   564→                      contentStyle={{
+   565→   565→                        background: "var(--card)",
+   566→   566→                        border: "1px solid var(--border)",
+   567→   567→                        borderRadius: "8px",
+   568→   568→                        fontSize: "12px",
+   569→   569→                      }}
+   570→   570→                    />
+   571→   571→                  </PieChart>
+   572→   572→                </ResponsiveContainer>
+   573→   573→                <div className="flex-1 space-y-1.5">
+   574→   574→                  {statusPieData
+   575→   575→                    .sort((a, b) => b.value - a.value)
+   576→   576→                    .map((s) => {
+   577→   577→                      const pct = Math.round((s.value / totalJobs) * 100);
+   578→   578→                      return (
+   579→   579→                        <div
+   580→   580→                          key={s.name}
+   581→   581→                          className="flex items-center justify-between gap-2 text-xs"
+   582→   582→                        >
+   583→   583→                          <div className="flex items-center gap-2">
+   584→   584→                            <span
+   585→   585→                              className="h-2.5 w-2.5 rounded-full"
+   586→   586→                              style={{
+   587→   587→                                backgroundColor:
+   588→   588→                                  STATUS_COLORS[s.name] ?? "#a1a1aa",
+   589→   589→                              }}
+   590→   590→                            />
+   591→   591→                            <span className="font-medium">{s.name}</span>
+   592→   592→                          </div>
+   593→   593→                          <span className="tabular-nums text-muted-foreground">
+   594→   594→                            {s.value} ({pct}%)
+   595→   595→                          </span>
+   596→   596→                        </div>
+   597→   597→                      );
+   598→   598→                    })}
+   599→   599→                </div>
+   600→   600→              </div>
+   601→   601→            )}
+   602→   602→          </CardContent>
+   603→   603→        </Card>
+   604→   604→
+   605→   605→        {/* Priority breakdown */}
+   606→   606→        <Card>
+   607→   607→          <CardHeader>
+   608→   608→            <CardTitle className="flex items-center gap-2 text-base">
+   609→   609→              <Layers className="h-4 w-4 text-primary" />
+   610→   610→              Priority Breakdown
+   611→   611→            </CardTitle>
+   612→   612→            <CardDescription>Job distribution by priority level</CardDescription>
+   613→   613→          </CardHeader>
+   614→   614→          <CardContent>
+   615→   615→            {isLoading ? (
+   616→   616→              <div className="h-[220px] animate-pulse rounded bg-muted" />
+   617→   617→            ) : priorityData.length === 0 ? (
+   618→   618→              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+   619→   619→                No priority data yet
+   620→   620→              </div>
+   621→   621→            ) : (
+   622→   622→              <ResponsiveContainer width="100%" height={220}>
+   623→   623→                <BarChart
+   624→   624→                  data={priorityData}
+   625→   625→                  layout="vertical"
+   626→   626→                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+   627→   627→                >
+   628→   628→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+   629→   629→                  <XAxis
+   630→   630→                    type="number"
+   631→   631→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   632→   632→                    tickLine={false}
+   633→   633→                    axisLine={false}
+   634→   634→                    allowDecimals={false}
+   635→   635→                  />
+   636→   636→                  <YAxis
+   637→   637→                    type="category"
+   638→   638→                    dataKey="name"
+   639→   639→                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
+   640→   640→                    tickLine={false}
+   641→   641→                    axisLine={false}
+   642→   642→                    width={60}
+   643→   643→                  />
+   644→   644→                  <Tooltip
+   645→   645→                    cursor={{ fill: "var(--muted)" }}
+   646→   646→                    contentStyle={{
+   647→   647→                      background: "var(--card)",
+   648→   648→                      border: "1px solid var(--border)",
+   649→   649→                      borderRadius: "8px",
+   650→   650→                      fontSize: "12px",
+   651→   651→                    }}
+   652→   652→                  />
+   653→   653→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>
+   654→   654→                    {priorityData.map((entry) => (
+   655→   655→                      <Cell
+   656→   656→                        key={entry.name}
+   657→   657→                        fill={PRIORITY_COLORS[entry.name] ?? "#0ea5e9"}
+   658→   658→                      />
+   659→   659→                    ))}
+   660→   660→                  </Bar>
+   661→   661→                </BarChart>
+   662→   662→              </ResponsiveContainer>
+   663→   663→            )}
+   664→   664→          </CardContent>
+   665→   665→        </Card>
+   666→   666→      </div>
+   667→   667→
+   668→   668→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+   669→   669→        {/* Material usage donut */}
+   670→   670→        <Card>
+   671→   671→          <CardHeader>
+   672→   672→            <CardTitle className="flex items-center gap-2 text-base">
+   673→   673→              <Layers className="h-4 w-4 text-primary" />
+   674→   674→              Material Usage
+   675→   675→            </CardTitle>
+   676→   676→            <CardDescription>Cutting lists by panel material</CardDescription>
+   677→   677→          </CardHeader>
+   678→   678→          <CardContent>
+   679→   679→            {isLoading ? (
+   680→   680→              <div className="h-[180px] animate-pulse rounded bg-muted" />
+   681→   681→            ) : materialPieData.length === 0 ? (
+   682→   682→              <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
+   683→   683→                No material data yet
+   684→   684→              </div>
+   685→   685→            ) : (
+   686→   686→              <div className="flex flex-col items-center gap-3">
+   687→   687→                <ResponsiveContainer width="100%" height={180}>
+   688→   688→                  <PieChart>
+   689→   689→                    <Pie
+   690→   690→                      data={materialPieData}
+   691→   691→                      dataKey="value"
+   692→   692→                      nameKey="name"
+   693→   693→                      cx="50%"
+   694→   694→                      cy="50%"
+   695→   695→                      outerRadius={75}
+   696→   696→                      paddingAngle={2}
+   697→   697→                    >
+   698→   698→                      {materialPieData.map((entry, i) => (
+   699→   699→                        <Cell
+   700→   700→                          key={entry.name}
+   701→   701→                          fill={MATERIAL_COLORS[i % MATERIAL_COLORS.length]}
+   702→   702→                        />
+   703→   703→                      ))}
+   704→   704→                    </Pie>
+   705→   705→                    <Tooltip
+   706→   706→                      contentStyle={{
+   707→   707→                        background: "var(--card)",
+   708→   708→                        border: "1px solid var(--border)",
+   709→   709→                        borderRadius: "8px",
+   710→   710→                        fontSize: "12px",
+   711→   711→                      }}
+   712→   712→                    />
+   713→   713→                  </PieChart>
+   714→   714→                </ResponsiveContainer>
+   715→   715→                <div className="flex flex-wrap justify-center gap-2">
+   716→   716→                  {materialPieData.map((m, i) => (
+   717→   717→                    <span
+   718→   718→                      key={m.name}
+   719→   719→                      className="flex items-center gap-1 text-xs"
+   720→   720→                    >
+   721→   721→                      <span
+   722→   722→                        className="h-2 w-2 rounded-full"
+   723→   723→                        style={{
+   724→   724→                          backgroundColor:
+   725→   725→                            MATERIAL_COLORS[i % MATERIAL_COLORS.length],
+   726→   726→                        }}
+   727→   727→                      />
+   728→   728→                      {m.name} ({m.value})
+   729→   729→                    </span>
+   730→   730→                  ))}
+   731→   731→                </div>
+   732→   732→              </div>
+   733→   733→            )}
+   734→   734→          </CardContent>
+   735→   735→        </Card>
+   736→   736→
+   737→   737→        {/* Technician workload */}
+   738→   738→        <Card className="lg:col-span-2">
+   739→   739→          <CardHeader>
+   740→   740→            <CardTitle className="flex items-center gap-2 text-base">
+   741→   741→              <HardHat className="h-4 w-4 text-primary" />
+   742→   742→              Technician Workload
+   743→   743→            </CardTitle>
+   744→   744→            <CardDescription>
+   745→   745→              Active job assignments per technician
+   746→   746→            </CardDescription>
+   747→   747→          </CardHeader>
+   748→   748→          <CardContent>
+   749→   749→            {isLoading ? (
+   750→   750→              <div className="h-[180px] animate-pulse rounded bg-muted" />
+   751→   751→            ) : workload.length === 0 ? (
+   752→   752→              <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
+   753→   753→                No assigned jobs yet
+   754→   754→              </div>
+   755→   755→            ) : (
+   756→   756→              <ResponsiveContainer width="100%" height={180}>
+   757→   757→                <BarChart
+   758→   758→                  data={workload}
+   759→   759→                  margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
+   760→   760→                >
+   761→   761→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+   762→   762→                  <XAxis
+   763→   763→                    dataKey="name"
+   764→   764→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   765→   765→                    tickLine={false}
+   766→   766→                    axisLine={false}
+   767→   767→                  />
+   768→   768→                  <YAxis
+   769→   769→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   770→   770→                    tickLine={false}
+   771→   771→                    axisLine={false}
+   772→   772→                    allowDecimals={false}
+   773→   773→                  />
+   774→   774→                  <Tooltip
+   775→   775→                    cursor={{ fill: "var(--muted)" }}
+   776→   776→                    contentStyle={{
+   777→   777→                      background: "var(--card)",
+   778→   778→                      border: "1px solid var(--border)",
+   779→   779→                      borderRadius: "8px",
+   780→   780→                      fontSize: "12px",
+   781→   781→                    }}
+   782→   782→                  />
+   783→   783→                  <Bar
+   784→   784→                    dataKey="count"
+   785→   785→                    fill="var(--primary)"
+   786→   786→                    radius={[6, 6, 0, 0]}
+   787→   787→                    barSize={40}
+   788→   788→                    name="Assigned Jobs"
+   789→   789→                  />
+   790→   790→                </BarChart>
+   791→   791→              </ResponsiveContainer>
+   792→   792→            )}
+   793→   793→          </CardContent>
+   794→   794→        </Card>
+   795→   795→      </div>
+   796→   796→
+   797→   797→      {/* Recent Activity + Inventory Alerts — bento 2-col */}
+   798→   798→      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+   799→   799→      {/* Recent Activity Feed */}
+   800→   800→      <Card>
+   801→   801→        <CardHeader className="pb-2">
+   802→   802→          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   803→   803→            <div>
+   804→   804→              <CardTitle className="flex items-center gap-2 text-sm">
+   805→   805→                <Activity className="h-4 w-4 text-primary" />
+   806→   806→                Recent Activity
+   807→   807→              </CardTitle>
+   808→   808→              <CardDescription className="text-xs">
+   809→   809→                Latest events across your production pipeline
+   810→   810→              </CardDescription>
+   811→   811→            </div>
+   812→   812→            {/* Quick Filters — chips */}
+   813→   813→            <div className="flex flex-wrap items-center gap-1">
+   814→   814→              {([
+   815→   815→                { id: "all", label: "All", icon: Filter },
+   816→   816→                { id: "jobs", label: "Jobs", icon: ClipboardList },
+   817→   817→                { id: "measurements", label: "Measurements", icon: Ruler },
+   818→   818→                { id: "cutting", label: "Cutting Lists", icon: Scissors },
+   819→   819→              ] as const).map((f) => {
+   820→   820→                const Icon = f.icon;
+   821→   821→                const active = activityFilter === f.id;
+   822→   822→                return (
+   823→   823→                  <button
+   824→   824→                    key={f.id}
+   825→   825→                    onClick={() => setActivityFilter(f.id)}
+   826→   826→                    className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+   827→   827→                      active
+   828→   828→                        ? "border-primary bg-primary/10 text-primary"
+   829→   829→                        : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
+   830→   830→                    }`}
+   831→   831→                    aria-pressed={active}
+   832→   832→                  >
+   833→   833→                    <Icon className="h-3 w-3" />
+   834→   834→                    {f.label}
+   835→   835→                  </button>
+   836→   836→                );
+   837→   837→              })}
+   838→   838→            </div>
+   839→   839→          </div>
+   840→   840→        </CardHeader>
+   841→   841→        <CardContent>
+   842→   842→          {(() => {
+   843→   843→            const filteredEvents = filterActivity(
+   844→   844→              activityData?.events ?? [],
+   845→   845→              activityFilter
+   846→   846→            ).slice(0, 8);
+   847→   847→            if (filteredEvents.length === 0) {
+   848→   848→              return (
+   849→   849→                <div className="flex flex-col items-center justify-center gap-1 py-8 text-center text-sm text-muted-foreground">
+   850→   850→                  <Activity className="h-5 w-5 opacity-50" />
+   851→   851→                  <span>
+   852→   852→                    {activityFilter === "all"
+   853→   853→                      ? "No recent activity"
+   854→   854→                      : `No ${activityFilter} activity`}
+   855→   855→                  </span>
+   856→   856→                </div>
+   857→   857→              );
+   858→   858→            }
+   859→   859→            // Group by day bucket, preserving chronological order
+   860→   860→            const groups: { bucket: string; events: ActivityEvent[] }[] = [];
+   861→   861→            for (const ev of filteredEvents) {
+   862→   862→              const bucket = dayBucket(ev.timestamp);
+   863→   863→              const last = groups[groups.length - 1];
+   864→   864→              if (last && last.bucket === bucket) last.events.push(ev);
+   865→   865→              else groups.push({ bucket, events: [ev] });
+   866→   866→            }
+   867→   867→            return (
+   868→   868→              <div className="space-y-3">
+   869→   869→                {groups.map((g) => (
+   870→   870→                  <div key={g.bucket} className="space-y-1">
+   871→   871→                    <div className="flex items-center gap-2 px-1">
+   872→   872→                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+   873→   873→                        {g.bucket}
+   874→   874→                      </span>
+   875→   875→                      <div className="h-px flex-1 bg-border/60" />
+   876→   876→                    </div>
+   877→   877→                    {g.events.map((event) => {
+   878→   878→                      const Icon = ACTIVITY_ICONS[event.type] ?? Activity;
+   879→   879→                      const tint =
+   880→   880→                        ACTIVITY_TINTS[event.type] ??
+   881→   881→                        "bg-muted text-muted-foreground";
+   882→   882→                      return (
+   883→   883→                        <div
+   884→   884→                          key={event.id}
+   885→   885→                          className="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-muted/40"
+   886→   886→                        >
+   887→   887→                          <div
+   888→   888→                            className={`mt-0.5 shrink-0 rounded-md p-1.5 ${tint}`}
+   889→   889→                          >
+   890→   890→                            <Icon className="h-3.5 w-3.5" />
+   891→   891→                          </div>
+   892→   892→                          <div className="min-w-0 flex-1">
+   893→   893→                            <p className="text-sm font-medium leading-tight">
+   894→   894→                              {event.title}
+   895→   895→                            </p>
+   896→   896→                            <p className="truncate text-xs text-muted-foreground">
+   897→   897→                              {event.description}
+   898→   898→                            </p>
+   899→   899→                          </div>
+   900→   900→                          <span className="shrink-0 text-[10px] text-muted-foreground/70">
+   901→   901→                            {timeAgo(event.timestamp)}
+   902→   902→                          </span>
+   903→   903→                        </div>
+   904→   904→                      );
+   905→   905→                    })}
+   906→   906→                  </div>
+   907→   907→                ))}
+   908→   908→                {onNavigate && (
+   909→   909→                  <button
+   910→   910→                    onClick={() => onNavigate("audit")}
+   911→   911→                    className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+   912→   912→                  >
+   913→   913→                    View all activity
+   914→   914→                    <ArrowRight className="h-3 w-3" />
+   915→   915→                  </button>
+   916→   916→                )}
+   917→   917→              </div>
+   918→   918→            );
+   919→   919→          })()}
+   920→   920→        </CardContent>
+   921→   921→      </Card>
+   922→   922→
+   923→   923→      {/* Inventory Alerts */}
+   924→   924→      {(inventoryData?.stats.lowStock ?? 0) > 0 && (
+   925→   925→        <InventoryAlertsCard
+   926→   926→          items={inventoryData?.items ?? []}
+   927→   927→          lowStock={inventoryData?.stats.lowStock ?? 0}
+   928→   928→          onNavigate={onNavigate}
+   929→   929→        />
+   930→   930→      )}
+   931→   931→      </div>
+   932→   932→
+   933→   933→      {/* Quick stats footer — compact */}
+   934→   934→      <Card className="bg-muted/30">
+   935→   935→        <CardContent className="p-3">
+   936→   936→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+   937→   937→            <StatRow
+   938→   938→              icon={UserCheck}
+   939→   939→              label="Active workforce"
+   940→   940→              value={counts?.activeUsers ?? 0}
+   941→   941→              total={counts?.users ?? 0}
+   942→   942→            />
+   943→   943→            <StatRow
+   944→   944→              icon={Clock}
+   945→   945→              label="Pending intake"
+   946→   946→              value={counts?.pendingJobs ?? 0}
+   947→   947→              total={counts?.jobOrders ?? 0}
+   948→   948→            />
+   949→   949→            <StatRow
+   950→   950→              icon={CheckCircle2}
+   951→   951→              label="Measurements"
+   952→   952→              value={counts?.measurements ?? 0}
+   953→   953→            />
+   954→   954→            <StatRow
+   955→   955→              icon={Scissors}
+   956→   956→              label="Cutting lists"
+   957→   957→              value={counts?.cuttingLists ?? 0}
+   958→   958→            />
+   959→   959→            <StatRow
+   960→   960→              icon={Building2}
+   961→   961→              label="Customers"
+   962→   962→              value={counts?.customers ?? 0}
+   963→   963→            />
+   964→   964→          </div>
+   965→   965→        </CardContent>
+   966→   966→      </Card>
+   967→   967→    </div>
+   968→   968→  );
+   969→   969→}
+   970→   970→
+   971→   971→/* ============ Needs Attention — daily standup panel ============ */
+   972→   972→function NeedsAttention({
+   973→   973→  pendingJobs,
+   974→   974→  urgentJobs,
+   975→   975→  highJobs,
+   976→   976→  lowStock,
+   977→   977→  overdueJobs,
+   978→   978→  totalJobs,
+   979→   979→  onNavigate,
+   980→   980→  isLoading,
+   981→   981→}: {
+   982→   982→  pendingJobs: number;
+   983→   983→  urgentJobs: number;
+   984→   984→  highJobs: number;
+   985→   985→  lowStock: number;
+   986→   986→  overdueJobs: number;
+   987→   987→  totalJobs: number;
+   988→   988→  onNavigate?: (view: string) => void;
+   989→   989→  isLoading?: boolean;
+   990→   990→}) {
+   991→   991→  const items: {
+   992→   992→    label: string;
+   993→   993→    value: number;
+   994→   994→    sub: string;
+   995→   995→    icon: typeof Clock;
+   996→   996→    tint: string;
+   997→   997→    view: string;
+   998→   998→    severity: "info" | "warn" | "danger";
+   999→   999→  }[] = [
+  1000→  1000→    {
+  1001→  1001→      label: "Pending intake",
+  1002→  1002→      value: pendingJobs,
+  1003→  1003→      sub: totalJobs ? `${Math.round((pendingJobs / totalJobs) * 100)}% of pipeline` : "—",
+  1004→  1004→      icon: Clock,
+  1005→  1005→      tint: "bg-amber-500/10 text-amber-600",
+  1006→  1006→      view: "job-orders",
+  1007→  1007→      severity: pendingJobs > 5 ? "warn" : "info",
+  1008→  1008→    },
+  1009→  1009→    {
+  1010→  1010→      label: "Urgent priority",
+  1011→  1011→      value: urgentJobs,
+  1012→  1012→      sub: "needs immediate action",
+  1013→  1013→      icon: AlertTriangle,
+  1014→  1014→      tint: urgentJobs > 0 ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
+  1015→  1015→      view: "job-orders",
+  1016→  1016→      severity: urgentJobs > 0 ? "danger" : "info",
+  1017→  1017→    },
+  1018→  1018→    {
+  1019→  1019→      label: "High priority",
+  1020→  1020→      value: highJobs,
+  1021→  1021→      sub: "in active pipeline",
+  1022→  1022→      icon: Flag,
+  1023→  1023→      tint: "bg-orange-500/10 text-orange-600",
+  1024→  1024→      view: "job-orders",
+  1025→  1025→      severity: "info",
+  1026→  1026→    },
+  1027→  1027→    {
+  1028→  1028→      label: "Low stock items",
+  1029→  1029→      value: lowStock,
+  1030→  1030→      sub: lowStock > 0 ? "below reorder point" : "all stocked",
+  1031→  1031→      icon: TrendingDown,
+  1032→  1032→      tint: lowStock > 0 ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
+  1033→  1033→      view: "inventory",
+  1034→  1034→      severity: lowStock > 0 ? "danger" : "info",
+  1035→  1035→    },
+  1036→  1036→    {
+  1037→  1037→      label: "Overdue",
+  1038→  1038→      value: overdueJobs,
+  1039→  1039→      sub: overdueJobs > 0 ? "past delivery date" : "on schedule",
+  1040→  1040→      icon: CalendarRange,
+  1041→  1041→      tint: overdueJobs > 0 ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
+  1042→  1042→      view: "job-orders",
+  1043→  1043→      severity: overdueJobs > 0 ? "danger" : "info",
+  1044→  1044→    },
+  1045→  1045→  ];
+  1046→  1046→
+  1047→  1047→  const hasAttention = pendingJobs > 0 || urgentJobs > 0 || lowStock > 0 || overdueJobs > 0;
+  1048→  1048→
+  1049→  1049→  return (
+  1050→  1050→    <Card className={hasAttention ? "border-amber-500/30" : ""}>
+  1051→  1051→      <CardHeader className="pb-2">
+  1052→  1052→        <div className="flex items-center justify-between gap-2">
+  1053→  1053→          <CardTitle className="flex items-center gap-2 text-sm">
+  1054→  1054→            <AlertTriangle className={`h-4 w-4 ${hasAttention ? "text-amber-600" : "text-emerald-600"}`} />
+  1055→  1055→            Needs Attention
+  1056→  1056→          </CardTitle>
+  1057→  1057→          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+  1058→  1058→            hasAttention
+  1059→  1059→              ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+  1060→  1060→              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+  1061→  1061→          }`}>
+  1062→  1062→            {hasAttention ? "Action required" : "All clear"}
+  1063→  1063→          </span>
+  1064→  1064→        </div>
+  1065→  1065→      </CardHeader>
+  1066→  1066→      <CardContent className="p-3 pt-0">
+  1067→  1067→        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+  1068→  1068→          {items.map((it) => {
+  1069→  1069→            const Icon = it.icon;
+  1070→  1070→            const isDanger = it.severity === "danger";
+  1071→  1071→            return (
+  1072→  1072→              <button
+  1073→  1073→                key={it.label}
+  1074→  1074→                onClick={() => onNavigate?.(it.view)}
+  1075→  1075→                className={`group flex items-center gap-3 rounded-lg border p-3 text-left transition-all hover:shadow-sm ${
+  1076→  1076→                  isDanger
+  1077→  1077→                    ? "border-rose-500/40 bg-rose-500/5 hover:border-rose-500/60"
+  1078→  1078→                    : "border-border bg-card hover:border-primary/40"
+  1079→  1079→                }`}
+  1080→  1080→              >
+  1081→  1081→                <div className={`shrink-0 rounded-lg p-2 ${it.tint}`}>
+  1082→  1082→                  <Icon className="h-4 w-4" />
+  1083→  1083→                </div>
+  1084→  1084→                <div className="min-w-0">
+  1085→  1085→                  {isLoading ? (
+  1086→  1086→                    <div className="h-5 w-8 animate-pulse rounded bg-muted" />
+  1087→  1087→                  ) : (
+  1088→  1088→                    <p className="text-lg font-bold tabular-nums leading-tight">{it.value}</p>
+  1089→  1089→                  )}
+  1090→  1090→                  <p className="truncate text-[11px] font-medium">{it.label}</p>
+  1091→  1091→                  <p className="truncate text-[10px] text-muted-foreground">{it.sub}</p>
+  1092→  1092→                </div>
+  1093→  1093→              </button>
+  1094→  1094→            );
+  1095→  1095→          })}
+  1096→  1096→        </div>
+  1097→  1097→      </CardContent>
+  1098→  1098→    </Card>
+  1099→  1099→  );
+  1100→  1100→}
+  1101→  1101→
+  1102→  1102→/* ============ Today's Snapshot — compact summary bar ============ */
+  1103→  1103→function TodaysSnapshot({
+  1104→  1104→  activeJobs,
+  1105→  1105→  pendingJobs,
+  1106→  1106→  overdueJobs,
+  1107→  1107→  onNavigate,
+  1108→  1108→}: {
+  1109→  1109→  activeJobs: number;
+  1110→  1110→  pendingJobs: number;
+  1111→  1111→  overdueJobs: number;
+  1112→  1112→  onNavigate?: (view: string) => void;
+  1113→  1113→}) {
+  1114→  1114→  const now = React.useMemo(() => new Date(), []);
+  1115→  1115→  const greeting = greetingFor(now);
+  1116→  1116→  const dateLabel = now.toLocaleDateString(undefined, {
+  1117→  1117→    weekday: "long",
+  1118→  1118→    month: "long",
+  1119→  1119→    day: "numeric",
+  1120→  1120→    year: "numeric",
+  1121→  1121→  });
+  1122→  1122→
+  1123→  1123→  const pills = [
+  1124→  1124→    {
+  1125→  1125→      label: "Active jobs",
+  1126→  1126→      value: activeJobs,
+  1127→  1127→      icon: ClipboardList,
+  1128→  1128→      tint: "bg-primary/10 text-primary",
+  1129→  1129→      view: "job-orders",
+  1130→  1130→    },
+  1131→  1131→    {
+  1132→  1132→      label: "Pending tasks",
+  1133→  1133→      value: pendingJobs,
+  1134→  1134→      icon: Clock,
+  1135→  1135→      tint: "bg-amber-500/10 text-amber-600",
+  1136→  1136→      view: "job-orders",
+  1137→  1137→    },
+  1138→  1138→    {
+  1139→  1139→      label: "Overdue",
+  1140→  1140→      value: overdueJobs,
+  1141→  1141→      icon: CalendarRange,
+  1142→  1142→      tint:
+  1143→  1143→        overdueJobs > 0
+  1144→  1144→          ? "bg-rose-500/10 text-rose-600"
+  1145→  1145→          : "bg-emerald-500/10 text-emerald-600",
+  1146→  1146→      view: "job-orders",
+  1147→  1147→    },
+  1148→  1148→  ];
+  1149→  1149→
+  1150→  1150→  return (
+  1151→  1151→    <Card className="overflow-hidden border-border/60">
+  1152→  1152→      <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+  1153→  1153→        <div className="flex items-center gap-3">
+  1154→  1154→          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+  1155→  1155→            <Sun className="h-4 w-4" />
+  1156→  1156→          </div>
+  1157→  1157→          <div className="min-w-0">
+  1158→  1158→            <p className="text-sm font-semibold leading-tight">
+  1159→  1159→              {greeting}
+  1160→  1160→              <span className="ml-1 text-muted-foreground">·</span>
+  1161→  1161→              <span className="ml-1 text-muted-foreground font-normal">
+  1162→  1162→                here&apos;s today&apos;s snapshot
+  1163→  1163→              </span>
+  1164→  1164→            </p>
+  1165→  1165→            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+  1166→  1166→              <Calendar className="h-3 w-3" />
+  1167→  1167→              {dateLabel}
+  1168→  1168→            </p>
+  1169→  1169→          </div>
+  1170→  1170→        </div>
+  1171→  1171→        <div className="flex flex-wrap items-center gap-2">
+  1172→  1172→          {pills.map((p) => {
+  1173→  1173→            const Icon = p.icon;
+  1174→  1174→            return (
+  1175→  1175→              <button
+  1176→  1176→                key={p.label}
+  1177→  1177→                onClick={() => onNavigate?.(p.view)}
+  1178→  1178→                className={`flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5 ${p.tint}`}
+  1179→  1179→                title={p.label}
+  1180→  1180→              >
+  1181→  1181→                <Icon className="h-3.5 w-3.5" />
+  1182→  1182→                <span className="tabular-nums font-semibold">{p.value}</span>
+  1183→  1183→                <span className="hidden text-muted-foreground sm:inline">
+  1184→  1184→                  {p.label}
+  1185→  1185→                </span>
+  1186→  1186→                <ArrowRight className="h-3 w-3 opacity-50" />
+  1187→  1187→              </button>
+  1188→  1188→            );
+  1189→  1189→          })}
+  1190→  1190→        </div>
+  1191→  1191→      </CardContent>
+  1192→  1192→    </Card>
+  1193→  1193→  );
+  1194→  1194→}
+  1195→  1195→
+  1196→  1196→/* ============ Inventory Alerts (collapsible) ============ */
+  1197→  1197→function InventoryAlertsCard({
+  1198→  1198→  items,
+  1199→  1199→  lowStock,
+  1200→  1200→  onNavigate,
+  1201→  1201→}: {
+  1202→  1202→  items: Array<{
+  1203→  1203→    id: string;
+  1204→  1204→    name: string;
+  1205→  1205→    material: string;
+  1206→  1206→    thickness: string | null;
+  1207→  1207→    unit: string;
+  1208→  1208→    stockLevel: number | string;
+  1209→  1209→    reorderPoint: number | string;
+  1210→  1210→  }>;
+  1211→  1211→  lowStock: number;
+  1212→  1212→  onNavigate?: (view: string) => void;
+  1213→  1213→}) {
+  1214→  1214→  const [collapsed, setCollapsed] = React.useState(false);
+  1215→  1215→  const lowItems = items
+  1216→  1216→    .filter(
+  1217→  1217→      (i) =>
+  1218→  1218→        Number(i.stockLevel) <= Number(i.reorderPoint) &&
+  1219→  1219→        Number(i.reorderPoint) > 0
+  1220→  1220→    )
+  1221→  1221→    .slice(0, 5);
+  1222→  1222→
+  1223→  1223→  return (
+  1224→  1224→    <Card className="border-amber-500/30">
+  1225→  1225→      <CardHeader>
+  1226→  1226→        <button
+  1227→  1227→          type="button"
+  1228→  1228→          onClick={() => setCollapsed((v) => !v)}
+  1229→  1229→          className="flex w-full items-center justify-between gap-2 text-left"
+  1230→  1230→          aria-expanded={!collapsed}
+  1231→  1231→        >
+  1232→  1232→          <div>
+  1233→  1233→            <CardTitle className="flex items-center gap-2 text-base">
+  1234→  1234→              <AlertTriangle className="h-4 w-4 text-amber-600" />
+  1235→  1235→              Inventory Alerts
+  1236→  1236→            </CardTitle>
+  1237→  1237→            <CardDescription>
+  1238→  1238→              {lowStock} item(s) below reorder point
+  1239→  1239→            </CardDescription>
+  1240→  1240→          </div>
+  1241→  1241→          <ChevronDown
+  1242→  1242→            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+  1243→  1243→              collapsed ? "" : "rotate-180"
+  1244→  1244→            }`}
+  1245→  1245→          />
+  1246→  1246→        </button>
+  1247→  1247→      </CardHeader>
+  1248→  1248→      {!collapsed && (
+  1249→  1249→        <CardContent>
+  1250→  1250→          <div className="space-y-2">
+  1251→  1251→            {lowItems.map((item) => {
+  1252→  1252→              const stock = Number(item.stockLevel);
+  1253→  1253→              const reorder = Number(item.reorderPoint);
+  1254→  1254→              const isOut = stock === 0;
+  1255→  1255→              return (
+  1256→  1256→                <div
+  1257→  1257→                  key={item.id}
+  1258→  1258→                  className="flex items-center justify-between rounded-lg border border-border p-3"
+  1259→  1259→                >
+  1260→  1260→                  <div className="flex min-w-0 items-center gap-3">
+  1261→  1261→                    <div
+  1262→  1262→                      className={`shrink-0 rounded-md p-1.5 ${
+  1263→  1263→                        isOut
+  1264→  1264→                          ? "bg-rose-500/10 text-rose-600"
+  1265→  1265→                          : "bg-amber-500/10 text-amber-600"
+  1266→  1266→                      }`}
+  1267→  1267→                    >
+  1268→  1268→                      {isOut ? (
+  1269→  1269→                        <AlertTriangle className="h-4 w-4" />
+  1270→  1270→                      ) : (
+  1271→  1271→                        <TrendingDown className="h-4 w-4" />
+  1272→  1272→                      )}
+  1273→  1273→                    </div>
+  1274→  1274→                    <div className="min-w-0">
+  1275→  1275→                      <p className="truncate text-sm font-medium">{item.name}</p>
+  1276→  1276→                      <p className="truncate text-xs text-muted-foreground">
+  1277→  1277→                        {item.material}
+  1278→  1278→                        {item.thickness ? ` · ${item.thickness}` : ""}
+  1279→  1279→                      </p>
+  1280→  1280→                    </div>
+  1281→  1281→                  </div>
+  1282→  1282→                  <div className="flex items-center gap-3">
+  1283→  1283→                    <div className="text-right">
+  1284→  1284→                      <p
+  1285→  1285→                        className={`text-sm font-bold tabular-nums ${
+  1286→  1286→                          isOut ? "text-rose-600" : "text-amber-600"
+  1287→  1287→                        }`}
+  1288→  1288→                      >
+  1289→  1289→                        {stock} {item.unit}
+  1290→  1290→                      </p>
+  1291→  1291→                      <p className="text-xs text-muted-foreground">
+  1292→  1292→                        reorder at {reorder}
+  1293→  1293→                      </p>
+  1294→  1294→                    </div>
+  1295→  1295→                    <Button
+  1296→  1296→                      size="sm"
+  1297→  1297→                      variant="outline"
+  1298→  1298→                      className="h-7 gap-1 px-2 text-xs"
+  1299→  1299→                      onClick={() => onNavigate?.("inventory")}
+  1300→  1300→                      title={`Reorder ${item.name}`}
+  1301→  1301→                    >
+  1302→  1302→                      <ShoppingCart className="h-3.5 w-3.5" />
+  1303→  1303→                      Reorder
+  1304→  1304→                    </Button>
+  1305→  1305→                  </div>
+  1306→  1306→                </div>
+  1307→  1307→              );
+  1308→  1308→            })}
+  1309→  1309→          </div>
+  1310→  1310→        </CardContent>
+  1311→  1311→      )}
+  1312→  1312→    </Card>
+  1313→  1313→  );
+  1314→  1314→}
+  1315→  1315→
+  1316→  1316→function StatRow({
+  1317→  1317→  icon: Icon,
+  1318→  1318→  label,
+  1319→  1319→  value,
+  1320→  1320→  total,
+  1321→  1321→}: {
+  1322→  1322→  icon: typeof Users;
+  1323→  1323→  label: string;
+  1324→  1324→  value: number;
+  1325→  1325→  total?: number;
+  1326→  1326→}) {
+  1327→  1327→  return (
+  1328→  1328→    <div className="flex items-center gap-2.5">
+  1329→  1329→      <div className="rounded-md bg-muted p-1.5">
+  1330→  1330→        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+  1331→  1331→      </div>
+  1332→  1332→      <div className="min-w-0">
+  1333→  1333→        <p className="text-xs text-muted-foreground">{label}</p>
+  1334→  1334→        <p className="text-sm font-semibold tabular-nums">
+  1335→  1335→          {value}
+  1336→  1336→          {total !== undefined && (
+  1337→  1337→            <span className="text-xs font-normal text-muted-foreground">
+  1338→  1338→              {" "}
+  1339→  1339→              / {total}
+  1340→  1340→            </span>
+  1341→  1341→          )}
+  1342→  1342→        </p>
+  1343→  1343→      </div>
+  1344→  1344→    </div>
+  1345→  1345→  );
+  1346→  1346→}
+  1347→  1347→
+  1348→  1348→/* ============ What's New Banner (dismissible, compact) ============ */
+  1349→  1349→function WhatsNewBanner({ onNavigate }: { onNavigate?: (view: string) => void }) {
+  1350→  1350→  const [dismissed, setDismissed] = React.useState(false);
+  1351→  1351→  const [expanded, setExpanded] = React.useState(false);
+  1352→  1352→
+  1353→  1353→  React.useEffect(() => {
+  1354→  1354→    const seen = localStorage.getItem("kcm-whatsnew-v2-dismissed");
+  1355→  1355→    if (seen === "true") setDismissed(true);
+  1356→  1356→  }, []);
+  1357→  1357→
+  1358→  1358→  function dismiss() {
+  1359→  1359→    localStorage.setItem("kcm-whatsnew-v2-dismissed", "true");
+  1360→  1360→    setDismissed(true);
+  1361→  1361→  }
+  1362→  1362→
+  1363→  1363→  if (dismissed) return null;
+  1364→  1364→
+  1365→  1365→  const newFeatures = [
+  1366→  1366→    { label: "Unified Calendar", icon: CalendarRange, view: "settings" },
+  1367→  1367→    { label: "Punch List", icon: Bug, view: "settings" },
+  1368→  1368→    { label: "Change Orders", icon: GitBranch, view: "settings" },
+  1369→  1369→    { label: "Subcontractors", icon: HardHat, view: "settings" },
+  1370→  1370→    { label: "Equipment", icon: Wrench, view: "settings" },
+  1371→  1371→    { label: "Milestones", icon: Flag, view: "settings" },
+  1372→  1372→    { label: "MRP", icon: PackageSearch, view: "settings" },
+  1373→  1373→    { label: "Site Visits", icon: ClipboardCheck, view: "settings" },
+  1374→  1374→  ];
+  1375→  1375→
+  1376→  1376→  return (
+  1377→  1377→    <Card className="border-primary/30 bg-primary/5">
+  1378→  1378→      <CardContent className="p-2.5">
+  1379→  1379→        <div className="flex items-center gap-2">
+  1380→  1380→          <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+  1381→  1381→          <button
+  1382→  1382→            type="button"
+  1383→  1383→            onClick={() => setExpanded((v) => !v)}
+  1384→  1384→            className="flex flex-1 items-center gap-1.5 text-left text-xs font-medium"
+  1385→  1385→          >
+  1386→  1386→            <span className="text-primary">v2.0 — 17 new modules added</span>
+  1387→  1387→            <span className="hidden text-muted-foreground sm:inline">
+  1388→  1388→              · enable them in System Settings → Module Visibility
+  1389→  1389→            </span>
+  1390→  1390→            <ChevronRight
+  1391→  1391→              className={`ml-auto hidden h-3 w-3 text-muted-foreground transition-transform sm:block ${
+  1392→  1392→                expanded ? "rotate-90" : ""
+  1393→  1393→              }`}
+  1394→  1394→            />
+  1395→  1395→          </button>
+  1396→  1396→          <Button
+  1397→  1397→            variant="ghost"
+  1398→  1398→            size="icon"
+  1399→  1399→            className="h-6 w-6 shrink-0"
+  1400→  1400→            onClick={dismiss}
+  1401→  1401→            title="Dismiss"
+  1402→  1402→          >
+  1403→  1403→            <X className="h-3.5 w-3.5" />
+  1404→  1404→          </Button>
+  1405→  1405→        </div>
+  1406→  1406→        {expanded && (
+  1407→  1407→          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+  1408→  1408→            {newFeatures.map((f) => {
+  1409→  1409→              const Icon = f.icon;
+  1410→  1410→              return (
+  1411→  1411→                <button
+  1412→  1412→                  key={f.label}
+  1413→  1413→                  onClick={() => onNavigate?.(f.view)}
+  1414→  1414→                  className="flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+  1415→  1415→                >
+  1416→  1416→                  <Icon className="h-3 w-3 text-primary" />
+  1417→  1417→                  {f.label}
+  1418→  1418→                  <span className="rounded-full bg-primary px-1 py-0.5 text-[6px] font-bold leading-none text-primary-foreground">
+  1419→  1419→                    NEW
+  1420→  1420→                  </span>
+  1421→  1421→                </button>
+  1422→  1422→              );
+  1423→  1423→            })}
+  1424→  1424→          </div>
+  1425→  1425→        )}
+  1426→  1426→      </CardContent>
+  1427→  1427→    </Card>
+  1428→  1428→  );
+  1429→  1429→}
+  1430→  1430→

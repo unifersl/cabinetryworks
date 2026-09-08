@@ -1,0 +1,1157 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { jobsApi } from "@/lib/api";
+     6→import { useAuth } from "@/components/providers";
+     7→import {
+     8→  type SiteJobData,
+     9→  type CabinetModule,
+    10→  type CabinetType,
+    11→  type OpeningStyle,
+    12→  type MaterialTag,
+    13→  type SectionType,
+    14→  type HardwareSpecs,
+    15→  CABINET_TYPES,
+    16→  OPENING_STYLES,
+    17→  MATERIAL_TAGS,
+    18→  SECTION_TYPES,
+    19→  COMPONENT_NOTES,
+    20→  CARCASE_BOARD_OPTIONS,
+    21→  DOOR_FINISH_OPTIONS,
+    22→  EDGE_BANDING_OPTIONS,
+    23→  HINGES_OPTIONS,
+    24→  DRAWER_RUNNERS_OPTIONS,
+    25→  HANDLE_STYLE_OPTIONS,
+    26→  createEmptyModule,
+    27→  createEmptySiteData,
+    28→} from "@/lib/site-notebook-types";
+    29→import { ElevationCanvas } from "../site-notebook/elevation-canvas";
+    30→import { ImageMarkupModal } from "../site-notebook/image-markup-modal";
+    31→import { BlueprintSketchpad } from "../site-notebook/blueprint-sketchpad";
+    32→import { SignaturePad } from "../site-notebook/signature-pad";
+    33→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+    34→import { Button } from "@/components/ui/button";
+    35→import { Input } from "@/components/ui/input";
+    36→import { Label } from "@/components/ui/label";
+    37→import { Textarea } from "@/components/ui/textarea";
+    38→import { Badge } from "@/components/ui/badge";
+    39→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    40→import { Separator } from "@/components/ui/separator";
+    41→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    42→import { toast } from "sonner";
+    43→import {
+    44→  ClipboardList,
+    45→  Plus,
+    46→  Trash2,
+    47→  Download,
+    48→  Upload,
+    49→  Copy,
+    50→  Ruler,
+    51→  Layers,
+    52→  Pencil,
+    53→  FileJson,
+    54→  Camera,
+    55→  X,
+    56→  ChevronDown,
+    57→  ChevronRight,
+    58→  Package,
+    59→  Settings2,
+    60→  PenTool,
+    61→  PenLine,
+    62→  Calculator,
+    63→} from "lucide-react";
+    64→
+    65→export function SiteNotebookView() {
+    66→  const { user } = useAuth();
+    67→  const isAdmin = user?.role === "Admin" || user?.role === "SuperAdmin";
+    68→  const [data, setData] = React.useState<SiteJobData>(createEmptySiteData());
+    69→  const [expandedModules, setExpandedModules] = React.useState<Set<string>>(new Set());
+    70→  const [markupOpen, setMarkupOpen] = React.useState(false);
+    71→  const [markupImage, setMarkupImage] = React.useState<string | null>(null);
+    72→  const [photos, setPhotos] = React.useState<string[]>([]);
+    73→  const fileInputRef = React.useRef<HTMLInputElement>(null);
+    74→  const importInputRef = React.useRef<HTMLInputElement>(null);
+    75→
+    76→  // Load saved data from localStorage on mount
+    77→  React.useEffect(() => {
+    78→    const saved = localStorage.getItem("site-notebook-data");
+    79→    if (saved) {
+    80→      try {
+    81→        setData(JSON.parse(saved));
+    82→      } catch {
+    83→        /* ignore */
+    84→      }
+    85→    }
+    86→  }, []);
+    87→
+    88→  // Auto-save to localStorage
+    89→  React.useEffect(() => {
+    90→    localStorage.setItem("site-notebook-data", JSON.stringify(data));
+    91→  }, [data]);
+    92→
+    93→  function updateData(patch: Partial<SiteJobData>) {
+    94→    setData((d) => ({ ...d, ...patch }));
+    95→  }
+    96→
+    97→  function addModule() {
+    98→    const code = String(data.modules.length + 1).padStart(2, "0");
+    99→    const newMod = createEmptyModule(code);
+   100→    setData((d) => ({ ...d, modules: [...d.modules, newMod] }));
+   101→    setExpandedModules((s) => new Set([...s, newMod.id]));
+   102→    toast.success(`Module ${code} added`);
+   103→  }
+   104→
+   105→  function updateModule(id: string, patch: Partial<CabinetModule>) {
+   106→    setData((d) => ({
+   107→      ...d,
+   108→      modules: d.modules.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+   109→    }));
+   110→  }
+   111→
+   112→  function deleteModule(id: string) {
+   113→    setData((d) => ({
+   114→      ...d,
+   115→      modules: d.modules
+   116→        .filter((m) => m.id !== id)
+   117→        .map((m, i) => ({ ...m, code: String(i + 1).padStart(2, "0") })),
+   118→    }));
+   119→    toast.success("Module removed");
+   120→  }
+   121→
+   122→  function duplicateModule(id: string) {
+   123→    const mod = data.modules.find((m) => m.id === id);
+   124→    if (!mod) return;
+   125→    const idx = data.modules.indexOf(mod);
+   126→    const newMod: CabinetModule = {
+   127→      ...mod,
+   128→      id: crypto.randomUUID(),
+   129→      cuttingList: mod.cuttingList.map((c) => ({ ...c, id: crypto.randomUUID() })),
+   130→    };
+   131→    const newModules = [...data.modules];
+   132→    newModules.splice(idx + 1, 0, newMod);
+   133→    // Recode
+   134→    newModules.forEach((m, i) => (m.code = String(i + 1).padStart(2, "0")));
+   135→    setData((d) => ({ ...d, modules: newModules }));
+   136→    toast.success(`Module ${mod.code} duplicated`);
+   137→  }
+   138→
+   139→  function toggleExpand(id: string) {
+   140→    setExpandedModules((s) => {
+   141→      const next = new Set(s);
+   142→      if (next.has(id)) next.delete(id);
+   143→      else next.add(id);
+   144→      return next;
+   145→    });
+   146→  }
+   147→
+   148→  function addCuttingEntry(moduleId: string) {
+   149→    const mod = data.modules.find((m) => m.id === moduleId);
+   150→    if (!mod) return;
+   151→    const newEntry = {
+   152→      id: crypto.randomUUID(),
+   153→      length: 580,
+   154→      width: 560,
+   155→      qty: 2,
+   156→      material: "Standard Board" as MaterialTag,
+   157→      note: "Side Panel",
+   158→    };
+   159→    updateModule(moduleId, { cuttingList: [...mod.cuttingList, newEntry] });
+   160→  }
+   161→
+   162→  function updateCuttingEntry(moduleId: string, entryId: string, patch: Partial<{ length: number; width: number; qty: number; material: MaterialTag; note: string }>) {
+   163→    const mod = data.modules.find((m) => m.id === moduleId);
+   164→    if (!mod) return;
+   165→    updateModule(moduleId, {
+   166→      cuttingList: mod.cuttingList.map((e) => (e.id === entryId ? { ...e, ...patch } : e)),
+   167→    });
+   168→  }
+   169→
+   170→  function deleteCuttingEntry(moduleId: string, entryId: string) {
+   171→    const mod = data.modules.find((m) => m.id === moduleId);
+   172→    if (!mod) return;
+   173→    updateModule(moduleId, { cuttingList: mod.cuttingList.filter((e) => e.id !== entryId) });
+   174→  }
+   175→
+   176→  function exportJSON() {
+   177→    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+   178→    const url = URL.createObjectURL(blob);
+   179→    const a = document.createElement("a");
+   180→    a.href = url;
+   181→    a.download = `site-notebook-${data.siteName || "untitled"}-${data.jobNumber || Date.now()}.json`;
+   182→    a.click();
+   183→    URL.revokeObjectURL(url);
+   184→    toast.success("Site data exported as JSON");
+   185→  }
+   186→
+   187→  function importJSON(e: React.ChangeEvent<HTMLInputElement>) {
+   188→    const file = e.target.files?.[0];
+   189→    if (!file) return;
+   190→    const reader = new FileReader();
+   191→    reader.onload = (ev) => {
+   192→      try {
+   193→        const parsed = JSON.parse(ev.target?.result as string) as SiteJobData;
+   194→        if (!parsed.modules) throw new Error("Invalid format");
+   195→        setData(parsed);
+   196→        toast.success("Site data imported");
+   197→      } catch {
+   198→        toast.error("Invalid JSON file");
+   199→      }
+   200→    };
+   201→    reader.readAsText(file);
+   202→    e.target.value = "";
+   203→  }
+   204→
+   205→  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+   206→    const files = e.target.files;
+   207→    if (!files) return;
+   208→    Array.from(files).forEach((file) => {
+   209→      const reader = new FileReader();
+   210→      reader.onload = (ev) => {
+   211→        setPhotos((p) => [...p, ev.target?.result as string]);
+   212→      };
+   213→      reader.readAsDataURL(file);
+   214→    });
+   215→    e.target.value = "";
+   216→  }
+   217→
+   218→  function removePhoto(idx: number) {
+   219→    setPhotos((p) => p.filter((_, i) => i !== idx));
+   220→  }
+   221→
+   222→  // Calculate total cutting list entries
+   223→  const totalEntries = data.modules.reduce((s, m) => s + m.cuttingList.length, 0);
+   224→  const totalPieces = data.modules.reduce(
+   225→    (s, m) => s + m.cuttingList.reduce((ms, e) => ms + e.qty, 0),
+   226→    0
+   227→  );
+   228→
+   229→  return (
+   230→    <div className="space-y-3">
+   231→      {/* Header — compact */}
+   232→      <div className="flex items-center justify-between">
+   233→        <div>
+   234→          <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+   235→            <ClipboardList className="h-5 w-5 text-primary shrink-0" />
+   236→            <span className="truncate">Site Notebook Builder</span>
+   237→          </h1>
+   238→          <p className="text-xs text-muted-foreground">
+   239→            Practical elevation &amp; cutting list builder
+   240→          </p>
+   241→        </div>
+   242→        <div className="flex gap-2">
+   243→          <input
+   244→            ref={importInputRef}
+   245→            type="file"
+   246→            accept="application/json"
+   247→            onChange={importJSON}
+   248→            className="hidden"
+   249→          />
+   250→          <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()} className="h-8 px-2.5">
+   251→            <Upload className="h-4 w-4 sm:mr-1.5" />
+   252→            <span className="hidden sm:inline">Import</span>
+   253→          </Button>
+   254→          <Button variant="outline" size="sm" onClick={exportJSON} className="h-8 px-2.5">
+   255→            <Download className="h-4 w-4 sm:mr-1.5" />
+   256→            <span className="hidden sm:inline">Export</span>
+   257→          </Button>
+   258→        </div>
+   259→      </div>
+   260→
+   261→      <Tabs defaultValue="notebook">
+   262→        <TabsList className="w-full justify-start overflow-x-auto scrollbar-warm">
+   263→          <TabsTrigger value="notebook" className="gap-1.5 text-xs sm:text-sm">
+   264→            <Layers className="h-3.5 w-3.5" />
+   265→            <span className="hidden xs:inline sm:inline">Notebook</span>
+   266→          </TabsTrigger>
+   267→          <TabsTrigger value="sketchpad" className="gap-1.5 text-xs sm:text-sm">
+   268→            <PenTool className="h-3.5 w-3.5" />
+   269→            <span className="hidden xs:inline sm:inline">Sketchpad</span>
+   270→          </TabsTrigger>
+   271→          <TabsTrigger value="assets" className="gap-1.5 text-xs sm:text-sm">
+   272→            <Camera className="h-3.5 w-3.5" />
+   273→            <span>Photos ({photos.length})</span>
+   274→          </TabsTrigger>
+   275→          <TabsTrigger value="signoff" className="gap-1.5 text-xs sm:text-sm">
+   276→            <PenLine className="h-3.5 w-3.5" />
+   277→            <span className="hidden xs:inline sm:inline">Sign-off</span>
+   278→          </TabsTrigger>
+   279→        </TabsList>
+   280→
+   281→        {/* Notebook tab */}
+   282→        <TabsContent value="notebook" className="space-y-3">
+   283→          {/* Site Information — all fields in a single horizontal row */}
+   284→          <Card>
+   285→            <CardHeader className="pb-2 px-4 pt-3">
+   286→              <CardTitle className="flex items-center gap-2 text-sm">
+   287→                <ClipboardList className="h-4 w-4 text-primary" />
+   288→                Site Information
+   289→              </CardTitle>
+   290→            </CardHeader>
+   291→            <CardContent className="px-4 pb-3">
+   292→              {/* Single-row form: 4 primary fields + 3 dimensions on one line */}
+   293→              <div className="flex flex-wrap items-end gap-x-3 gap-y-2 xl:flex-nowrap">
+   294→                {/* Primary fields group */}
+   295→                <div className="flex flex-1 flex-wrap items-end gap-x-2.5 gap-y-2">
+   296→                  <div className="space-y-1 min-w-[140px] flex-1">
+   297→                    <Label htmlFor="site-name" className="text-[10px] uppercase tracking-wide text-muted-foreground">Site / Client</Label>
+   298→                    <Input
+   299→                      id="site-name"
+   300→                      placeholder="Polhena - Matara"
+   301→                      value={data.siteName}
+   302→                      onChange={(e) => updateData({ siteName: e.target.value })}
+   303→                      className="h-8 text-xs"
+   304→                    />
+   305→                  </div>
+   306→                  <div className="space-y-1 min-w-[110px] flex-1">
+   307→                    <Label htmlFor="job-number" className="text-[10px] uppercase tracking-wide text-muted-foreground">Job No.</Label>
+   308→                    <Input
+   309→                      id="job-number"
+   310→                      placeholder="KCM-0001"
+   311→                      value={data.jobNumber}
+   312→                      onChange={(e) => updateData({ jobNumber: e.target.value })}
+   313→                      className="h-8 text-xs font-mono"
+   314→                    />
+   315→                  </div>
+   316→                  <div className="space-y-1 min-w-[130px]">
+   317→                    <Label htmlFor="job-date" className="text-[10px] uppercase tracking-wide text-muted-foreground">Job Date</Label>
+   318→                    <Input
+   319→                      id="job-date"
+   320→                      type="date"
+   321→                      value={data.jobDate}
+   322→                      onChange={(e) => updateData({ jobDate: e.target.value })}
+   323→                      className="h-8 text-xs"
+   324→                    />
+   325→                  </div>
+   326→                  <div className="space-y-1 min-w-[150px] flex-1">
+   327→                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Section / Wall</Label>
+   328→                    <Select
+   329→                      value={data.section}
+   330→                      onValueChange={(v) => updateData({ section: v as SectionType })}
+   331→                    >
+   332→                      <SelectTrigger className="h-8 text-xs">
+   333→                        <SelectValue />
+   334→                      </SelectTrigger>
+   335→                      <SelectContent>
+   336→                        {SECTION_TYPES.map((s) => (
+   337→                          <SelectItem key={s} value={s}>
+   338→                            {s}
+   339→                          </SelectItem>
+   340→                        ))}
+   341→                      </SelectContent>
+   342→                    </Select>
+   343→                  </div>
+   344→                </div>
+   345→
+   346→                {/* Vertical divider between primary fields and dimensions */}
+   347→                <div className="hidden xl:block h-9 w-px bg-border self-center" />
+   348→
+   349→                {/* Dimensions group — inline on the same row */}
+   350→                <div className="flex items-end gap-2">
+   351→                  <div className="flex items-center gap-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+   352→                    <Ruler className="h-3 w-3" />
+   353→                    <span className="hidden sm:inline">Dims (mm)</span>
+   354→                  </div>
+   355→                  <div className="space-y-1 w-[88px]">
+   356→                    <Label htmlFor="total-width" className="text-[10px] text-muted-foreground">W</Label>
+   357→                    <Input
+   358→                      id="total-width"
+   359→                      type="number"
+   360→                      placeholder="3400"
+   361→                      value={data.overallDimensions.width}
+   362→                      onChange={(e) =>
+   363→                        updateData({
+   364→                          overallDimensions: {
+   365→                            ...data.overallDimensions,
+   366→                            width: Number(e.target.value) || 0,
+   367→                          },
+   368→                        })
+   369→                      }
+   370→                      className="h-8 text-xs tabular-nums"
+   371→                    />
+   372→                  </div>
+   373→                  <div className="space-y-1 w-[88px]">
+   374→                    <Label htmlFor="total-height" className="text-[10px] text-muted-foreground">H</Label>
+   375→                    <Input
+   376→                      id="total-height"
+   377→                      type="number"
+   378→                      placeholder="2150"
+   379→                      value={data.overallDimensions.height}
+   380→                      onChange={(e) =>
+   381→                        updateData({
+   382→                          overallDimensions: {
+   383→                            ...data.overallDimensions,
+   384→                            height: Number(e.target.value) || 0,
+   385→                          },
+   386→                        })
+   387→                      }
+   388→                      className="h-8 text-xs tabular-nums"
+   389→                    />
+   390→                  </div>
+   391→                  <div className="space-y-1 w-[88px]">
+   392→                    <Label htmlFor="total-depth" className="text-[10px] text-muted-foreground">D</Label>
+   393→                    <Input
+   394→                      id="total-depth"
+   395→                      type="number"
+   396→                      placeholder="600"
+   397→                      value={data.overallDimensions.depth}
+   398→                      onChange={(e) =>
+   399→                        updateData({
+   400→                          overallDimensions: {
+   401→                            ...data.overallDimensions,
+   402→                            depth: Number(e.target.value) || 0,
+   403→                          },
+   404→                        })
+   405→                      }
+   406→                      className="h-8 text-xs tabular-nums"
+   407→                    />
+   408→                  </div>
+   409→                </div>
+   410→              </div>
+   411→            </CardContent>
+   412→          </Card>
+   413→
+   414→          {/* 2/3 + 1/3 split layout: Drawing canvas (2/3) + Module cutting lists (1/3) */}
+   415→          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+   416→            {/* LEFT 2/3: Elevation drawing canvas */}
+   417→            <Card className="lg:col-span-2">
+   418→              <CardHeader className="pb-2 px-4 pt-3">
+   419→                <div className="flex items-center justify-between gap-2">
+   420→                  <div className="min-w-0">
+   421→                    <CardTitle className="flex items-center gap-2 text-sm">
+   422→                      <Layers className="h-4 w-4 text-primary" />
+   423→                      Elevation Blueprint
+   424→                    </CardTitle>
+   425→                    <CardDescription className="text-[11px] truncate">
+   426→                      {data.modules.length} modules · {data.modules.reduce((s, m) => s + m.width, 0)}mm · Drag cabinets from palette · Click to edit
+   427→                    </CardDescription>
+   428→                  </div>
+   429→                  <Button size="sm" onClick={addModule} className="h-8 shrink-0">
+   430→                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+   431→                    <span className="hidden sm:inline">Add Module</span>
+   432→                  </Button>
+   433→                </div>
+   434→              </CardHeader>
+   435→              <CardContent className="px-4 pb-4">
+   436→                <ElevationCanvas
+   437→                  data={data}
+   438→                  onUpdateModules={(mods) => updateData({ modules: mods })}
+   439→                />
+   440→              </CardContent>
+   441→            </Card>
+   442→
+   443→            {/* RIGHT 1/3: Module cutting lists */}
+   444→            <Card className="lg:col-span-1">
+   445→              <CardHeader className="pb-2 px-4 pt-3">
+   446→                <div className="flex items-center justify-between gap-2">
+   447→                  <div className="min-w-0">
+   448→                    <CardTitle className="flex items-center gap-2 text-sm">
+   449→                      <Package className="h-4 w-4 text-primary" />
+   450→                      Module Cutting Lists
+   451→                    </CardTitle>
+   452→                    <CardDescription className="text-[11px] truncate">
+   453→                      {totalEntries} entries · {totalPieces} total pieces
+   454→                    </CardDescription>
+   455→                  </div>
+   456→                  <Button size="sm" variant="outline" onClick={addModule} className="h-8 shrink-0 w-8 p-0">
+   457→                    <Plus className="h-3.5 w-3.5" />
+   458→                  </Button>
+   459→                </div>
+   460→              </CardHeader>
+   461→              <CardContent className="space-y-3 max-h-[600px] overflow-y-auto scrollbar-warm px-4 pb-4">
+   462→              {data.modules.length === 0 ? (
+   463→                <div className="flex flex-col items-center gap-3 py-12 text-center">
+   464→                  <div className="rounded-full bg-muted p-4">
+   465→                    <Layers className="h-8 w-8 text-muted-foreground" />
+   466→                  </div>
+   467→                  <div>
+   468→                    <p className="font-medium">No modules yet</p>
+   469→                    <p className="text-sm text-muted-foreground">
+   470→                      Add modules to start building your elevation and cutting list.
+   471→                    </p>
+   472→                  </div>
+   473→                  <Button onClick={addModule}>
+   474→                    <Plus className="mr-2 h-4 w-4" />
+   475→                    Add First Module
+   476→                  </Button>
+   477→                </div>
+   478→              ) : (
+   479→                data.modules.map((mod) => {
+   480→                  const isExpanded = expandedModules.has(mod.id);
+   481→                  const cabType = CABINET_TYPES.find((t) => t.value === mod.type);
+   482→                  const opening = OPENING_STYLES.find((t) => t.value === mod.openingStyle);
+   483→                  return (
+   484→                    <div
+   485→                      key={mod.id}
+   486→                      className="rounded-lg border border-border overflow-hidden"
+   487→                    >
+   488→                      {/* Module header */}
+   489→                      <div className="flex items-center gap-3 bg-muted/40 px-4 py-3">
+   490→                        <button
+   491→                          onClick={() => toggleExpand(mod.id)}
+   492→                          className="text-muted-foreground hover:text-foreground"
+   493→                        >
+   494→                          {isExpanded ? (
+   495→                            <ChevronDown className="h-4 w-4" />
+   496→                          ) : (
+   497→                            <ChevronRight className="h-4 w-4" />
+   498→                          )}
+   499→                        </button>
+   500→                        <Badge className="bg-primary text-primary-foreground font-mono">
+   501→                          {mod.code}
+   502→                        </Badge>
+   503→                        <span className="text-sm font-medium">{cabType?.label ?? mod.type}</span>
+   504→                        <Badge variant="outline" className="text-xs">
+   505→                          {mod.width}mm
+   506→                        </Badge>
+   507→                        <Badge variant="outline" className="text-xs font-mono">
+   508→                          {opening?.symbol ?? ""}
+   509→                        </Badge>
+   510→                        <Badge variant="outline" className="text-xs">
+   511→                          {mod.cuttingList.length} parts
+   512→                        </Badge>
+   513→                        <div className="ml-auto flex gap-1">
+   514→                          <Button
+   515→                            variant="ghost"
+   516→                            size="icon"
+   517→                            className="h-7 w-7"
+   518→                            onClick={() => duplicateModule(mod.id)}
+   519→                            title="Duplicate"
+   520→                          >
+   521→                            <Copy className="h-3.5 w-3.5" />
+   522→                          </Button>
+   523→                          <Button
+   524→                            variant="ghost"
+   525→                            size="icon"
+   526→                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   527→                            onClick={() => deleteModule(mod.id)}
+   528→                            title="Delete"
+   529→                          >
+   530→                            <Trash2 className="h-3.5 w-3.5" />
+   531→                          </Button>
+   532→                        </div>
+   533→                      </div>
+   534→
+   535→                      {/* Module body (expandable) */}
+   536→                      {isExpanded && (
+   537→                        <div className="space-y-3 p-4">
+   538→                          {/* Module config */}
+   539→                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   540→                            <div className="space-y-1.5">
+   541→                              <Label className="text-xs">Module Width (mm)</Label>
+   542→                              <Input
+   543→                                type="number"
+   544→                                value={mod.width}
+   545→                                onChange={(e) =>
+   546→                                  updateModule(mod.id, { width: Number(e.target.value) || 0 })
+   547→                                }
+   548→                              />
+   549→                            </div>
+   550→                            <div className="space-y-1.5">
+   551→                              <Label className="text-xs">Cabinet Type</Label>
+   552→                              <Select
+   553→                                value={mod.type}
+   554→                                onValueChange={(v) => updateModule(mod.id, { type: v as CabinetType })}
+   555→                              >
+   556→                                <SelectTrigger>
+   557→                                  <SelectValue />
+   558→                                </SelectTrigger>
+   559→                                <SelectContent>
+   560→                                  {CABINET_TYPES.map((t) => (
+   561→                                    <SelectItem key={t.value} value={t.value}>
+   562→                                      {t.icon} {t.label}
+   563→                                    </SelectItem>
+   564→                                  ))}
+   565→                                </SelectContent>
+   566→                              </Select>
+   567→                            </div>
+   568→                            <div className="space-y-1.5">
+   569→                              <Label className="text-xs">Opening Style</Label>
+   570→                              <Select
+   571→                                value={mod.openingStyle}
+   572→                                onValueChange={(v) =>
+   573→                                  updateModule(mod.id, { openingStyle: v as OpeningStyle })
+   574→                                }
+   575→                              >
+   576→                                <SelectTrigger>
+   577→                                  <SelectValue />
+   578→                                </SelectTrigger>
+   579→                                <SelectContent>
+   580→                                  {OPENING_STYLES.map((t) => (
+   581→                                    <SelectItem key={t.value} value={t.value}>
+   582→                                      {t.symbol} — {t.label}
+   583→                                    </SelectItem>
+   584→                                  ))}
+   585→                                </SelectContent>
+   586→                              </Select>
+   587→                            </div>
+   588→                          </div>
+   589→
+   590→                          {/* Cutting list entries */}
+   591→                          <div>
+   592→                            <div className="mb-2 flex items-center justify-between">
+   593→                              <Label className="text-xs font-medium">Cutting List Entries</Label>
+   594→                              <Button
+   595→                                variant="outline"
+   596→                                size="sm"
+   597→                                className="h-7 text-xs"
+   598→                                onClick={() => addCuttingEntry(mod.id)}
+   599→                              >
+   600→                                <Plus className="mr-1 h-3 w-3" />
+   601→                                Add Entry
+   602→                              </Button>
+   603→                            </div>
+   604→
+   605→                            {mod.cuttingList.length === 0 ? (
+   606→                              <div className="rounded-md border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
+   607→                                No cutting list entries yet
+   608→                              </div>
+   609→                            ) : (
+   610→                              <div className="space-y-2">
+   611→                                {/* Notebook-style entries */}
+   612→                                {mod.cuttingList.map((entry, idx) => (
+   613→                                  <div
+   614→                                    key={entry.id}
+   615→                                    className="grid grid-cols-12 items-center gap-2 rounded-md border border-border bg-card p-2"
+   616→                                  >
+   617→                                    <span className="col-span-1 font-mono text-xs text-muted-foreground">
+   618→                                      {String(idx + 1).padStart(2, "0")}.
+   619→                                    </span>
+   620→                                    <div className="col-span-2">
+   621→                                      <Input
+   622→                                        type="number"
+   623→                                        className="h-7 text-xs"
+   624→                                        value={entry.length}
+   625→                                        onChange={(e) =>
+   626→                                          updateCuttingEntry(mod.id, entry.id, {
+   627→                                            length: Number(e.target.value) || 0,
+   628→                                          })
+   629→                                        }
+   630→                                        placeholder="854"
+   631→                                      />
+   632→                                    </div>
+   633→                                    <span className="col-span-0 text-xs">×</span>
+   634→                                    <div className="col-span-2">
+   635→                                      <Input
+   636→                                        type="number"
+   637→                                        className="h-7 text-xs"
+   638→                                        value={entry.width}
+   639→                                        onChange={(e) =>
+   640→                                          updateCuttingEntry(mod.id, entry.id, {
+   641→                                            width: Number(e.target.value) || 0,
+   642→                                          })
+   643→                                        }
+   644→                                        placeholder="560"
+   645→                                      />
+   646→                                    </div>
+   647→                                    <div className="col-span-1">
+   648→                                      <Input
+   649→                                        type="number"
+   650→                                        className="h-7 text-xs text-center"
+   651→                                        value={entry.qty}
+   652→                                        onChange={(e) =>
+   653→                                          updateCuttingEntry(mod.id, entry.id, {
+   654→                                            qty: Number(e.target.value) || 0,
+   655→                                          })
+   656→                                        }
+   657→                                        placeholder="04"
+   658→                                      />
+   659→                                    </div>
+   660→                                    <div className="col-span-2">
+   661→                                      <Select
+   662→                                        value={entry.material}
+   663→                                        onValueChange={(v) =>
+   664→                                          updateCuttingEntry(mod.id, entry.id, {
+   665→                                            material: v as MaterialTag,
+   666→                                          })
+   667→                                        }
+   668→                                      >
+   669→                                        <SelectTrigger className="h-7 text-xs">
+   670→                                          <SelectValue />
+   671→                                        </SelectTrigger>
+   672→                                        <SelectContent>
+   673→                                          {MATERIAL_TAGS.map((m) => (
+   674→                                            <SelectItem key={m} value={m}>
+   675→                                              {m}
+   676→                                            </SelectItem>
+   677→                                          ))}
+   678→                                        </SelectContent>
+   679→                                      </Select>
+   680→                                    </div>
+   681→                                    <div className="col-span-1">
+   682→                                      <Select
+   683→                                        value={entry.note ?? ""}
+   684→                                        onValueChange={(v) =>
+   685→                                          updateCuttingEntry(mod.id, entry.id, { note: v })
+   686→                                        }
+   687→                                      >
+   688→                                        <SelectTrigger className="h-7 text-xs">
+   689→                                          <SelectValue placeholder="—" />
+   690→                                        </SelectTrigger>
+   691→                                        <SelectContent>
+   692→                                          {COMPONENT_NOTES.map((n) => (
+   693→                                            <SelectItem key={n} value={n}>
+   694→                                              {n}
+   695→                                            </SelectItem>
+   696→                                          ))}
+   697→                                        </SelectContent>
+   698→                                      </Select>
+   699→                                    </div>
+   700→                                    <div className="col-span-1 text-right">
+   701→                                      <Button
+   702→                                        variant="ghost"
+   703→                                        size="icon"
+   704→                                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   705→                                        onClick={() => deleteCuttingEntry(mod.id, entry.id)}
+   706→                                      >
+   707→                                        <Trash2 className="h-3 w-3" />
+   708→                                      </Button>
+   709→                                    </div>
+   710→                                  </div>
+   711→                                ))}
+   712→
+   713→                                {/* Notebook-style log preview */}
+   714→                                <div className="rounded-md border border-border bg-muted/20 p-3">
+   715→                                  <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">
+   716→                                    Notebook Log Preview
+   717→                                  </p>
+   718→                                  <div className="space-y-0.5 font-mono text-xs">
+   719→                                    {mod.cuttingList.map((entry, idx) => (
+   720→                                      <div key={entry.id} className="flex gap-2">
+   721→                                        <span className="text-muted-foreground">
+   722→                                          {String(idx + 1).padStart(2, "0")}.
+   723→                                        </span>
+   724→                                        <span>
+   725→                                          {entry.length} × {entry.width} -{" "}
+   726→                                          {String(entry.qty).padStart(2, "0")} | {entry.material}
+   727→                                        </span>
+   728→                                        {entry.note && (
+   729→                                          <span className="text-muted-foreground">
+   730→                                            * {entry.note}
+   731→                                          </span>
+   732→                                        )}
+   733→                                      </div>
+   734→                                    ))}
+   735→                                  </div>
+   736→                                </div>
+   737→                              </div>
+   738→                            )}
+   739→                          </div>
+   740→                        </div>
+   741→                      )}
+   742→                    </div>
+   743→                  );
+   744→                })
+   745→              )}
+   746→            </CardContent>
+   747→          </Card>
+   748→          </div>
+   749→
+   750→          {/* Hardware Specs Panel */}
+   751→          <Card>
+   752→            <CardHeader className="pb-2">
+   753→              <CardTitle className="flex items-center gap-2 text-base">
+   754→                <Settings2 className="h-4 w-4 text-primary" />
+   755→                Material &amp; Hardware Specifications
+   756→              </CardTitle>
+   757→              <CardDescription>
+   758→                Board, door finish, edge banding, and fittings specs
+   759→              </CardDescription>
+   760→            </CardHeader>
+   761→            <CardContent>
+   762→              <div className="mb-4">
+   763→                <p className="mb-2 text-xs font-medium text-muted-foreground">BOARD &amp; PANEL SPECS</p>
+   764→                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   765→                  <div className="space-y-1.5">
+   766→                    <Label className="text-xs">Carcase Board Material</Label>
+   767→                    <Select
+   768→                      value={data.hardwareSpecs.carcaseBoard}
+   769→                      onValueChange={(v) =>
+   770→                        updateData({
+   771→                          hardwareSpecs: { ...data.hardwareSpecs, carcaseBoard: v },
+   772→                        })
+   773→                      }
+   774→                    >
+   775→                      <SelectTrigger className="h-8 text-xs">
+   776→                        <SelectValue />
+   777→                      </SelectTrigger>
+   778→                      <SelectContent>
+   779→                        {CARCASE_BOARD_OPTIONS.map((o) => (
+   780→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   781→                        ))}
+   782→                      </SelectContent>
+   783→                    </Select>
+   784→                  </div>
+   785→                  <div className="space-y-1.5">
+   786→                    <Label className="text-xs">Door Finish</Label>
+   787→                    <Select
+   788→                      value={data.hardwareSpecs.doorFinish}
+   789→                      onValueChange={(v) =>
+   790→                        updateData({
+   791→                          hardwareSpecs: { ...data.hardwareSpecs, doorFinish: v },
+   792→                        })
+   793→                      }
+   794→                    >
+   795→                      <SelectTrigger className="h-8 text-xs">
+   796→                        <SelectValue />
+   797→                      </SelectTrigger>
+   798→                      <SelectContent>
+   799→                        {DOOR_FINISH_OPTIONS.map((o) => (
+   800→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   801→                        ))}
+   802→                      </SelectContent>
+   803→                    </Select>
+   804→                  </div>
+   805→                  <div className="space-y-1.5">
+   806→                    <Label className="text-xs">Edge Banding Tape</Label>
+   807→                    <Select
+   808→                      value={data.hardwareSpecs.edgeBanding}
+   809→                      onValueChange={(v) =>
+   810→                        updateData({
+   811→                          hardwareSpecs: { ...data.hardwareSpecs, edgeBanding: v },
+   812→                        })
+   813→                      }
+   814→                    >
+   815→                      <SelectTrigger className="h-8 text-xs">
+   816→                        <SelectValue />
+   817→                      </SelectTrigger>
+   818→                      <SelectContent>
+   819→                        {EDGE_BANDING_OPTIONS.map((o) => (
+   820→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   821→                        ))}
+   822→                      </SelectContent>
+   823→                    </Select>
+   824→                  </div>
+   825→                </div>
+   826→              </div>
+   827→
+   828→              <Separator className="my-3" />
+   829→
+   830→              <div>
+   831→                <p className="mb-2 text-xs font-medium text-muted-foreground">FITTINGS &amp; HARDWARE SPECS</p>
+   832→                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   833→                  <div className="space-y-1.5">
+   834→                    <Label className="text-xs">Hinges</Label>
+   835→                    <Select
+   836→                      value={data.hardwareSpecs.hinges}
+   837→                      onValueChange={(v) =>
+   838→                        updateData({
+   839→                          hardwareSpecs: { ...data.hardwareSpecs, hinges: v },
+   840→                        })
+   841→                      }
+   842→                    >
+   843→                      <SelectTrigger className="h-8 text-xs">
+   844→                        <SelectValue />
+   845→                      </SelectTrigger>
+   846→                      <SelectContent>
+   847→                        {HINGES_OPTIONS.map((o) => (
+   848→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   849→                        ))}
+   850→                      </SelectContent>
+   851→                    </Select>
+   852→                  </div>
+   853→                  <div className="space-y-1.5">
+   854→                    <Label className="text-xs">Drawer Runners</Label>
+   855→                    <Select
+   856→                      value={data.hardwareSpecs.drawerRunners}
+   857→                      onValueChange={(v) =>
+   858→                        updateData({
+   859→                          hardwareSpecs: { ...data.hardwareSpecs, drawerRunners: v },
+   860→                        })
+   861→                      }
+   862→                    >
+   863→                      <SelectTrigger className="h-8 text-xs">
+   864→                        <SelectValue />
+   865→                      </SelectTrigger>
+   866→                      <SelectContent>
+   867→                        {DRAWER_RUNNERS_OPTIONS.map((o) => (
+   868→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   869→                        ))}
+   870→                      </SelectContent>
+   871→                    </Select>
+   872→                  </div>
+   873→                  <div className="space-y-1.5">
+   874→                    <Label className="text-xs">Handle Style</Label>
+   875→                    <Select
+   876→                      value={data.hardwareSpecs.handleStyle}
+   877→                      onValueChange={(v) =>
+   878→                        updateData({
+   879→                          hardwareSpecs: { ...data.hardwareSpecs, handleStyle: v },
+   880→                        })
+   881→                      }
+   882→                    >
+   883→                      <SelectTrigger className="h-8 text-xs">
+   884→                        <SelectValue />
+   885→                      </SelectTrigger>
+   886→                      <SelectContent>
+   887→                        {HANDLE_STYLE_OPTIONS.map((o) => (
+   888→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   889→                        ))}
+   890→                      </SelectContent>
+   891→                    </Select>
+   892→                  </div>
+   893→                </div>
+   894→              </div>
+   895→            </CardContent>
+   896→          </Card>
+   897→
+   898→          {/* Board Sheet Estimator */}
+   899→          <Card className="border-primary/30">
+   900→            <CardHeader className="pb-2">
+   901→              <CardTitle className="flex items-center gap-2 text-base">
+   902→                <Calculator className="h-4 w-4 text-primary" />
+   903→                Automated Board Sheet Estimator
+   904→              </CardTitle>
+   905→              <CardDescription>
+   906→                Real-time calculation from cutting list data (8ft × 4ft / 2440mm × 1220mm sheets)
+   907→              </CardDescription>
+   908→            </CardHeader>
+   909→            <CardContent>
+   910→              {(() => {
+   911→                const totalAreaSqm = data.modules.reduce(
+   912→                  (s, m) =>
+   913→                    s +
+   914→                    m.cuttingList.reduce(
+   915→                      (ms, e) => ms + (e.length * e.width * e.qty) / 1_000_000,
+   916→                      0
+   917→                    ),
+   918→                  0
+   919→                );
+   920→                const sheetAreaSqm = (2440 * 1220) / 1_000_000; // ~2.977 m²
+   921→                const withWastage = totalAreaSqm * 1.15; // 15% wastage
+   922→                const sheetsNeeded = Math.ceil(withWastage / sheetAreaSqm);
+   923→                const totalPieces = data.modules.reduce(
+   924→                  (s, m) => s + m.cuttingList.reduce((ms, e) => ms + e.qty, 0),
+   925→                  0
+   926→                );
+   927→
+   928→                return (
+   929→                  <div className="space-y-3">
+   930→                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   931→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   932→                        <p className="text-[10px] uppercase text-muted-foreground">Total Area</p>
+   933→                        <p className="text-lg font-bold tabular-nums">{totalAreaSqm.toFixed(2)} m²</p>
+   934→                      </div>
+   935→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   936→                        <p className="text-[10px] uppercase text-muted-foreground">+ 15% Wastage</p>
+   937→                        <p className="text-lg font-bold tabular-nums text-amber-600">{withWastage.toFixed(2)} m²</p>
+   938→                      </div>
+   939→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   940→                        <p className="text-[10px] uppercase text-muted-foreground">Total Pieces</p>
+   941→                        <p className="text-lg font-bold tabular-nums">{totalPieces}</p>
+   942→                      </div>
+   943→                      <div className="rounded-lg border-2 border-primary bg-primary/5 p-3 text-center">
+   944→                        <p className="text-[10px] uppercase text-muted-foreground">Sheets Needed</p>
+   945→                        <p className="text-2xl font-bold tabular-nums text-primary">~{sheetsNeeded}</p>
+   946→                      </div>
+   947→                    </div>
+   948→                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center">
+   949→                      <p className="text-sm font-semibold text-primary">
+   950→                        Estimated Board Requirement: ~ {sheetsNeeded} Sheets
+   951→                      </p>
+   952→                      <p className="text-xs text-muted-foreground">
+   953→                        Standard 8ft × 4ft / 2440mm × 1220mm (incl. 15% cutting wastage)
+   954→                      </p>
+   955→                    </div>
+   956→                  </div>
+   957→                );
+   958→              })()}
+   959→            </CardContent>
+   960→          </Card>
+   961→
+   962→          {/* JSON preview — admin only */}
+   963→          {isAdmin && (
+   964→          <Card>
+   965→            <CardHeader className="pb-2">
+   966→              <CardTitle className="flex items-center gap-2 text-base">
+   967→                <FileJson className="h-4 w-4 text-primary" />
+   968→                Serialized Site Data (JSON)
+   969→              </CardTitle>
+   970→              <CardDescription>
+   971→                Factory export format — auto-saved locally
+   972→              </CardDescription>
+   973→            </CardHeader>
+   974→            <CardContent>
+   975→              <pre className="max-h-64 overflow-y-auto scrollbar-warm rounded-md border border-border bg-muted/30 p-3 text-xs">
+   976→                {JSON.stringify(data, null, 2)}
+   977→              </pre>
+   978→            </CardContent>
+   979→          </Card>
+   980→          )}
+   981→        </TabsContent>
+   982→
+   983→        {/* Assets tab */}
+   984→        <TabsContent value="assets" className="space-y-3">
+   985→          <Card>
+   986→            <CardHeader className="pb-2">
+   987→              <div className="flex items-center justify-between">
+   988→                <div>
+   989→                  <CardTitle className="flex items-center gap-2 text-base">
+   990→                    <Camera className="h-4 w-4 text-primary" />
+   991→                    Site Photos
+   992→                  </CardTitle>
+   993→                  <CardDescription>
+   994→                    Upload site photos and mark them up with annotations
+   995→                  </CardDescription>
+   996→                </div>
+   997→                <div>
+   998→                  <input
+   999→                    ref={fileInputRef}
+  1000→                    type="file"
+  1001→                    accept="image/*"
+  1002→                    multiple
+  1003→                    onChange={handlePhotoUpload}
+  1004→                    className="hidden"
+  1005→                  />
+  1006→                  <Button size="sm" onClick={() => fileInputRef.current?.click()}>
+  1007→                    <Plus className="mr-1.5 h-4 w-4" />
+  1008→                    Upload Photos
+  1009→                  </Button>
+  1010→                </div>
+  1011→              </div>
+  1012→            </CardHeader>
+  1013→            <CardContent>
+  1014→              {photos.length === 0 ? (
+  1015→                <div className="flex flex-col items-center gap-3 py-12 text-center">
+  1016→                  <div className="rounded-full bg-muted p-4">
+  1017→                    <Camera className="h-8 w-8 text-muted-foreground" />
+  1018→                  </div>
+  1019→                  <div>
+  1020→                    <p className="font-medium">No photos uploaded</p>
+  1021→                    <p className="text-sm text-muted-foreground">
+  1022→                      Upload site photos to annotate with measurements and notes.
+  1023→                    </p>
+  1024→                  </div>
+  1025→                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+  1026→                    <Plus className="mr-2 h-4 w-4" />
+  1027→                    Upload First Photo
+  1028→                  </Button>
+  1029→                </div>
+  1030→              ) : (
+  1031→                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+  1032→                  {photos.map((photo, idx) => (
+  1033→                    <div
+  1034→                      key={idx}
+  1035→                      className="group relative overflow-hidden rounded-lg border border-border"
+  1036→                    >
+  1037→                      <img
+  1038→                        src={photo}
+  1039→                        alt={`Site photo ${idx + 1}`}
+  1040→                        className="aspect-square w-full object-cover"
+  1041→                      />
+  1042→                      <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+  1043→                        <Button
+  1044→                          size="sm"
+  1045→                          variant="secondary"
+  1046→                          onClick={() => {
+  1047→                            setMarkupImage(photo);
+  1048→                            setMarkupOpen(true);
+  1049→                          }}
+  1050→                        >
+  1051→                          <Pencil className="mr-1 h-3.5 w-3.5" />
+  1052→                          Markup
+  1053→                        </Button>
+  1054→                        <Button
+  1055→                          size="icon"
+  1056→                          variant="destructive"
+  1057→                          className="h-8 w-8"
+  1058→                          onClick={() => removePhoto(idx)}
+  1059→                        >
+  1060→                          <X className="h-4 w-4" />
+  1061→                        </Button>
+  1062→                      </div>
+  1063→                      <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+  1064→                        #{idx + 1}
+  1065→                      </span>
+  1066→                    </div>
+  1067→                  ))}
+  1068→                </div>
+  1069→              )}
+  1070→            </CardContent>
+  1071→          </Card>
+  1072→        </TabsContent>
+  1073→
+  1074→        {/* Sketchpad tab */}
+  1075→        <TabsContent value="sketchpad" className="space-y-3">
+  1076→          <Card>
+  1077→            <CardHeader className="pb-2">
+  1078→              <CardTitle className="flex items-center gap-2 text-base">
+  1079→                <PenTool className="h-4 w-4 text-primary" />
+  1080→                Freehand Blueprint Sketchpad
+  1081→              </CardTitle>
+  1082→              <CardDescription>
+  1083→                Draw elevation sketches with dimension line labels
+  1084→              </CardDescription>
+  1085→            </CardHeader>
+  1086→            <CardContent>
+  1087→              <BlueprintSketchpad onSave={(dataUrl) => {
+  1088→                setPhotos((p) => [...p, dataUrl]);
+  1089→                toast.success("Sketch saved to Photos tab");
+  1090→              }} />
+  1091→            </CardContent>
+  1092→          </Card>
+  1093→        </TabsContent>
+  1094→
+  1095→        {/* Sign-off tab */}
+  1096→        <TabsContent value="signoff" className="space-y-3">
+  1097→          <Card>
+  1098→            <CardHeader className="pb-2">
+  1099→              <CardTitle className="flex items-center gap-2 text-base">
+  1100→                <PenLine className="h-4 w-4 text-primary" />
+  1101→                Client Digital Sign-off
+  1102→              </CardTitle>
+  1103→              <CardDescription>
+  1104→                Capture client signature to confirm site measurement before factory cutting
+  1105→              </CardDescription>
+  1106→            </CardHeader>
+  1107→            <CardContent>
+  1108→              <SignaturePad
+  1109→                value={data.signature}
+  1110→                onChange={(sig) => updateData({ signature: sig })}
+  1111→              />
+  1112→            </CardContent>
+  1113→          </Card>
+  1114→
+  1115→          {/* Summary card */}
+  1116→          <Card className="border-primary/30">
+  1117→            <CardHeader className="pb-2">
+  1118→              <CardTitle className="text-base">Site Inspection Summary</CardTitle>
+  1119→            </CardHeader>
+  1120→            <CardContent>
+  1121→              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  1122→                <div className="rounded-lg border border-border p-3 text-center">
+  1123→                  <p className="text-[10px] uppercase text-muted-foreground">Site</p>
+  1124→                  <p className="text-sm font-medium truncate">{data.siteName || "—"}</p>
+  1125→                </div>
+  1126→                <div className="rounded-lg border border-border p-3 text-center">
+  1127→                  <p className="text-[10px] uppercase text-muted-foreground">Job #</p>
+  1128→                  <p className="text-sm font-medium">{data.jobNumber || "—"}</p>
+  1129→                </div>
+  1130→                <div className="rounded-lg border border-border p-3 text-center">
+  1131→                  <p className="text-[10px] uppercase text-muted-foreground">Modules</p>
+  1132→                  <p className="text-sm font-bold">{data.modules.length}</p>
+  1133→                </div>
+  1134→                <div className="rounded-lg border-2 border-primary bg-primary/5 p-3 text-center">
+  1135→                  <p className="text-[10px] uppercase text-muted-foreground">Status</p>
+  1136→                  <p className={`text-sm font-bold ${data.signature.signedAt ? "text-emerald-600" : "text-amber-600"}`}>
+  1137→                    {data.signature.signedAt ? "✓ Signed" : "Pending"}
+  1138→                  </p>
+  1139→                </div>
+  1140→              </div>
+  1141→            </CardContent>
+  1142→          </Card>
+  1143→        </TabsContent>
+  1144→      </Tabs>
+  1145→
+  1146→      <ImageMarkupModal
+  1147→        open={markupOpen}
+  1148→        onOpenChange={setMarkupOpen}
+  1149→        imageUrl={markupImage}
+  1150→        onSave={(dataUrl) => {
+  1151→          setPhotos((p) => p.map((ph) => (ph === markupImage ? dataUrl : ph)));
+  1152→        }}
+  1153→      />
+  1154→    </div>
+  1155→  );
+  1156→}
+  1157→

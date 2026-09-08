@@ -1,0 +1,552 @@
+🚀 Sending vision chat request...
+✅ File saved to: /tmp/vlm-snb2.json
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Notebook Builder - CabinetryWorks</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18.0.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.0.0/umd/react-dom.development.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        /* Custom scrollbar for sidebar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #2d2d2d; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #555; 
+            border-radius: 3px;
+        }
+        
+        /* Blueprint Grid Pattern */
+        .blueprint-grid {
+            background-image: 
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #d97706;
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+    const { useState, useEffect } = React;
+
+    // --- Mock Data ---
+    const initialModules = [
+        { id: 1, type: 'Base Cabinet', width: 600, height: 900, depth: 600, x: 50, y: 100 },
+        { id: 2, type: 'Wall Cabinet', width: 400, height: 720, depth: 350, x: 660, y: 100 },
+        { id: 3, type: 'Tall Unit', width: 600, height: 2150, depth: 600, x: 1070, y: 100 }
+    ];
+
+    // --- Components ---
+
+    // 1. Sidebar Component
+    const Sidebar = () => {
+        const menuItems = [
+            { icon: "fa-th-large", label: "Overview", active: false },
+            { icon: "fa-clipboard-list", label: "Job Orders", active: false },
+            { icon: "fa-users", label: "Customers", active: false },
+            { icon: "fa-calendar-check", label: "Attendance", active: false },
+            { icon: "fa-ruler-combined", label: "Site Measurements", active: false },
+            { icon: "fa-book-open", label: "Site Notebook Buil...", active: true }, // Active
+            { icon: "fa-cut", label: "Factory Cutting Lists", active: false },
+            { icon: "fa-boxes", label: "Inventory", active: false },
+            { icon: "fa-truck", label: "Suppliers", active: false },
+            { icon: "fa-dollar-sign", label: "Quotes & Costing", active: false },
+        ];
+
+        return (
+            <div className="w-64 bg-[#2b2b2b] text-gray-300 flex flex-col h-screen fixed left-0 top-0 z-20 shadow-xl">
+                {/* Logo Area */}
+                <div className="h-16 flex items-center px-5 border-b border-gray-700 bg-[#252525]">
+                    <div className="w-10 h-10 rounded-lg bg-[#c2410c] flex items-center justify-center text-white text-xl mr-3 shadow-md">
+                        <i className="fas fa-hammer"></i>
+                    </div>
+                    <div>
+                        <h1 className="text-white font-bold text-sm leading-tight">CabinetryWorks</h1>
+                        <p className="text-xs text-gray-400">Manufacturing Console</p>
+                    </div>
+                </div>
+
+                {/* User Badge */}
+                <div className="px-5 py-3">
+                    <span className="bg-[#8B4513] text-[#ffedd5] text-xs px-2 py-1 rounded-full font-medium">SuperAdmin</span>
+                </div>
+
+                {/* Navigation */}
+                <nav className="flex-1 overflow-y-auto custom-scrollbar py-2 space-y-1">
+                    {menuItems.map((item, idx) => (
+                        <a key={idx} href="#" 
+                           className={`flex items-center px-5 py-3 text-sm font-medium transition-colors duration-200
+                                      ${item.active ? 'bg-[#c2410c] text-white shadow-lg' : 'hover:bg-[#333] hover:text-white text-gray-400'}`}>
+                            <i className={`fas ${item.icon} w-6 text-center ${item.active ? '' : 'opacity-70'}`}></i>
+                            <span className="ml-3">{item.label}</span>
+                            {item.active && <i className="fas fa-chevron-right ml-auto text-xs opacity-75"></i>}
+                        </a>
+                    ))}
+                </nav>
+
+                {/* Footer / Collapse */}
+                <div className="p-4 border-t border-gray-700 bg-[#252525]">
+                     <button className="flex items-center w-full text-sm text-gray-400 hover:text-white">
+                         <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center mr-3 font-bold text-xs">N</div>
+                         Collapse sidebar
+                         <i className="fas fa-outdent ml-auto"></i>
+                     </button>
+                </div>
+            </div>
+        );
+    };
+
+    // 2. Header Component
+    const Header = () => {
+        return (
+            <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-10">
+                <div className="flex items-center">
+                    <h2 className="text-xl font-semibold text-gray-800 mr-4">Site Notebook Builder</h2>
+                    <span className="text-sm text-gray-500 hidden md:block">Practical elevation & cutting list builder</span>
+                </div>
+
+                <div className="flex items-center space-x-4">
+                    {/* Search */}
+                    <div className="relative hidden lg:block">
+                        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input 
+                            type="text" 
+                            placeholder="Search jobs, customers, items..." 
+                            className="pl-9 pr-12 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 w-64"
+                        />
+                        <kbd className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-100 border border-gray-300 text-gray-500 text-xs px-1.5 rounded">⌘K</kbd>
+                    </div>
+
+                    {/* Icons */}
+                    <button className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md"><i className="fas fa-th-large"></i></button>
+                    
+                    <div className="relative">
+                        <button className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md"><i className="far fa-bell"></i></button>
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                    </div>
+
+                    <button className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-md"><i className="fas fa-moon"></i></button>
+
+                    {/* User Profile */}
+                    <div className="flex items-center pl-4 border-l border-gray-200">
+                        <div className="w-8 h-8 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-bold text-sm mr-2">UN</div>
+                        <div className="hidden xl:block leading-tight">
+                            <div className="text-sm font-medium text-gray-700">Updated Name</div>
+                            <div className="text-xs text-gray-500">@admin</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+        );
+    };
+
+    // 3. Main Content Area
+    const App = () => {
+        const [activeTab, setActiveTab] = useState('notebook');
+        const odules, setModules] = useState(initialModules);
+        const [zoom, setZoom] = useState(100);
+        const [showModal, setShowModal] = useState(false);
+
+        // Interaction: Add Module
+        const handleAddModule = () => {
+            const newModule = {
+                id: Date.now(),
+                type: 'New Module',
+                width: 500,
+                height: 800,
+                depth: 350,
+                x: Math.random() * 500 + 50,
+                y: Math.random() * 200 + 50
+            };
+            setModules([...modules, newModule]);
+            setShowModal(false); // Close modal if open (simulating save)
+        };
+
+        // Interaction: Delete Module
+        const handleDeleteModule = (id) => {
+            setModules(modules.filter(m => m.id !== id));
+        };
+
+        return (
+            <div className="flex min-h-screen bg-[#f8f9fa] pl-64"> {/* Pl-64 for sidebar width */}
+                
+                <Sidebar />
+
+                <div className="flex-1 flex flex-col min-w-0">
+                    <Header />
+
+                    <main className="flex-1 p-6 overflow-auto">
+                        
+                        {/* Page Title & Actions */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                            <div className="flex items-center">
+                                <div className="w-10 h-10 rounded bg-orange-100 text-orange-600 flex items-center justify-center mr-3 text-xl">
+                                    <i className="fas fa-clipboard-list"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold text-gray-800">Site Notebook Builder</h1>
+                                    <p className="text-sm text-gray-500">Practical elevation & cutting list builder</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex space-x-3">
+                                <button className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+                                    <i className="fas fa-upload mr-2"></i> Import
+                                </button>
+                                <button className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+                                    <i className="fas fa-download mr-2"></i> Export
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="border-b border-gray-200 mb-6">
+                            <nav className="-mb-px flex space-x-8">
+                                <button 
+                                    onClick={() => setActiveTab('notebook')}
+                                    className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === 'notebook' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                >
+                                    <i className="fas fa-layer-group mr-2"></i> Notebook
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('sketchpad')}
+                                    className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === 'sketchpad' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                >
+                                    <i className="fas fa-pen-nib mr-2"></i> Sketchpad
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('photos')}
+                                    className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === 'photos' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                >
+                                    <i className="fas fa-camera mr-2"></i> Photos (0)
+                                </button>
+                                
+                                <div className="flex-1"></div> {/* Spacer */}
+                                <button className="pb-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 text-sm font-medium flex items-center">
+                                    <i className="fas fa-pen mr-2"></i> Sign-off
+                                </button>
+                            </nav>
+                        </div>
+
+                        {/* MAIN GRID LAYOUT: Side-by-Side Row */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+                            
+                            {/* LEFT COLUMN: Site Information (Compact) */}
+                            <div className="lg:col-span-5 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                                <div className="flex items-center mb-4">
+                                    <i className="fas fa-file-alt text-orange-500 mr-2"></i>
+                                    <h3 className="font-bold text-gray-800">Site Information</h3>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {/* Row 1 */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Site / Client</label>
+                                            <input type="text" defaultValue="Polhena - Matara" className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Job Number</label>
+                                            <input type="text" defaultValue="KCM-0001" className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 2 */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Job Date</label>
+                                            <input type="date" defaultValue="2026-08-21" className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:border-orange-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Section / Wall</label>
+                                            <select className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm bg-white focus:border-orange-500 outline-none appearance-none">
+                                                <option>Wall A / Base Units</option>
+                                                <option>Wall B / Wall Units</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Dimensions Section */}
+                                    <div className="pt-3 mt-3 border-t border-gray-100">
+                                        <div className="flex items-center mb-2">
+                                            <i className="fas fa-ruler-combined text-xs text-gray-400 mr-2"></i>
+                                            <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Overall Outer Dimensions (mm)</span>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Width</label>
+                                                <input type="number" defaultValue="3400" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:border-orange-500" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Height</label>
+                                                <input type="number" defaultValue="2150" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:border-orange-500" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Depth</label>
+                                                <input type="number" defaultValue="600" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm outline-none focus:border-orange-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RIGHT COLUMN: Elevation Blueprint */}
+                            <div className="lg:col-span-7 bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <div className="flex items-center">
+                                            <i className="fas fa-drafting-compass text-orange-500 mr-2"></i>
+                                            <h3 className="font-bold text-gray-800">Elevation Blueprint</h3>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-0.5">{modules.length} modules • 0mm • Drag cabinets from palette • Click to edit</p>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => setShowModal(true)}
+                                        className="bg-[#c2410c] hover:bg-[#a03f09] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center transition-colors">
+                                        <i className="fas fa-plus mr-2"></i> Add Module
+                                    </button>
+                                </div>
+
+                                {/* Toolbar */}
+                                <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-1 overflow-x-auto pb-1">
+                                             <span className="text-xs text-gray-500 mr-2 whitespace-nowrap">Drag:</span>
+                                             {['square', 'cube', 'door', 'tall-door', 'drawer', 'oven', 'sink', 'fridge', 'hood', 'corner', 'rotate-left', 'rotate-right', 'layers', 'columns'].map((icon, i) => (
+                                                 <button key={i} className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-200 text-gray-600 border border-transparent hover:border-gray-300 transition-all">
+                                                     <i className={`fas fa-${icon}`}></i>
+                                                 </button>
+                                             ))}
+                                        </div>
+                                        
+                                        <div className="flex items-center space-x-3 pl-3 border-l border-gray-300 ml-3 shrink-0">
+                                            <span className="text-xs text-gray-500">Zoom:</span>
+                                            <button onClick={()=>setZoom(Math.max(10, zoom-10))} className="text-gray-500 hover:text-black"><i className="fas fa-search-minus"></i></button>
+                                            <input 
+                                                type="range" 
+                                                min="10" max="200" value={zoom} 
+                                                onChange={(e)=>setZoom(e.target.value)} 
+                                                className="w-24 accent-orange-600"
+                                            />
+                                            <button onClick={()=>setZoom(Math.min(200, parseInt(zoom)+10))} className="text-gray-500 hover:text-black"><i className="fas fa-search-plus"></i></button>
+                                            <span className="text-xs font-mono text-gray-600 w-10 text-right">{zoom}%</span>
+                                            
+                                            <div className="flex space-x-1 ml-2">
+                                                <button className="w-7 h-7 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"><i className="fas fa-expand-arrows-alt text-xs"></i></button>
+                                                <button className="w-7 h-7 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"><i className="fas fa-question-circle text-xs"></i></button>
+                                                <button className="w-7 h-7 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"><i className="fas fa-expand text-xs"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Canvas Area */}
+                                <div className="flex-1 relative bg-white border border-blue-200 rounded-lg overflow-hidden blueprint-grid min-h-[300px]" style={{backgroundSize: `${(20*zoom/100)}px`}}>
+                                    {/* Render Modules as absolute divs */}
+                                    {modules.map(mod => (
+                                        <div 
+                                            key={mod.id}
+                                            className="absolute bg-blue-50 border-2 border-blue-400 rounded shadow-sm group cursor-move flex flex-col items-center justify-center select-none transition-shadow hover:shadow-md"
+                                            style={{
+                                                left: `${(mod.x * zoom)/100}px`, 
+                                                top: `${(mod.y * zoom)/100}px`,
+                                                width: `${(mod.width * zoom)/100}px`,
+                                                height: `${(mod.height * zoom)/100}px`
+                                            }}
+                                        >
+                                            <span className="text-xs font-bold text-blue-800 opacity-80 pointer-events-none">{mod.type}</span>
+                                            <span className="text-[10px] text-blue-600 pointer-events-none">{mod.width}mm</span>
+                                            
+                                            {/* Delete Button on Hover */}
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteModule(mod.id); }}
+                                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow hover:bg-red-600 z-10">
+                                                <i className="fas fa-times text-xs"></i>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    
+                                    {/* Empty State Hint */}
+                                    {modules.length === 0 && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <div className="text-center text-gray-400">
+                                                <i className="fas fa-mouse-pointer text-3xl mb-2"></i>
+                                                <p>Click "Add Module" to start</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* BOTTOM SECTION: Module Cutting Lists (Full Width) */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                             <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                                 <h3 className="font-bold text-gray-800 flex items-center">
+                                     <i className="fas fa-list-alt text-orange-500 mr-2"></i>
+                                     Module Cutting Lists ({modules.length})
+                                 </h3>
+                                 <div className="space-x-2">
+                                     <button className="text-sm text-gray-600 hover:text-orange-600 font-medium"><i className="fas fa-print mr-1"></i> Print List</button>
+                                 </div>
+                             </div>
+                             
+                             <div className="overflow-x-auto">
+                                 <table className="min-w-full divide-y divide-gray-200">
+                                     <thead className="bg-gray-50">
+                                         <tr>
+                                             {['ID', 'Type', 'Width (mm)', 'Height (mm)', 'Depth (mm)', 'Material', 'Status', 'Actions'].map(h => (
+                                                 <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+                                             ))}
+                                         </tr>
+                                     </thead>
+                                     <tbody className="bg-white divide-y divide-gray-200">
+                                         {modules.length > 0 ? modules.map((mod, idx) => (
+                                             <tr key={mod.id} className="hover:bg-gray-50 transition-colors">
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#{idx + 1}</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{mod.type}</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{mod.width}</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{mod.height}</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{mod.depth}</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">MDF Raw</td>
+                                                 <td className="px-6 py-4 whitespace-nowrap">
+                                                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Ready</span>
+                                                 </td>
+                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                     <a href="#" className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
+                                                     <a href="#" onClick={(e) => { e.preventDefault(); handleDeleteModule(mod.id); }} className="text-red-600 hover:text-red-900">Remove</a>
+                                                 </td>
+                                             </tr>
+                                         )) : (
+                                             <tr>
+                                                 <td colSpan="8" className="px-6 py-10 text-center text-gray-500">
+                                                     No cutting lists generated yet. Add modules above.
+                                                 </td>
+                                             </tr>
+                                         )}
+                                     </tbody>
+                                 </table>
+                             </div>
+                        </div>
+
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-white border-t border-gray-200 px-6 py-4 text-xs text-gray-500 flex justify-between items-center">
+                        <span>&copy; 2026 Kitchen Workspace | System Ownership & Legal Notice</span>
+                        <span className="flex items-center text-teal-600 font-medium">
+                            <span className="w-2 h-2 bg-teal-500 rounded-full mr-2 animate-pulse"></span>
+                            CabinetryWorks - Manufacturing Console
+                        </span>
+                    </footer>
+                </div>
+
+                {/* Modal for Adding Module (Interaction) */}
+                {showModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-gray-800">Add New Module</h3>
+                                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Module Type</label>
+                                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
+                                        <option>Standard Base Cabinet</option>
+                                        <option>Wall Cabinet</option>
+                                        <option>Tall Pantry</option>
+                                        <option>Drawer Bank</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">W (mm)</label>
+                                        <input type="number" defaultValue="600" className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">H (mm)</label>
+                                        <input type="number" defaultValue="900" className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">D (mm)</label>
+                                        <input type="number" defaultValue="600" className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">Cancel</button>
+                                <button onClick={handleAddModule} className="px-4 py-2 bg-[#c2410c] text-white rounded-lg hover:bg-[#a03f09] text-sm font-medium shadow-sm">Add to Canvas</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+</script>
+
+</body>
+</html>
+```

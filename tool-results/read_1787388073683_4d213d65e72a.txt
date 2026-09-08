@@ -1,0 +1,1097 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery } from "@tanstack/react-query";
+     5→import { statsApi, activityApi, inventoryApi, type ActivityEvent } from "@/lib/api";
+     6→import {
+     7→  Card,
+     8→  CardContent,
+     9→  CardDescription,
+    10→  CardHeader,
+    11→  CardTitle,
+    12→} from "@/components/ui/card";
+    13→import { Badge } from "@/components/ui/badge";
+    14→import { Progress } from "@/components/ui/progress";
+    15→import { Button } from "@/components/ui/button";
+    16→import { ScrollArea } from "@/components/ui/scroll-area";
+    17→import {
+    18→  Users,
+    19→  ClipboardList,
+    20→  Ruler,
+    21→  Scissors,
+    22→  TrendingUp,
+    23→  TrendingDown,
+    24→  Clock,
+    25→  CheckCircle2,
+    26→  UserCheck,
+    27→  Building2,
+    28→  ArrowUpRight,
+    29→  ArrowDownRight,
+    30→  Activity,
+    31→  Layers,
+    32→  HardHat,
+    33→  RefreshCw,
+    34→  Printer,
+    35→  AlertTriangle,
+    36→  Package,
+    37→  CalendarCheck,
+    38→  BarChart3,
+    39→  Camera,
+    40→  Sparkles,
+    41→  X,
+    42→  CalendarRange,
+    43→  Bug,
+    44→  GitBranch,
+    45→  Wrench,
+    46→  Flag,
+    47→  PackageSearch,
+    48→  ClipboardCheck,
+    49→  ChevronRight,
+    50→} from "lucide-react";
+    51→import {
+    52→  ResponsiveContainer,
+    53→  AreaChart,
+    54→  Area,
+    55→  XAxis,
+    56→  YAxis,
+    57→  CartesianGrid,
+    58→  Tooltip,
+    59→  PieChart,
+    60→  Pie,
+    61→  Cell,
+    62→  BarChart,
+    63→  Bar,
+    64→  Legend,
+    65→} from "recharts";
+    66→
+    67→const STATUS_COLORS: Record<string, string> = {
+    68→  Pending: "#f59e0b",
+    69→  Measured: "#0ea5e9",
+    70→  Design: "#8b5cf6",
+    71→  "In Production": "#f97316",
+    72→  Cutting: "#f43f5e",
+    73→  Assembly: "#14b8a6",
+    74→  Installation: "#06b6d4",
+    75→  Completed: "#10b981",
+    76→  Cancelled: "#a1a1aa",
+    77→};
+    78→
+    79→const MATERIAL_COLORS = [
+    80→  "#b45309",
+    81→  "#0d9488",
+    82→  "#7c3aed",
+    83→  "#be123c",
+    84→  "#0369a1",
+    85→  "#ca8a04",
+    86→];
+    87→
+    88→const PRIORITY_COLORS: Record<string, string> = {
+    89→  Low: "#a1a1aa",
+    90→  Normal: "#0ea5e9",
+    91→  High: "#f97316",
+    92→  Urgent: "#f43f5e",
+    93→};
+    94→
+    95→const ACTIVITY_ICONS: Record<string, typeof Activity> = {
+    96→  job_created: ClipboardList,
+    97→  job_assigned: UserCheck,
+    98→  job_status: RefreshCw,
+    99→  measurement: Ruler,
+   100→  cutting_list: Scissors,
+   101→};
+   102→
+   103→const ACTIVITY_TINTS: Record<string, string> = {
+   104→  job_created: "bg-orange-500/10 text-orange-600",
+   105→  job_assigned: "bg-violet-500/10 text-violet-600",
+   106→  job_status: "bg-sky-500/10 text-sky-600",
+   107→  measurement: "bg-teal-500/10 text-teal-600",
+   108→  cutting_list: "bg-rose-500/10 text-rose-600",
+   109→};
+   110→
+   111→function timeAgo(iso: string): string {
+   112→  const diff = Date.now() - new Date(iso).getTime();
+   113→  const mins = Math.floor(diff / 60000);
+   114→  if (mins < 1) return "just now";
+   115→  if (mins < 60) return `${mins}m ago`;
+   116→  const hours = Math.floor(mins / 60);
+   117→  if (hours < 24) return `${hours}h ago`;
+   118→  const days = Math.floor(hours / 24);
+   119→  if (days < 7) return `${days}d ago`;
+   120→  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+   121→}
+   122→
+   123→export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => void }) {
+   124→  // Default to 30d so the throughput chart shows real activity (the 7d window
+   125→  // is often empty in steady-state operation).
+   126→  const [range, setRange] = React.useState<number>(30);
+   127→  const { data, isLoading } = useQuery({
+   128→    queryKey: ["stats", range],
+   129→    queryFn: () => statsApi.get(range),
+   130→  });
+   131→  // Load activity and inventory only after stats are loaded to reduce
+   132→  // concurrent API calls and memory pressure on first render.
+   133→  const { data: activityData } = useQuery({
+   134→    queryKey: ["activity", 8],
+   135→    queryFn: () => activityApi.list(8),
+   136→    enabled: !!data,
+   137→  });
+   138→  const { data: inventoryData } = useQuery({
+   139→    queryKey: ["inventory"],
+   140→    queryFn: inventoryApi.list,
+   141→    enabled: !!data,
+   142→  });
+   143→
+   144→  const counts = data?.counts;
+   145→  const breakdown = data?.jobStatusBreakdown ?? {};
+   146→  const priority = data?.priorityBreakdown ?? {};
+   147→  const throughput = data?.throughput ?? [];
+   148→  const materials = data?.materialBreakdown ?? {};
+   149→  const workload = data?.technicianWorkload ?? [];
+   150→
+   151→  const totalJobs = Object.values(breakdown).reduce((a, b) => a + b, 0) || 1;
+   152→  const totalMaterials = Object.values(materials).reduce((a, b) => a + b, 0) || 1;
+   153→
+   154→  const statusPieData = Object.entries(breakdown).map(([name, value]) => ({
+   155→    name,
+   156→    value,
+   157→  }));
+   158→  const materialPieData = Object.entries(materials).map(([name, value]) => ({
+   159→    name,
+   160→    value,
+   161→  }));
+   162→  const priorityData = Object.entries(priority).map(([name, value]) => ({
+   163→    name,
+   164→    value,
+   165→  }));
+   166→
+   167→  const cards = [
+   168→    {
+   169→      label: "Total Users",
+   170→      value: counts?.users ?? 0,
+   171→      sub: `${counts?.activeUsers ?? 0} active`,
+   172→      icon: Users,
+   173→      tint: "text-amber-600 bg-amber-500/10",
+   174→      trend: "+12%",
+   175→      up: true,
+   176→      view: "users",
+   177→    },
+   178→    {
+   179→      label: "Job Orders",
+   180→      value: counts?.jobOrders ?? 0,
+   181→      sub: `${counts?.pendingJobs ?? 0} pending`,
+   182→      icon: ClipboardList,
+   183→      tint: "text-orange-600 bg-orange-500/10",
+   184→      trend: "+8%",
+   185→      up: true,
+   186→      view: "job-orders",
+   187→    },
+   188→    {
+   189→      label: "Site Measurements",
+   190→      value: counts?.measurements ?? 0,
+   191→      sub: "captured",
+   192→      icon: Ruler,
+   193→      tint: "text-teal-600 bg-teal-500/10",
+   194→      trend: "+15%",
+   195→      up: true,
+   196→      view: "measurements",
+   197→    },
+   198→    {
+   199→      label: "Cutting Lists",
+   200→      value: counts?.cuttingLists ?? 0,
+   201→      sub: "generated",
+   202→      icon: Scissors,
+   203→      tint: "text-rose-600 bg-rose-500/10",
+   204→      trend: "-3%",
+   205→      up: false,
+   206→      view: "cutting-lists",
+   207→    },
+   208→  ];
+   209→
+   210→  return (
+   211→    <div className="space-y-4">
+   212→      {/* What's New banner — dismissible */}
+   213→      <WhatsNewBanner onNavigate={onNavigate} />
+   214→
+   215→      {/* Compact welcome banner */}
+   216→      <Card className="overflow-hidden border-primary/20">
+   217→        <div className="relative bg-gradient-to-br from-primary/10 via-accent/40 to-background p-4">
+   218→          <div className="relative z-10 flex items-center justify-between gap-3">
+   219→            <div>
+   220→              <h1 className="text-lg font-bold tracking-tight sm:text-xl">
+   221→                Cabinetry production at a glance
+   222→              </h1>
+   223→              <p className="text-xs text-muted-foreground">
+   224→                Monitor jobs from measurement through installation.
+   225→              </p>
+   226→            </div>
+   227→            <Button variant="outline" size="sm" className="no-print shrink-0 gap-1.5" onClick={() => window.print()}>
+   228→              <Printer className="h-3.5 w-3.5" />
+   229→              <span className="hidden sm:inline">Export</span>
+   230→            </Button>
+   231→          </div>
+   232→          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+   233→        </div>
+   234→      </Card>
+   235→
+   236→      {/* Stat cards + Quick Actions — bento grid */}
+   237→      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   238→        {cards.map((c) => {
+   239→          const Icon = c.icon;
+   240→          return (
+   241→            <Card
+   242→              key={c.label}
+   243→              className="group relative overflow-hidden transition-shadow hover:shadow-md cursor-pointer p-3"
+   244→              onClick={() => onNavigate?.(c.view)}
+   245→            >
+   246→              <div className="flex items-center justify-between">
+   247→                <div className={`rounded-lg p-1.5 ${c.tint}`}>
+   248→                  <Icon className="h-4 w-4" />
+   249→                </div>
+   250→                <span className={`flex items-center gap-0.5 text-[10px] font-medium ${c.up ? "text-emerald-600" : "text-rose-600"}`}>
+   251→                  {c.up ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
+   252→                  {c.trend}
+   253→                </span>
+   254→              </div>
+   255→              {isLoading ? (
+   256→                <div className="mt-1.5 h-6 w-12 animate-pulse rounded bg-muted" />
+   257→              ) : (
+   258→                <p className="mt-1.5 text-xl font-bold tabular-nums">{c.value}</p>
+   259→              )}
+   260→              <p className="text-[10px] text-muted-foreground">{c.label}</p>
+   261→            </Card>
+   262→          );
+   263→        })}
+   264→      </div>
+   265→
+   266→      {/* Quick Actions — compact inline row */}
+   267→      <div className="flex flex-wrap gap-2">
+   268→        {[
+   269→          { label: "New Job", icon: ClipboardList, view: "job-orders" },
+   270→          { label: "Inventory", icon: Package, view: "inventory" },
+   271→          { label: "Attendance", icon: CalendarCheck, view: "attendance" },
+   272→          { label: "Customers", icon: Building2, view: "customers" },
+   273→          { label: "Reports", icon: BarChart3, view: "reports" },
+   274→          { label: "Notebook", icon: Camera, view: "blueprints" },
+   275→        ].map((a) => {
+   276→          const Icon = a.icon;
+   277→          return (
+   278→            <button
+   279→              key={a.label}
+   280→              onClick={() => onNavigate?.(a.view)}
+   281→              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+   282→            >
+   283→              <Icon className="h-3.5 w-3.5 text-primary" />
+   284→              {a.label}
+   285→            </button>
+   286→          );
+   287→        })}
+   288→      </div>
+   289→
+   290→      {/* Needs Attention — critical panels for daily standup */}
+   291→      <NeedsAttention
+   292→        pendingJobs={counts?.pendingJobs ?? 0}
+   293→        urgentJobs={(priority?.Urgent as number) ?? 0}
+   294→        highJobs={(priority?.High as number) ?? 0}
+   295→        lowStock={inventoryData?.stats.lowStock ?? 0}
+   296→        totalJobs={counts?.jobOrders ?? 0}
+   297→        onNavigate={onNavigate}
+   298→        isLoading={isLoading}
+   299→      />
+   300→
+   301→      {/* Throughput chart */}
+   302→      <Card>
+   303→        <CardHeader>
+   304→          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+   305→            <div>
+   306→              <CardTitle className="flex items-center gap-2 text-base">
+   307→                <Activity className="h-4 w-4 text-primary" />
+   308→                Job Throughput
+   309→                {!isLoading && (() => {
+   310→                  const totalCreated = throughput.reduce((a, b) => a + (b.created ?? 0), 0);
+   311→                  const totalCompleted = throughput.reduce((a, b) => a + (b.completed ?? 0), 0);
+   312→                  return (
+   313→                    <span className="ml-1 flex items-center gap-2 text-xs font-normal text-muted-foreground">
+   314→                      <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-primary">
+   315→                        {totalCreated} created
+   316→                      </span>
+   317→                      <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600">
+   318→                        {totalCompleted} completed
+   319→                      </span>
+   320→                    </span>
+   321→                  );
+   322→                })()}
+   323→              </CardTitle>
+   324→              <CardDescription>
+   325→                Jobs created vs completed over the last {range} days
+   326→              </CardDescription>
+   327→            </div>
+   328→            <div className="flex items-center gap-2">
+   329→              <div className="flex rounded-lg border border-border p-0.5">
+   330→                {[7, 30, 90].map((d) => (
+   331→                  <Button
+   332→                    key={d}
+   333→                    variant={range === d ? "default" : "ghost"}
+   334→                    size="sm"
+   335→                    className="h-7 px-2.5 text-xs"
+   336→                    onClick={() => setRange(d)}
+   337→                  >
+   338→                    {d}d
+   339→                  </Button>
+   340→                ))}
+   341→              </div>
+   342→              <div className="hidden items-center gap-3 text-xs sm:flex">
+   343→                <span className="flex items-center gap-1.5">
+   344→                  <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+   345→                  Created
+   346→                </span>
+   347→                <span className="flex items-center gap-1.5">
+   348→                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   349→                  Completed
+   350→                </span>
+   351→              </div>
+   352→            </div>
+   353→          </div>
+   354→        </CardHeader>
+   355→        <CardContent>
+   356→          {isLoading ? (
+   357→            <div className="h-[260px] animate-pulse rounded bg-muted" />
+   358→          ) : throughput.every((t) => (t.created ?? 0) === 0 && (t.completed ?? 0) === 0) ? (
+   359→            <div className="flex h-[260px] flex-col items-center justify-center gap-2 text-center">
+   360→              <div className="rounded-full bg-muted p-3">
+   361→                <Activity className="h-6 w-6 text-muted-foreground" />
+   362→              </div>
+   363→              <p className="text-sm font-medium">No activity in this period</p>
+   364→              <p className="text-xs text-muted-foreground">
+   365→                Try switching to a wider range (30d or 90d) to see historical throughput.
+   366→              </p>
+   367→            </div>
+   368→          ) : (
+   369→            <ResponsiveContainer width="100%" height={260}>
+   370→              <AreaChart
+   371→                data={throughput}
+   372→                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+   373→              >
+   374→                <defs>
+   375→                  <linearGradient id="createdGrad" x1="0" y1="0" x2="0" y2="1">
+   376→                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+   377→                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+   378→                  </linearGradient>
+   379→                  <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
+   380→                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+   381→                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+   382→                  </linearGradient>
+   383→                </defs>
+   384→                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+   385→                <XAxis
+   386→                  dataKey="date"
+   387→                  tickFormatter={(d) => {
+   388→                    const date = new Date(d);
+   389→                    return `${date.getMonth() + 1}/${date.getDate()}`;
+   390→                  }}
+   391→                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   392→                  tickLine={false}
+   393→                  axisLine={false}
+   394→                  interval={4}
+   395→                />
+   396→                <YAxis
+   397→                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   398→                  tickLine={false}
+   399→                  axisLine={false}
+   400→                  allowDecimals={false}
+   401→                />
+   402→                <Tooltip
+   403→                  contentStyle={{
+   404→                    background: "var(--card)",
+   405→                    border: "1px solid var(--border)",
+   406→                    borderRadius: "8px",
+   407→                    fontSize: "12px",
+   408→                  }}
+   409→                  labelFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+   410→                />
+   411→                <Area
+   412→                  type="monotone"
+   413→                  dataKey="created"
+   414→                  stroke="var(--primary)"
+   415→                  strokeWidth={2}
+   416→                  fill="url(#createdGrad)"
+   417→                  name="Created"
+   418→                />
+   419→                <Area
+   420→                  type="monotone"
+   421→                  dataKey="completed"
+   422→                  stroke="#10b981"
+   423→                  strokeWidth={2}
+   424→                  fill="url(#completedGrad)"
+   425→                  name="Completed"
+   426→                />
+   427→              </AreaChart>
+   428→            </ResponsiveContainer>
+   429→          )}
+   430→        </CardContent>
+   431→      </Card>
+   432→
+   433→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+   434→        {/* Status donut */}
+   435→        <Card>
+   436→          <CardHeader>
+   437→            <CardTitle className="flex items-center gap-2 text-base">
+   438→              <ClipboardList className="h-4 w-4 text-primary" />
+   439→              Job Status Distribution
+   440→            </CardTitle>
+   441→            <CardDescription>
+   442→              Current pipeline state across {totalJobs} jobs
+   443→            </CardDescription>
+   444→          </CardHeader>
+   445→          <CardContent>
+   446→            {isLoading ? (
+   447→              <div className="h-[220px] animate-pulse rounded bg-muted" />
+   448→            ) : statusPieData.length === 0 ? (
+   449→              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+   450→                No job data yet
+   451→              </div>
+   452→            ) : (
+   453→              <div className="flex flex-col items-center gap-4 sm:flex-row">
+   454→                <ResponsiveContainer width="100%" height={220} className="!w-[50%]">
+   455→                  <PieChart>
+   456→                    <Pie
+   457→                      data={statusPieData}
+   458→                      dataKey="value"
+   459→                      nameKey="name"
+   460→                      cx="50%"
+   461→                      cy="50%"
+   462→                      innerRadius={50}
+   463→                      outerRadius={80}
+   464→                      paddingAngle={2}
+   465→                    >
+   466→                      {statusPieData.map((entry) => (
+   467→                        <Cell
+   468→                          key={entry.name}
+   469→                          fill={STATUS_COLORS[entry.name] ?? "#a1a1aa"}
+   470→                        />
+   471→                      ))}
+   472→                    </Pie>
+   473→                    <Tooltip
+   474→                      contentStyle={{
+   475→                        background: "var(--card)",
+   476→                        border: "1px solid var(--border)",
+   477→                        borderRadius: "8px",
+   478→                        fontSize: "12px",
+   479→                      }}
+   480→                    />
+   481→                  </PieChart>
+   482→                </ResponsiveContainer>
+   483→                <div className="flex-1 space-y-1.5">
+   484→                  {statusPieData
+   485→                    .sort((a, b) => b.value - a.value)
+   486→                    .map((s) => {
+   487→                      const pct = Math.round((s.value / totalJobs) * 100);
+   488→                      return (
+   489→                        <div
+   490→                          key={s.name}
+   491→                          className="flex items-center justify-between gap-2 text-xs"
+   492→                        >
+   493→                          <div className="flex items-center gap-2">
+   494→                            <span
+   495→                              className="h-2.5 w-2.5 rounded-full"
+   496→                              style={{
+   497→                                backgroundColor:
+   498→                                  STATUS_COLORS[s.name] ?? "#a1a1aa",
+   499→                              }}
+   500→                            />
+   501→                            <span className="font-medium">{s.name}</span>
+   502→                          </div>
+   503→                          <span className="tabular-nums text-muted-foreground">
+   504→                            {s.value} ({pct}%)
+   505→                          </span>
+   506→                        </div>
+   507→                      );
+   508→                    })}
+   509→                </div>
+   510→              </div>
+   511→            )}
+   512→          </CardContent>
+   513→        </Card>
+   514→
+   515→        {/* Priority breakdown */}
+   516→        <Card>
+   517→          <CardHeader>
+   518→            <CardTitle className="flex items-center gap-2 text-base">
+   519→              <Layers className="h-4 w-4 text-primary" />
+   520→              Priority Breakdown
+   521→            </CardTitle>
+   522→            <CardDescription>Job distribution by priority level</CardDescription>
+   523→          </CardHeader>
+   524→          <CardContent>
+   525→            {isLoading ? (
+   526→              <div className="h-[220px] animate-pulse rounded bg-muted" />
+   527→            ) : priorityData.length === 0 ? (
+   528→              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+   529→                No priority data yet
+   530→              </div>
+   531→            ) : (
+   532→              <ResponsiveContainer width="100%" height={220}>
+   533→                <BarChart
+   534→                  data={priorityData}
+   535→                  layout="vertical"
+   536→                  margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+   537→                >
+   538→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+   539→                  <XAxis
+   540→                    type="number"
+   541→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   542→                    tickLine={false}
+   543→                    axisLine={false}
+   544→                    allowDecimals={false}
+   545→                  />
+   546→                  <YAxis
+   547→                    type="category"
+   548→                    dataKey="name"
+   549→                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
+   550→                    tickLine={false}
+   551→                    axisLine={false}
+   552→                    width={60}
+   553→                  />
+   554→                  <Tooltip
+   555→                    cursor={{ fill: "var(--muted)" }}
+   556→                    contentStyle={{
+   557→                      background: "var(--card)",
+   558→                      border: "1px solid var(--border)",
+   559→                      borderRadius: "8px",
+   560→                      fontSize: "12px",
+   561→                    }}
+   562→                  />
+   563→                  <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={28}>
+   564→                    {priorityData.map((entry) => (
+   565→                      <Cell
+   566→                        key={entry.name}
+   567→                        fill={PRIORITY_COLORS[entry.name] ?? "#0ea5e9"}
+   568→                      />
+   569→                    ))}
+   570→                  </Bar>
+   571→                </BarChart>
+   572→              </ResponsiveContainer>
+   573→            )}
+   574→          </CardContent>
+   575→        </Card>
+   576→      </div>
+   577→
+   578→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+   579→        {/* Material usage donut */}
+   580→        <Card>
+   581→          <CardHeader>
+   582→            <CardTitle className="flex items-center gap-2 text-base">
+   583→              <Layers className="h-4 w-4 text-primary" />
+   584→              Material Usage
+   585→            </CardTitle>
+   586→            <CardDescription>Cutting lists by panel material</CardDescription>
+   587→          </CardHeader>
+   588→          <CardContent>
+   589→            {isLoading ? (
+   590→              <div className="h-[180px] animate-pulse rounded bg-muted" />
+   591→            ) : materialPieData.length === 0 ? (
+   592→              <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
+   593→                No material data yet
+   594→              </div>
+   595→            ) : (
+   596→              <div className="flex flex-col items-center gap-3">
+   597→                <ResponsiveContainer width="100%" height={180}>
+   598→                  <PieChart>
+   599→                    <Pie
+   600→                      data={materialPieData}
+   601→                      dataKey="value"
+   602→                      nameKey="name"
+   603→                      cx="50%"
+   604→                      cy="50%"
+   605→                      outerRadius={75}
+   606→                      paddingAngle={2}
+   607→                    >
+   608→                      {materialPieData.map((entry, i) => (
+   609→                        <Cell
+   610→                          key={entry.name}
+   611→                          fill={MATERIAL_COLORS[i % MATERIAL_COLORS.length]}
+   612→                        />
+   613→                      ))}
+   614→                    </Pie>
+   615→                    <Tooltip
+   616→                      contentStyle={{
+   617→                        background: "var(--card)",
+   618→                        border: "1px solid var(--border)",
+   619→                        borderRadius: "8px",
+   620→                        fontSize: "12px",
+   621→                      }}
+   622→                    />
+   623→                  </PieChart>
+   624→                </ResponsiveContainer>
+   625→                <div className="flex flex-wrap justify-center gap-2">
+   626→                  {materialPieData.map((m, i) => (
+   627→                    <span
+   628→                      key={m.name}
+   629→                      className="flex items-center gap-1 text-xs"
+   630→                    >
+   631→                      <span
+   632→                        className="h-2 w-2 rounded-full"
+   633→                        style={{
+   634→                          backgroundColor:
+   635→                            MATERIAL_COLORS[i % MATERIAL_COLORS.length],
+   636→                        }}
+   637→                      />
+   638→                      {m.name} ({m.value})
+   639→                    </span>
+   640→                  ))}
+   641→                </div>
+   642→              </div>
+   643→            )}
+   644→          </CardContent>
+   645→        </Card>
+   646→
+   647→        {/* Technician workload */}
+   648→        <Card className="lg:col-span-2">
+   649→          <CardHeader>
+   650→            <CardTitle className="flex items-center gap-2 text-base">
+   651→              <HardHat className="h-4 w-4 text-primary" />
+   652→              Technician Workload
+   653→            </CardTitle>
+   654→            <CardDescription>
+   655→              Active job assignments per technician
+   656→            </CardDescription>
+   657→          </CardHeader>
+   658→          <CardContent>
+   659→            {isLoading ? (
+   660→              <div className="h-[180px] animate-pulse rounded bg-muted" />
+   661→            ) : workload.length === 0 ? (
+   662→              <div className="flex h-[180px] items-center justify-center text-sm text-muted-foreground">
+   663→                No assigned jobs yet
+   664→              </div>
+   665→            ) : (
+   666→              <ResponsiveContainer width="100%" height={180}>
+   667→                <BarChart
+   668→                  data={workload}
+   669→                  margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
+   670→                >
+   671→                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+   672→                  <XAxis
+   673→                    dataKey="name"
+   674→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   675→                    tickLine={false}
+   676→                    axisLine={false}
+   677→                  />
+   678→                  <YAxis
+   679→                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+   680→                    tickLine={false}
+   681→                    axisLine={false}
+   682→                    allowDecimals={false}
+   683→                  />
+   684→                  <Tooltip
+   685→                    cursor={{ fill: "var(--muted)" }}
+   686→                    contentStyle={{
+   687→                      background: "var(--card)",
+   688→                      border: "1px solid var(--border)",
+   689→                      borderRadius: "8px",
+   690→                      fontSize: "12px",
+   691→                    }}
+   692→                  />
+   693→                  <Bar
+   694→                    dataKey="count"
+   695→                    fill="var(--primary)"
+   696→                    radius={[6, 6, 0, 0]}
+   697→                    barSize={40}
+   698→                    name="Assigned Jobs"
+   699→                  />
+   700→                </BarChart>
+   701→              </ResponsiveContainer>
+   702→            )}
+   703→          </CardContent>
+   704→        </Card>
+   705→      </div>
+   706→
+   707→      {/* Recent Activity + Inventory Alerts — bento 2-col */}
+   708→      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+   709→      {/* Recent Activity Feed */}
+   710→      <Card>
+   711→        <CardHeader className="pb-2">
+   712→          <CardTitle className="flex items-center gap-2 text-sm">
+   713→            <Activity className="h-4 w-4 text-primary" />
+   714→            Recent Activity
+   715→          </CardTitle>
+   716→          <CardDescription>
+   717→            Latest events across your production pipeline
+   718→          </CardDescription>
+   719→        </CardHeader>
+   720→        <CardContent>
+   721→          {(activityData?.events ?? []).length === 0 ? (
+   722→            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+   723→              No recent activity
+   724→            </div>
+   725→          ) : (
+   726→            <div className="space-y-1">
+   727→              {(activityData?.events ?? []).slice(0, 8).map((event) => {
+   728→                const Icon = ACTIVITY_ICONS[event.type] ?? Activity;
+   729→                const tint = ACTIVITY_TINTS[event.type] ?? "bg-muted text-muted-foreground";
+   730→                return (
+   731→                  <div
+   732→                    key={event.id}
+   733→                    className="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-muted/40"
+   734→                  >
+   735→                    <div className={`mt-0.5 shrink-0 rounded-md p-1.5 ${tint}`}>
+   736→                      <Icon className="h-3.5 w-3.5" />
+   737→                    </div>
+   738→                    <div className="min-w-0 flex-1">
+   739→                      <p className="text-sm font-medium leading-tight">
+   740→                        {event.title}
+   741→                      </p>
+   742→                      <p className="truncate text-xs text-muted-foreground">
+   743→                        {event.description}
+   744→                      </p>
+   745→                    </div>
+   746→                    <span className="shrink-0 text-[10px] text-muted-foreground/70">
+   747→                      {timeAgo(event.timestamp)}
+   748→                    </span>
+   749→                  </div>
+   750→                );
+   751→              })}
+   752→            </div>
+   753→          )}
+   754→        </CardContent>
+   755→      </Card>
+   756→
+   757→      {/* Inventory Alerts */}
+   758→      {(inventoryData?.stats.lowStock ?? 0) > 0 && (
+   759→        <Card className="border-amber-500/30">
+   760→          <CardHeader>
+   761→            <CardTitle className="flex items-center gap-2 text-base">
+   762→              <AlertTriangle className="h-4 w-4 text-amber-600" />
+   763→              Inventory Alerts
+   764→            </CardTitle>
+   765→            <CardDescription>
+   766→              {inventoryData?.stats.lowStock ?? 0} item(s) below reorder point
+   767→            </CardDescription>
+   768→          </CardHeader>
+   769→          <CardContent>
+   770→            <div className="space-y-2">
+   771→              {(inventoryData?.items ?? [])
+   772→                .filter(
+   773→                  (i) =>
+   774→                    Number(i.stockLevel) <= Number(i.reorderPoint) &&
+   775→                    Number(i.reorderPoint) > 0
+   776→                )
+   777→                .slice(0, 5)
+   778→                .map((item) => {
+   779→                  const stock = Number(item.stockLevel);
+   780→                  const reorder = Number(item.reorderPoint);
+   781→                  const isOut = stock === 0;
+   782→                  return (
+   783→                    <div
+   784→                      key={item.id}
+   785→                      className="flex items-center justify-between rounded-lg border border-border p-3"
+   786→                    >
+   787→                      <div className="flex items-center gap-3">
+   788→                        <div
+   789→                          className={`rounded-md p-1.5 ${
+   790→                            isOut
+   791→                              ? "bg-rose-500/10 text-rose-600"
+   792→                              : "bg-amber-500/10 text-amber-600"
+   793→                          }`}
+   794→                        >
+   795→                          {isOut ? (
+   796→                            <AlertTriangle className="h-4 w-4" />
+   797→                          ) : (
+   798→                            <TrendingDown className="h-4 w-4" />
+   799→                          )}
+   800→                        </div>
+   801→                        <div>
+   802→                          <p className="text-sm font-medium">{item.name}</p>
+   803→                          <p className="text-xs text-muted-foreground">
+   804→                            {item.material}
+   805→                            {item.thickness ? ` · ${item.thickness}` : ""}
+   806→                          </p>
+   807→                        </div>
+   808→                      </div>
+   809→                      <div className="text-right">
+   810→                        <p
+   811→                          className={`text-sm font-bold tabular-nums ${
+   812→                            isOut ? "text-rose-600" : "text-amber-600"
+   813→                          }`}
+   814→                        >
+   815→                          {stock} {item.unit}
+   816→                        </p>
+   817→                        <p className="text-xs text-muted-foreground">
+   818→                          reorder at {reorder}
+   819→                        </p>
+   820→                      </div>
+   821→                    </div>
+   822→                  );
+   823→                })}
+   824→            </div>
+   825→          </CardContent>
+   826→        </Card>
+   827→      )}
+   828→      </div>
+   829→
+   830→      {/* Quick stats footer — compact */}
+   831→      <Card className="bg-muted/30">
+   832→        <CardContent className="p-3">
+   833→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+   834→            <StatRow
+   835→              icon={UserCheck}
+   836→              label="Active workforce"
+   837→              value={counts?.activeUsers ?? 0}
+   838→              total={counts?.users ?? 0}
+   839→            />
+   840→            <StatRow
+   841→              icon={Clock}
+   842→              label="Pending intake"
+   843→              value={counts?.pendingJobs ?? 0}
+   844→              total={counts?.jobOrders ?? 0}
+   845→            />
+   846→            <StatRow
+   847→              icon={CheckCircle2}
+   848→              label="Measurements"
+   849→              value={counts?.measurements ?? 0}
+   850→            />
+   851→            <StatRow
+   852→              icon={Scissors}
+   853→              label="Cutting lists"
+   854→              value={counts?.cuttingLists ?? 0}
+   855→            />
+   856→            <StatRow
+   857→              icon={Building2}
+   858→              label="Customers"
+   859→              value={counts?.customers ?? 0}
+   860→            />
+   861→          </div>
+   862→        </CardContent>
+   863→      </Card>
+   864→    </div>
+   865→  );
+   866→}
+   867→
+   868→/* ============ Needs Attention — daily standup panel ============ */
+   869→function NeedsAttention({
+   870→  pendingJobs,
+   871→  urgentJobs,
+   872→  highJobs,
+   873→  lowStock,
+   874→  totalJobs,
+   875→  onNavigate,
+   876→  isLoading,
+   877→}: {
+   878→  pendingJobs: number;
+   879→  urgentJobs: number;
+   880→  highJobs: number;
+   881→  lowStock: number;
+   882→  totalJobs: number;
+   883→  onNavigate?: (view: string) => void;
+   884→  isLoading?: boolean;
+   885→}) {
+   886→  const items: {
+   887→    label: string;
+   888→    value: number;
+   889→    sub: string;
+   890→    icon: typeof Clock;
+   891→    tint: string;
+   892→    view: string;
+   893→    severity: "info" | "warn" | "danger";
+   894→  }[] = [
+   895→    {
+   896→      label: "Pending intake",
+   897→      value: pendingJobs,
+   898→      sub: totalJobs ? `${Math.round((pendingJobs / totalJobs) * 100)}% of pipeline` : "—",
+   899→      icon: Clock,
+   900→      tint: "bg-amber-500/10 text-amber-600",
+   901→      view: "job-orders",
+   902→      severity: pendingJobs > 5 ? "warn" : "info",
+   903→    },
+   904→    {
+   905→      label: "Urgent priority",
+   906→      value: urgentJobs,
+   907→      sub: "needs immediate action",
+   908→      icon: AlertTriangle,
+   909→      tint: urgentJobs > 0 ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
+   910→      view: "job-orders",
+   911→      severity: urgentJobs > 0 ? "danger" : "info",
+   912→    },
+   913→    {
+   914→      label: "High priority",
+   915→      value: highJobs,
+   916→      sub: "in active pipeline",
+   917→      icon: Flag,
+   918→      tint: "bg-orange-500/10 text-orange-600",
+   919→      view: "job-orders",
+   920→      severity: "info",
+   921→    },
+   922→    {
+   923→      label: "Low stock items",
+   924→      value: lowStock,
+   925→      sub: lowStock > 0 ? "below reorder point" : "all stocked",
+   926→      icon: TrendingDown,
+   927→      tint: lowStock > 0 ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
+   928→      view: "inventory",
+   929→      severity: lowStock > 0 ? "danger" : "info",
+   930→    },
+   931→  ];
+   932→
+   933→  const hasAttention = pendingJobs > 0 || urgentJobs > 0 || lowStock > 0;
+   934→
+   935→  return (
+   936→    <Card className={hasAttention ? "border-amber-500/30" : ""}>
+   937→      <CardHeader className="pb-2">
+   938→        <div className="flex items-center justify-between gap-2">
+   939→          <CardTitle className="flex items-center gap-2 text-sm">
+   940→            <AlertTriangle className={`h-4 w-4 ${hasAttention ? "text-amber-600" : "text-emerald-600"}`} />
+   941→            Needs Attention
+   942→          </CardTitle>
+   943→          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+   944→            hasAttention
+   945→              ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+   946→              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+   947→          }`}>
+   948→            {hasAttention ? "Action required" : "All clear"}
+   949→          </span>
+   950→        </div>
+   951→      </CardHeader>
+   952→      <CardContent className="p-3 pt-0">
+   953→        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+   954→          {items.map((it) => {
+   955→            const Icon = it.icon;
+   956→            return (
+   957→              <button
+   958→                key={it.label}
+   959→                onClick={() => onNavigate?.(it.view)}
+   960→                className="group flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm"
+   961→              >
+   962→                <div className={`shrink-0 rounded-lg p-2 ${it.tint}`}>
+   963→                  <Icon className="h-4 w-4" />
+   964→                </div>
+   965→                <div className="min-w-0">
+   966→                  {isLoading ? (
+   967→                    <div className="h-5 w-8 animate-pulse rounded bg-muted" />
+   968→                  ) : (
+   969→                    <p className="text-lg font-bold tabular-nums leading-tight">{it.value}</p>
+   970→                  )}
+   971→                  <p className="truncate text-[11px] font-medium">{it.label}</p>
+   972→                  <p className="truncate text-[10px] text-muted-foreground">{it.sub}</p>
+   973→                </div>
+   974→              </button>
+   975→            );
+   976→          })}
+   977→        </div>
+   978→      </CardContent>
+   979→    </Card>
+   980→  );
+   981→}
+   982→
+   983→function StatRow({
+   984→  icon: Icon,
+   985→  label,
+   986→  value,
+   987→  total,
+   988→}: {
+   989→  icon: typeof Users;
+   990→  label: string;
+   991→  value: number;
+   992→  total?: number;
+   993→}) {
+   994→  return (
+   995→    <div className="flex items-center gap-2.5">
+   996→      <div className="rounded-md bg-muted p-1.5">
+   997→        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+   998→      </div>
+   999→      <div className="min-w-0">
+  1000→        <p className="text-xs text-muted-foreground">{label}</p>
+  1001→        <p className="text-sm font-semibold tabular-nums">
+  1002→          {value}
+  1003→          {total !== undefined && (
+  1004→            <span className="text-xs font-normal text-muted-foreground">
+  1005→              {" "}
+  1006→              / {total}
+  1007→            </span>
+  1008→          )}
+  1009→        </p>
+  1010→      </div>
+  1011→    </div>
+  1012→  );
+  1013→}
+  1014→
+  1015→/* ============ What's New Banner (dismissible, compact) ============ */
+  1016→function WhatsNewBanner({ onNavigate }: { onNavigate?: (view: string) => void }) {
+  1017→  const [dismissed, setDismissed] = React.useState(false);
+  1018→  const [expanded, setExpanded] = React.useState(false);
+  1019→
+  1020→  React.useEffect(() => {
+  1021→    const seen = localStorage.getItem("kcm-whatsnew-v2-dismissed");
+  1022→    if (seen === "true") setDismissed(true);
+  1023→  }, []);
+  1024→
+  1025→  function dismiss() {
+  1026→    localStorage.setItem("kcm-whatsnew-v2-dismissed", "true");
+  1027→    setDismissed(true);
+  1028→  }
+  1029→
+  1030→  if (dismissed) return null;
+  1031→
+  1032→  const newFeatures = [
+  1033→    { label: "Unified Calendar", icon: CalendarRange, view: "settings" },
+  1034→    { label: "Punch List", icon: Bug, view: "settings" },
+  1035→    { label: "Change Orders", icon: GitBranch, view: "settings" },
+  1036→    { label: "Subcontractors", icon: HardHat, view: "settings" },
+  1037→    { label: "Equipment", icon: Wrench, view: "settings" },
+  1038→    { label: "Milestones", icon: Flag, view: "settings" },
+  1039→    { label: "MRP", icon: PackageSearch, view: "settings" },
+  1040→    { label: "Site Visits", icon: ClipboardCheck, view: "settings" },
+  1041→  ];
+  1042→
+  1043→  return (
+  1044→    <Card className="border-primary/30 bg-primary/5">
+  1045→      <CardContent className="p-2.5">
+  1046→        <div className="flex items-center gap-2">
+  1047→          <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+  1048→          <button
+  1049→            type="button"
+  1050→            onClick={() => setExpanded((v) => !v)}
+  1051→            className="flex flex-1 items-center gap-1.5 text-left text-xs font-medium"
+  1052→          >
+  1053→            <span className="text-primary">v2.0 — 17 new modules added</span>
+  1054→            <span className="hidden text-muted-foreground sm:inline">
+  1055→              · enable them in System Settings → Module Visibility
+  1056→            </span>
+  1057→            <ChevronRight
+  1058→              className={`ml-auto hidden h-3 w-3 text-muted-foreground transition-transform sm:block ${
+  1059→                expanded ? "rotate-90" : ""
+  1060→              }`}
+  1061→            />
+  1062→          </button>
+  1063→          <Button
+  1064→            variant="ghost"
+  1065→            size="icon"
+  1066→            className="h-6 w-6 shrink-0"
+  1067→            onClick={dismiss}
+  1068→            title="Dismiss"
+  1069→          >
+  1070→            <X className="h-3.5 w-3.5" />
+  1071→          </Button>
+  1072→        </div>
+  1073→        {expanded && (
+  1074→          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+  1075→            {newFeatures.map((f) => {
+  1076→              const Icon = f.icon;
+  1077→              return (
+  1078→                <button
+  1079→                  key={f.label}
+  1080→                  onClick={() => onNavigate?.(f.view)}
+  1081→                  className="flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+  1082→                >
+  1083→                  <Icon className="h-3 w-3 text-primary" />
+  1084→                  {f.label}
+  1085→                  <span className="rounded-full bg-primary px-1 py-0.5 text-[6px] font-bold leading-none text-primary-foreground">
+  1086→                    NEW
+  1087→                  </span>
+  1088→                </button>
+  1089→              );
+  1090→            })}
+  1091→          </div>
+  1092→        )}
+  1093→      </CardContent>
+  1094→    </Card>
+  1095→  );
+  1096→}
+  1097→

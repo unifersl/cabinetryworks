@@ -1,0 +1,805 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import {
+     6→  barcodesApi,
+     7→  jobsApi,
+     8→  inventoryApi,
+     9→  type BarcodeLabel,
+    10→} from "@/lib/api";
+    11→import {
+    12→  Card,
+    13→  CardContent,
+    14→  CardDescription,
+    15→  CardHeader,
+    16→  CardTitle,
+    17→} from "@/components/ui/card";
+    18→import { Badge } from "@/components/ui/badge";
+    19→import { Button } from "@/components/ui/button";
+    20→import { Input } from "@/components/ui/input";
+    21→import { Label } from "@/components/ui/label";
+    22→import {
+    23→  Dialog,
+    24→  DialogContent,
+    25→  DialogDescription,
+    26→  DialogFooter,
+    27→  DialogHeader,
+    28→  DialogTitle,
+    29→} from "@/components/ui/dialog";
+    30→import {
+    31→  Select,
+    32→  SelectContent,
+    33→  SelectItem,
+    34→  SelectTrigger,
+    35→  SelectValue,
+    36→} from "@/components/ui/select";
+    37→import {
+    38→  Table,
+    39→  TableBody,
+    40→  TableCell,
+    41→  TableHead,
+    42→  TableHeader,
+    43→  TableRow,
+    44→} from "@/components/ui/table";
+    45→import { Switch } from "@/components/ui/switch";
+    46→import { toast } from "sonner";
+    47→import {
+    48→  QrCode,
+    49→  Barcode as BarcodeIcon,
+    50→  Plus,
+    51→  Loader2,
+    52→  Trash2,
+    53→  Printer,
+    54→  Package,
+    55→  Briefcase,
+    56→  CheckCircle2,
+    57→} from "lucide-react";
+    58→
+    59→const TYPES = [
+    60→  { value: "qr", label: "QR Code", icon: QrCode },
+    61→  { value: "barcode", label: "Barcode", icon: BarcodeIcon },
+    62→];
+    63→
+    64→const TYPE_TINTS: Record<string, string> = {
+    65→  qr: "bg-violet-500/15 text-violet-700 border-violet-500/30",
+    66→  barcode: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+    67→};
+    68→
+    69→interface JobLite {
+    70→  id: string;
+    71→  orderNumber: string;
+    72→  title: string;
+    73→}
+    74→interface ItemLite {
+    75→  id: string;
+    76→  name: string;
+    77→  code: string | null;
+    78→}
+    79→
+    80→/**
+    81→ * Deterministic pseudo-QR pattern: builds a N×N grid of black/white modules
+    82→ * based on a simple hash of the code string + finder patterns in 3 corners.
+    83→ * Purely cosmetic — not a real scannable QR code, but visually similar.
+    84→ */
+    85→function QrSvg({ value, size = 120 }: { value: string; size?: number }) {
+    86→  const N = 21; // module grid size
+    87→  const cells: boolean[] = [];
+    88→  // Simple deterministic PRNG seeded from the string
+    89→  let seed = 0;
+    90→  for (let i = 0; i < value.length; i++) {
+    91→    seed = (seed * 31 + value.charCodeAt(i)) >>> 0;
+    92→  }
+    93→  function rand() {
+    94→    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    95→    return seed / 0x7fffffff;
+    96→  }
+    97→  for (let i = 0; i < N * N; i++) cells.push(rand() > 0.5);
+    98→
+    99→  // Helper to mark a finder pattern (7×7) at top-left corner (r0, c0)
+   100→  const finder = (grid: boolean[][], r0: number, c0: number) => {
+   101→    for (let r = 0; r < 7; r++) {
+   102→      for (let c = 0; c < 7; c++) {
+   103→        const onBorder = r === 0 || r === 6 || c === 0 || c === 6;
+   104→        const innerSquare = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+   105→        grid[r0 + r][c0 + c] = onBorder || innerSquare;
+   106→      }
+   107→    }
+   108→    // separator (clear ring around finder)
+   109→    for (let r = -1; r <= 7; r++) {
+   110→      for (let c = -1; c <= 7; c++) {
+   111→        const onRing = r === -1 || r === 7 || c === -1 || c === 7;
+   112→        if (onRing && r0 + r >= 0 && r0 + r < N && c0 + c >= 0 && c0 + c < N) {
+   113→          grid[r0 + r][c0 + c] = false;
+   114→        }
+   115→      }
+   116→    }
+   117→  };
+   118→
+   119→  const grid: boolean[][] = [];
+   120→  for (let r = 0; r < N; r++) grid.push(cells.slice(r * N, r * N + N));
+   121→  finder(grid, 0, 0);
+   122→  finder(grid, 0, N - 7);
+   123→  finder(grid, N - 7, 0);
+   124→
+   125→  const cellSize = size / N;
+   126→  const rects: React.ReactNode[] = [];
+   127→  for (let r = 0; r < N; r++) {
+   128→    for (let c = 0; c < N; c++) {
+   129→      if (grid[r][c]) {
+   130→        rects.push(
+   131→          <rect
+   132→            key={`${r}-${c}`}
+   133→            x={c * cellSize}
+   134→            y={r * cellSize}
+   135→            width={cellSize}
+   136→            height={cellSize}
+   137→            fill="#000"
+   138→          />
+   139→        );
+   140→      }
+   141→    }
+   142→  }
+   143→
+   144→  return (
+   145→    <svg
+   146→      width={size}
+   147→      height={size}
+   148→      viewBox={`0 0 ${size} ${size}`}
+   149→      className="rounded bg-white"
+   150→      role="img"
+   151→      aria-label={`QR pattern for ${value}`}
+   152→    >
+   153→      <rect width={size} height={size} fill="#fff" />
+   154→      {rects}
+   155→    </svg>
+   156→  );
+   157→}
+   158→
+   159→/** Simple text barcode: vertical lines whose widths vary by char codes. */
+   160→function BarcodeSvg({ value, width = 240, height = 60 }: { value: string; width?: number; height?: number }) {
+   161→  const bars: React.ReactNode[] = [];
+   162→  let x = 4;
+   163→  const pad = 4;
+   164→  for (let i = 0; i < value.length && x < width - pad; i++) {
+   165→    const code = value.charCodeAt(i);
+   166→    const w = 1 + (code % 4); // 1..4
+   167→    const gap = 1 + ((code >> 2) % 3); // 1..3
+   168→    bars.push(
+   169→      <rect key={`b-${i}`} x={x} y={pad} width={w} height={height - pad * 2} fill="#000" />
+   170→    );
+   171→    x += w + gap;
+   172→  }
+   173→  return (
+   174→    <svg
+   175→      width={width}
+   176→      height={height}
+   177→      viewBox={`0 0 ${width} ${height}`}
+   178→      className="rounded bg-white"
+   179→      role="img"
+   180→      aria-label={`Barcode pattern for ${value}`}
+   181→    >
+   182→      <rect width={width} height={height} fill="#fff" />
+   183→      {bars}
+   184→      <text
+   185→        x={width / 2}
+   186→        y={height - 4}
+   187→        textAnchor="middle"
+   188→        style={{ fontSize: 10, fontFamily: "monospace", fill: "#000" }}
+   189→      >
+   190→        {value}
+   191→      </text>
+   192→    </svg>
+   193→  );
+   194→}
+   195→
+   196→function printLabel(label: BarcodeLabel) {
+   197→  const w = window.open("", "_blank", "width=480,height=480");
+   198→  if (!w) {
+   199→    toast.error("Pop-up blocked. Allow pop-ups to print.");
+   200→    return;
+   201→  }
+   202→  const isQr = label.type === "qr";
+   203→  const codeSvg = isQr
+   204→    ? renderQrToString(label.code)
+   205→    : renderBarcodeToString(label.code);
+   206→  w.document.write(`<html><head><title>Label ${label.code}</title>
+   207→    <style>
+   208→      body { font-family: Arial, sans-serif; padding: 24px; text-align: center; }
+   209→      .label { border: 1px dashed #999; padding: 16px; display: inline-block; }
+   210→      .code { font-family: monospace; font-size: 16px; margin-top: 8px; letter-spacing: 2px; }
+   211→      .meta { font-size: 11px; color: #666; margin-top: 4px; }
+   212→    </style>
+   213→  </head><body>
+   214→    <div class="label">
+   215→      ${codeSvg}
+   216→      <div class="code">${label.code}</div>
+   217→      ${label.label ? `<div class="meta">${label.label}</div>` : ""}
+   218→    </div>
+   219→    <script>window.onload = () => { window.print(); };<\/script>
+   220→  </body></html>`);
+   221→  w.document.close();
+   222→}
+   223→
+   224→// Render QR pattern to a standalone SVG string for the print window
+   225→function renderQrToString(value: string): string {
+   226→  // Reuse the same algorithm as the React component, but as string output
+   227→  const N = 21;
+   228→  let seed = 0;
+   229→  for (let i = 0; i < value.length; i++) seed = (seed * 31 + value.charCodeAt(i)) >>> 0;
+   230→  const rand = () => {
+   231→    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+   232→    return seed / 0x7fffffff;
+   233→  };
+   234→  const cells: boolean[] = [];
+   235→  for (let i = 0; i < N * N; i++) cells.push(rand() > 0.5);
+   236→  const grid: boolean[][] = [];
+   237→  for (let r = 0; r < N; r++) grid.push(cells.slice(r * N, r * N + N));
+   238→  const finder = (r0: number, c0: number) => {
+   239→    for (let r = 0; r < 7; r++)
+   240→      for (let c = 0; c < 7; c++) {
+   241→        const onBorder = r === 0 || r === 6 || c === 0 || c === 6;
+   242→        const inner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+   243→        grid[r0 + r][c0 + c] = onBorder || inner;
+   244→      }
+   245→    for (let r = -1; r <= 7; r++)
+   246→      for (let c = -1; c <= 7; c++) {
+   247→        const onRing = r === -1 || r === 7 || c === -1 || c === 7;
+   248→        if (onRing && r0 + r >= 0 && r0 + r < N && c0 + c >= 0 && c0 + c < N)
+   249→          grid[r0 + r][c0 + c] = false;
+   250→      }
+   251→  };
+   252→  finder(0, 0);
+   253→  finder(0, N - 7);
+   254→  finder(N - 7, 0);
+   255→  const size = 160;
+   256→  const cs = size / N;
+   257→  let rects = "";
+   258→  for (let r = 0; r < N; r++)
+   259→    for (let c = 0; c < N; c++)
+   260→      if (grid[r][c])
+   261→        rects += `<rect x="${c * cs}" y="${r * cs}" width="${cs}" height="${cs}" fill="#000"/>`;
+   262→  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#fff"/>${rects}</svg>`;
+   263→}
+   264→
+   265→function renderBarcodeToString(value: string): string {
+   266→  const width = 280;
+   267→  const height = 70;
+   268→  const pad = 4;
+   269→  let x = 4;
+   270→  let bars = "";
+   271→  for (let i = 0; i < value.length && x < width - pad; i++) {
+   272→    const code = value.charCodeAt(i);
+   273→    const w = 1 + (code % 4);
+   274→    const gap = 1 + ((code >> 2) % 3);
+   275→    bars += `<rect x="${x}" y="${pad}" width="${w}" height="${height - pad * 2}" fill="#000"/>`;
+   276→    x += w + gap;
+   277→  }
+   278→  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#fff"/>${bars}<text x="${width / 2}" y="${height - 4}" text-anchor="middle" style="font-size:11px;font-family:monospace;fill:#000">${value}</text></svg>`;
+   279→}
+   280→
+   281→interface GenFormState {
+   282→  linkType: "none" | "inventory" | "job";
+   283→  itemId: string;
+   284→  jobId: string;
+   285→  type: string;
+   286→  label: string;
+   287→}
+   288→
+   289→const EMPTY_FORM: GenFormState = {
+   290→  linkType: "none",
+   291→  itemId: "",
+   292→  jobId: "",
+   293→  type: "qr",
+   294→  label: "",
+   295→};
+   296→
+   297→export function BarcodesView() {
+   298→  const qc = useQueryClient();
+   299→  const [typeFilter, setTypeFilter] = React.useState<"all" | string>("all");
+   300→  const [printedFilter, setPrintedFilter] = React.useState<"all" | "true" | "false">(
+   301→    "all"
+   302→  );
+   303→  const [createOpen, setCreateOpen] = React.useState(false);
+   304→  const [preview, setPreview] = React.useState<BarcodeLabel | null>(null);
+   305→  const [form, setForm] = React.useState<GenFormState>(EMPTY_FORM);
+   306→
+   307→  const { data: jobsData } = useQuery({
+   308→    queryKey: ["jobs", "for-barcodes"],
+   309→    queryFn: () => jobsApi.list(),
+   310→  });
+   311→  const jobs: JobLite[] = (jobsData as { jobs?: JobLite[] })?.jobs ?? [];
+   312→
+   313→  const { data: invData } = useQuery({
+   314→    queryKey: ["inventory", "for-barcodes"],
+   315→    queryFn: () => inventoryApi.list(),
+   316→  });
+   317→  const items: ItemLite[] =
+   318→    (invData as { items?: ItemLite[] })?.items ?? [];
+   319→
+   320→  const { data, isLoading } = useQuery({
+   321→    queryKey: ["barcodes", typeFilter, printedFilter],
+   322→    queryFn: () =>
+   323→      barcodesApi.list({
+   324→        type: typeFilter === "all" ? undefined : typeFilter,
+   325→        printed:
+   326→          printedFilter === "all" ? undefined : printedFilter === "true",
+   327→      }),
+   328→  });
+   329→  const labels: BarcodeLabel[] = data?.labels ?? [];
+   330→
+   331→  const createMut = useMutation({
+   332→    mutationFn: (payload: GenFormState) =>
+   333→      barcodesApi.create({
+   334→        itemId: payload.linkType === "inventory" ? payload.itemId || null : null,
+   335→        jobId: payload.linkType === "job" ? payload.jobId || null : null,
+   336→        type: payload.type,
+   337→        label: payload.label || undefined,
+   338→      }),
+   339→    onSuccess: (resp) => {
+   340→      toast.success(`Generated ${resp.label.code}`);
+   341→      qc.invalidateQueries({ queryKey: ["barcodes"] });
+   342→      setCreateOpen(false);
+   343→      setForm(EMPTY_FORM);
+   344→      setPreview(resp.label);
+   345→    },
+   346→    onError: (e: Error) => toast.error(e.message || "Failed to generate"),
+   347→  });
+   348→
+   349→  const updateMut = useMutation({
+   350→    mutationFn: ({
+   351→      id,
+   352→      patch,
+   353→    }: {
+   354→      id: string;
+   355→      patch: Partial<BarcodeLabel>;
+   356→    }) => barcodesApi.update(id, patch),
+   357→    onSuccess: () => {
+   358→      toast.success("Label updated");
+   359→      qc.invalidateQueries({ queryKey: ["barcodes"] });
+   360→    },
+   361→    onError: (e: Error) => toast.error(e.message || "Failed to update"),
+   362→  });
+   363→
+   364→  const deleteMut = useMutation({
+   365→    mutationFn: (id: string) => barcodesApi.remove(id),
+   366→    onSuccess: () => {
+   367→      toast.success("Label deleted");
+   368→      qc.invalidateQueries({ queryKey: ["barcodes"] });
+   369→      setPreview(null);
+   370→    },
+   371→    onError: (e: Error) => toast.error(e.message || "Failed to delete"),
+   372→  });
+   373→
+   374→  function submit() {
+   375→    createMut.mutate(form);
+   376→  }
+   377→
+   378→  function linkedName(label: BarcodeLabel): string {
+   379→    if (label.itemId) {
+   380→      const item = items.find((i) => i.id === label.itemId);
+   381→      return item ? `${item.name}${item.code ? ` (${item.code})` : ""}` : "Inventory item";
+   382→    }
+   383→    if (label.jobId) {
+   384→      const job = jobs.find((j) => j.id === label.jobId);
+   385→      return job ? `${job.orderNumber} — ${job.title}` : "Job";
+   386→    }
+   387→    return "Unlinked";
+   388→  }
+   389→
+   390→  const stats = React.useMemo(() => {
+   391→    return {
+   392→      total: labels.length,
+   393→      printed: labels.filter((l) => l.printed).length,
+   394→      pending: labels.filter((l) => !l.printed).length,
+   395→    };
+   396→  }, [labels]);
+   397→
+   398→  return (
+   399→    <div className="space-y-4">
+   400→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   401→        <div>
+   402→          <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+   403→            <QrCode className="h-5 w-5 text-primary" />
+   404→            Barcode / QR Labels
+   405→          </h1>
+   406→          <p className="text-xs text-muted-foreground">
+   407→            Generate and print labels for inventory items or jobs.
+   408→          </p>
+   409→        </div>
+   410→        <Button
+   411→          size="sm"
+   412→          onClick={() => {
+   413→            setForm(EMPTY_FORM);
+   414→            setCreateOpen(true);
+   415→          }}
+   416→        >
+   417→          <Plus className="mr-1 h-4 w-4" />
+   418→          Generate Label
+   419→        </Button>
+   420→      </div>
+   421→
+   422→      {/* Stats */}
+   423→      <div className="grid grid-cols-3 gap-3">
+   424→        <Card>
+   425→          <CardContent className="flex items-center gap-3 p-4">
+   426→            <div className="rounded-lg bg-primary/10 p-2">
+   427→              <QrCode className="h-5 w-5 text-primary" />
+   428→            </div>
+   429→            <div>
+   430→              <p className="text-2xl font-bold tabular-nums">{stats.total}</p>
+   431→              <p className="text-xs text-muted-foreground">Total labels</p>
+   432→            </div>
+   433→          </CardContent>
+   434→        </Card>
+   435→        <Card>
+   436→          <CardContent className="flex items-center gap-3 p-4">
+   437→            <div className="rounded-lg bg-emerald-500/10 p-2">
+   438→              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+   439→            </div>
+   440→            <div>
+   441→              <p className="text-2xl font-bold tabular-nums">{stats.printed}</p>
+   442→              <p className="text-xs text-muted-foreground">Printed</p>
+   443→            </div>
+   444→          </CardContent>
+   445→        </Card>
+   446→        <Card>
+   447→          <CardContent className="flex items-center gap-3 p-4">
+   448→            <div className="rounded-lg bg-amber-500/10 p-2">
+   449→              <Printer className="h-5 w-5 text-amber-600" />
+   450→            </div>
+   451→            <div>
+   452→              <p className="text-2xl font-bold tabular-nums">{stats.pending}</p>
+   453→              <p className="text-xs text-muted-foreground">Not printed</p>
+   454→            </div>
+   455→          </CardContent>
+   456→        </Card>
+   457→      </div>
+   458→
+   459→      {/* Filters + table */}
+   460→      <Card>
+   461→        <CardHeader className="pb-3">
+   462→          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   463→            <div>
+   464→              <CardTitle className="text-base">Labels</CardTitle>
+   465→              <CardDescription className="text-xs">
+   466→                {labels.length} label{labels.length === 1 ? "" : "s"} shown
+   467→              </CardDescription>
+   468→            </div>
+   469→            <div className="flex flex-wrap items-center gap-2">
+   470→              <Select value={typeFilter} onValueChange={setTypeFilter}>
+   471→                <SelectTrigger className="h-9 w-32 text-sm">
+   472→                  <SelectValue />
+   473→                </SelectTrigger>
+   474→                <SelectContent>
+   475→                  <SelectItem value="all">All types</SelectItem>
+   476→                  {TYPES.map((t) => (
+   477→                    <SelectItem key={t.value} value={t.value}>
+   478→                      {t.label}
+   479→                    </SelectItem>
+   480→                  ))}
+   481→                </SelectContent>
+   482→              </Select>
+   483→              <Select
+   484→                value={printedFilter}
+   485→                onValueChange={(v) =>
+   486→                  setPrintedFilter(v as "all" | "true" | "false")
+   487→                }
+   488→              >
+   489→                <SelectTrigger className="h-9 w-36 text-sm">
+   490→                  <SelectValue />
+   491→                </SelectTrigger>
+   492→                <SelectContent>
+   493→                  <SelectItem value="all">All</SelectItem>
+   494→                  <SelectItem value="true">Printed</SelectItem>
+   495→                  <SelectItem value="false">Not printed</SelectItem>
+   496→                </SelectContent>
+   497→              </Select>
+   498→            </div>
+   499→          </div>
+   500→        </CardHeader>
+   501→        <CardContent className="p-0">
+   502→          {isLoading ? (
+   503→            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+   504→              <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+   505→            </div>
+   506→          ) : labels.length === 0 ? (
+   507→            <div className="flex flex-col items-center gap-3 py-16 text-center">
+   508→              <div className="rounded-full bg-muted p-4">
+   509→                <QrCode className="h-8 w-8 text-muted-foreground" />
+   510→              </div>
+   511→              <div>
+   512→                <p className="font-medium">No labels generated yet</p>
+   513→                <p className="text-sm text-muted-foreground">
+   514→                  Generate a QR code or barcode for inventory or jobs.
+   515→                </p>
+   516→              </div>
+   517→            </div>
+   518→          ) : (
+   519→            <div className="overflow-x-auto">
+   520→              <Table>
+   521→                <TableHeader>
+   522→                  <TableRow>
+   523→                    <TableHead className="h-8 text-xs">Preview</TableHead>
+   524→                    <TableHead className="h-8 text-xs">Code</TableHead>
+   525→                    <TableHead className="h-8 text-xs">Linked To</TableHead>
+   526→                    <TableHead className="h-8 text-xs">Type</TableHead>
+   527→                    <TableHead className="h-8 text-xs">Printed</TableHead>
+   528→                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+   529→                  </TableRow>
+   530→                </TableHeader>
+   531→                <TableBody>
+   532→                  {labels.map((l) => (
+   533→                    <TableRow key={l.id}>
+   534→                      <TableCell className="py-2">
+   535→                        {l.type === "qr" ? (
+   536→                          <QrSvg value={l.code} size={48} />
+   537→                        ) : (
+   538→                          <BarcodeSvg value={l.code} width={96} height={32} />
+   539→                        )}
+   540→                      </TableCell>
+   541→                      <TableCell className="py-2 text-xs font-mono font-medium">
+   542→                        {l.code}
+   543→                      </TableCell>
+   544→                      <TableCell className="py-2 text-xs">
+   545→                        <div className="flex items-center gap-1">
+   546→                          {l.itemId ? (
+   547→                            <Package className="h-3 w-3 text-muted-foreground" />
+   548→                          ) : l.jobId ? (
+   549→                            <Briefcase className="h-3 w-3 text-muted-foreground" />
+   550→                          ) : null}
+   551→                          <span className="truncate max-w-[180px]">
+   552→                            {linkedName(l)}
+   553→                          </span>
+   554→                        </div>
+   555→                      </TableCell>
+   556→                      <TableCell className="py-2">
+   557→                        <Badge
+   558→                          variant="outline"
+   559→                          className={`capitalize text-xs ${
+   560→                            TYPE_TINTS[l.type] ?? ""
+   561→                          }`}
+   562→                        >
+   563→                          {l.type}
+   564→                        </Badge>
+   565→                      </TableCell>
+   566→                      <TableCell className="py-2">
+   567→                        <div className="flex items-center gap-2">
+   568→                          <Switch
+   569→                            checked={l.printed}
+   570→                            onCheckedChange={(v) =>
+   571→                              updateMut.mutate({
+   572→                                id: l.id,
+   573→                                patch: { printed: v },
+   574→                              })
+   575→                            }
+   576→                            className="scale-90"
+   577→                          />
+   578→                          <span className="text-xs text-muted-foreground">
+   579→                            {l.printed ? "Yes" : "No"}
+   580→                          </span>
+   581→                        </div>
+   582→                      </TableCell>
+   583→                      <TableCell className="py-2 text-right">
+   584→                        <div className="flex justify-end gap-1">
+   585→                          <Button
+   586→                            size="sm"
+   587→                            variant="outline"
+   588→                            className="h-7 px-2 text-xs"
+   589→                            onClick={() => printLabel(l)}
+   590→                          >
+   591→                            <Printer className="mr-1 h-3 w-3" />
+   592→                            Print
+   593→                          </Button>
+   594→                          <Button
+   595→                            size="icon"
+   596→                            variant="ghost"
+   597→                            className="h-7 w-7 text-destructive"
+   598→                            onClick={() => deleteMut.mutate(l.id)}
+   599→                            aria-label="Delete"
+   600→                          >
+   601→                            <Trash2 className="h-3.5 w-3.5" />
+   602→                          </Button>
+   603→                        </div>
+   604→                      </TableCell>
+   605→                    </TableRow>
+   606→                  ))}
+   607→                </TableBody>
+   608→              </Table>
+   609→            </div>
+   610→          )}
+   611→        </CardContent>
+   612→      </Card>
+   613→
+   614→      {/* Generate dialog */}
+   615→      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   616→        <DialogContent className="sm:max-w-md">
+   617→          <DialogHeader>
+   618→            <DialogTitle>Generate Label</DialogTitle>
+   619→            <DialogDescription>
+   620→              A unique code is auto-generated on creation.
+   621→            </DialogDescription>
+   622→          </DialogHeader>
+   623→          <div className="space-y-3">
+   624→            <div className="space-y-1.5">
+   625→              <Label className="text-xs">Link To</Label>
+   626→              <Select
+   627→                value={form.linkType}
+   628→                onValueChange={(v) =>
+   629→                  setForm((f) => ({
+   630→                    ...f,
+   631→                    linkType: v as GenFormState["linkType"],
+   632→                  }))
+   633→                }
+   634→              >
+   635→                <SelectTrigger className="h-9 text-sm">
+   636→                  <SelectValue />
+   637→                </SelectTrigger>
+   638→                <SelectContent>
+   639→                  <SelectItem value="none">Unlinked</SelectItem>
+   640→                  <SelectItem value="inventory">Inventory item</SelectItem>
+   641→                  <SelectItem value="job">Job</SelectItem>
+   642→                </SelectContent>
+   643→              </Select>
+   644→            </div>
+   645→            {form.linkType === "inventory" && (
+   646→              <div className="space-y-1.5">
+   647→                <Label className="text-xs">Inventory Item</Label>
+   648→                <Select
+   649→                  value={form.itemId}
+   650→                  onValueChange={(v) =>
+   651→                    setForm((f) => ({ ...f, itemId: v }))
+   652→                  }
+   653→                >
+   654→                  <SelectTrigger className="h-9 text-sm">
+   655→                    <SelectValue placeholder="Select item…" />
+   656→                  </SelectTrigger>
+   657→                  <SelectContent>
+   658→                    {items.length === 0 ? (
+   659→                      <SelectItem value="_none" disabled>
+   660→                        No items available
+   661→                      </SelectItem>
+   662→                    ) : (
+   663→                      items.map((i) => (
+   664→                        <SelectItem key={i.id} value={i.id}>
+   665→                          {i.name}
+   666→                          {i.code ? ` (${i.code})` : ""}
+   667→                        </SelectItem>
+   668→                      ))
+   669→                    )}
+   670→                  </SelectContent>
+   671→                </Select>
+   672→              </div>
+   673→            )}
+   674→            {form.linkType === "job" && (
+   675→              <div className="space-y-1.5">
+   676→                <Label className="text-xs">Job</Label>
+   677→                <Select
+   678→                  value={form.jobId}
+   679→                  onValueChange={(v) =>
+   680→                    setForm((f) => ({ ...f, jobId: v }))
+   681→                  }
+   682→                >
+   683→                  <SelectTrigger className="h-9 text-sm">
+   684→                    <SelectValue placeholder="Select job…" />
+   685→                  </SelectTrigger>
+   686→                  <SelectContent>
+   687→                    {jobs.length === 0 ? (
+   688→                      <SelectItem value="_none" disabled>
+   689→                        No jobs available
+   690→                      </SelectItem>
+   691→                    ) : (
+   692→                      jobs.map((j) => (
+   693→                        <SelectItem key={j.id} value={j.id}>
+   694→                          {j.orderNumber} — {j.title}
+   695→                        </SelectItem>
+   696→                      ))
+   697→                    )}
+   698→                  </SelectContent>
+   699→                </Select>
+   700→              </div>
+   701→            )}
+   702→            <div className="space-y-1.5">
+   703→              <Label className="text-xs">Type</Label>
+   704→              <Select
+   705→                value={form.type}
+   706→                onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
+   707→              >
+   708→                <SelectTrigger className="h-9 text-sm">
+   709→                  <SelectValue />
+   710→                </SelectTrigger>
+   711→                <SelectContent>
+   712→                  {TYPES.map((t) => (
+   713→                    <SelectItem key={t.value} value={t.value}>
+   714→                      {t.label}
+   715→                    </SelectItem>
+   716→                  ))}
+   717→                </SelectContent>
+   718→              </Select>
+   719→            </div>
+   720→            <div className="space-y-1.5">
+   721→              <Label className="text-xs">Label (optional)</Label>
+   722→              <Input
+   723→                placeholder="e.g. Aisle 3, Bin 12"
+   724→                className="h-9 text-sm"
+   725→                value={form.label}
+   726→                onChange={(e) =>
+   727→                  setForm((f) => ({ ...f, label: e.target.value }))
+   728→                }
+   729→              />
+   730→            </div>
+   731→          </div>
+   732→          <DialogFooter>
+   733→            <Button
+   734→              variant="outline"
+   735→              size="sm"
+   736→              onClick={() => setCreateOpen(false)}
+   737→            >
+   738→              Cancel
+   739→            </Button>
+   740→            <Button size="sm" onClick={submit} disabled={createMut.isPending}>
+   741→              {createMut.isPending && (
+   742→                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+   743→              )}
+   744→              Generate
+   745→            </Button>
+   746→          </DialogFooter>
+   747→        </DialogContent>
+   748→      </Dialog>
+   749→
+   750→      {/* Preview dialog after generation */}
+   751→      <Dialog
+   752→        open={!!preview}
+   753→        onOpenChange={(o) => {
+   754→          if (!o) setPreview(null);
+   755→        }}
+   756→      >
+   757→        <DialogContent className="sm:max-w-sm">
+   758→          <DialogHeader>
+   759→            <DialogTitle>Label Generated</DialogTitle>
+   760→            <DialogDescription>
+   761→              Code <span className="font-mono font-medium">{preview?.code}</span>
+   762→            </DialogDescription>
+   763→          </DialogHeader>
+   764→          {preview && (
+   765→            <div className="flex flex-col items-center gap-3 py-2">
+   766→              {preview.type === "qr" ? (
+   767→                <QrSvg value={preview.code} size={160} />
+   768→              ) : (
+   769→                <BarcodeSvg value={preview.code} width={240} height={64} />
+   770→              )}
+   771→              <p className="text-xs text-muted-foreground">
+   772→                {preview.label ?? "No label"}
+   773→              </p>
+   774→              <div className="flex gap-2">
+   775→                <Button
+   776→                  size="sm"
+   777→                  variant="outline"
+   778→                  onClick={() => preview && printLabel(preview)}
+   779→                >
+   780→                  <Printer className="mr-1 h-3.5 w-3.5" />
+   781→                  Print
+   782→                </Button>
+   783→                <Button
+   784→                  size="sm"
+   785→                  onClick={() => {
+   786→                    if (preview)
+   787→                      updateMut.mutate({
+   788→                        id: preview.id,
+   789→                        patch: { printed: true },
+   790→                      });
+   791→                    setPreview(null);
+   792→                  }}
+   793→                >
+   794→                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+   795→                  Mark as Printed
+   796→                </Button>
+   797→              </div>
+   798→            </div>
+   799→          )}
+   800→        </DialogContent>
+   801→      </Dialog>
+   802→    </div>
+   803→  );
+   804→}
+   805→

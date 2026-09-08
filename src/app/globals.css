@@ -1,0 +1,689 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Cabinetry & Kitchen Manufacturing theme — warm wood/amber tones */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.99 0.005 75);
+  --foreground: oklch(0.22 0.02 50);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 50);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 50);
+  /* Amber 700-ish — warm wood accent */
+  --primary: oklch(0.55 0.14 55);
+  --primary-foreground: oklch(0.99 0.005 75);
+  --secondary: oklch(0.96 0.015 70);
+  --secondary-foreground: oklch(0.3 0.03 55);
+  --muted: oklch(0.96 0.012 70);
+  --muted-foreground: oklch(0.5 0.02 55);
+  --accent: oklch(0.94 0.03 65);
+  --accent-foreground: oklch(0.3 0.04 55);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.012 70);
+  --input: oklch(0.92 0.012 70);
+  --ring: oklch(0.55 0.14 55);
+  --chart-1: oklch(0.62 0.15 55);
+  --chart-2: oklch(0.55 0.13 35);
+  --chart-3: oklch(0.7 0.12 90);
+  --chart-4: oklch(0.6 0.1 145);
+  --chart-5: oklch(0.65 0.18 25);
+  --sidebar: oklch(0.27 0.02 55);
+  --sidebar-foreground: oklch(0.96 0.01 75);
+  --sidebar-primary: oklch(0.7 0.14 60);
+  --sidebar-primary-foreground: oklch(0.2 0.02 55);
+  --sidebar-accent: oklch(0.34 0.025 55);
+  --sidebar-accent-foreground: oklch(0.96 0.01 75);
+  --sidebar-border: oklch(0.36 0.02 55);
+  --sidebar-ring: oklch(0.7 0.14 60);
+}
+
+.dark {
+  --background: oklch(0.18 0.012 55);
+  --foreground: oklch(0.96 0.008 75);
+  --card: oklch(0.23 0.015 55);
+  --card-foreground: oklch(0.96 0.008 75);
+  --popover: oklch(0.23 0.015 55);
+  --popover-foreground: oklch(0.96 0.008 75);
+  --primary: oklch(0.72 0.15 60);
+  --primary-foreground: oklch(0.2 0.02 55);
+  --secondary: oklch(0.3 0.018 55);
+  --secondary-foreground: oklch(0.96 0.008 75);
+  --muted: oklch(0.28 0.015 55);
+  --muted-foreground: oklch(0.78 0.015 70);
+  --accent: oklch(0.34 0.03 60);
+  --accent-foreground: oklch(0.96 0.008 75);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.15 60);
+  --chart-1: oklch(0.72 0.15 60);
+  --chart-2: oklch(0.65 0.14 35);
+  --chart-3: oklch(0.75 0.13 90);
+  --chart-4: oklch(0.68 0.12 145);
+  --chart-5: oklch(0.7 0.18 25);
+  --sidebar: oklch(0.22 0.015 55);
+  --sidebar-foreground: oklch(0.96 0.008 75);
+  --sidebar-primary: oklch(0.72 0.15 60);
+  --sidebar-primary-foreground: oklch(0.2 0.02 55);
+  --sidebar-accent: oklch(0.3 0.02 55);
+  --sidebar-accent-foreground: oklch(0.96 0.008 75);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.72 0.15 60);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar — warm wood tone */
+@layer utilities {
+  .scrollbar-warm {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+  }
+  .scrollbar-warm::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-warm::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-warm::-webkit-scrollbar-thumb {
+    background-color: oklch(0.55 0.14 55 / 0.4);
+    border-radius: 9999px;
+  }
+  .scrollbar-warm::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.55 0.14 55 / 0.7);
+  }
+  .dark .scrollbar-warm::-webkit-scrollbar-thumb {
+    background-color: oklch(0.72 0.15 60 / 0.4);
+  }
+
+  /* Subtle wood-grain texture for sidebar */
+  .wood-grain {
+    background-image:
+      linear-gradient(180deg, oklch(0.27 0.02 55 / 0.6), oklch(0.27 0.02 55 / 0.6)),
+      repeating-linear-gradient(
+        90deg,
+        oklch(0.3 0.025 55 / 0.25) 0px,
+        oklch(0.24 0.018 55 / 0.25) 2px,
+        oklch(0.3 0.025 55 / 0.25) 6px,
+        oklch(0.26 0.02 55 / 0.25) 9px
+      );
+  }
+}
+
+/* Print styles — for cutting list & dashboard exports */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-page {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+/* ===== Hide number input spinner arrows system-wide ===== */
+/* Removes the up/down arrowheads that block visibility on all number inputs */
+input[type="number"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+  display: none !important;
+  pointer-events: none !important;
+}
+/* Also hide spinner on time inputs where supported */
+input[type="time"] {
+  -webkit-appearance: none !important;
+  appearance: textfield !important;
+}
+input[type="time"]::-webkit-inner-spin-button,
+input[type="time"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+  display: none !important;
+}
+
+/* ===== Tablet / Touch / Pen Support ===== */
+/* Ensure minimum touch target size (44px) for interactive elements on touch devices */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select,
+  .cursor-pointer {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Allow small icon-only buttons but still keep them tappable */
+  button.h-7, button.h-8, button[class*="h-6"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  /* Larger gaps between touch targets */
+  .flex.gap-1 {
+    gap: 0.375rem;
+  }
+}
+
+/* Pen/stylus support */
+@media (pointer: fine) {
+  /* Enable hover effects only on pen/mouse devices */
+  .hover\:shadow-md:hover { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+}
+
+/* Tablet landscape optimization (iPad, Samsung Tab) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Make sidebar collapsible by default on tablets */
+  /* Increase table cell padding for easier touch */
+  table td, table th {
+    padding: 6px 8px;
+  }
+  /* Make form inputs slightly taller */
+  input, select, textarea {
+    min-height: 40px;
+  }
+}
+
+/* Prevent text selection on touch interactions (prevents accidental text selection during drag) */
+@media (pointer: coarse) {
+  .select-none {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+/* Smooth scrolling for touch devices */
+@media (pointer: coarse) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Larger tab triggers on touch devices */
+@media (pointer: coarse) {
+  [role="tab"] {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+}
+
+/* ===== Industry-Grade Polish ===== */
+
+/* Smooth focus ring for all interactive elements */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar styling (all browsers) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+/* Skeleton loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 100%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Smooth page transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Better disabled state */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ensure tables don't overflow on mobile */
+table {
+  width: 100%;
+  table-layout: auto;
+}
+@media (max-width: 640px) {
+  table {
+    font-size: 12px;
+  }
+  th, td {
+    padding: 4px 6px;
+  }
+}
+
+/* Print improvements */
+@media print {
+  body {
+    background: white !important;
+  }
+  .no-print, button[aria-label="Close"], .fixed {
+    display: none !important;
+  }
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* ===== Pro-grade spacing refinement ===== */
+/* Tighter card radius for professional look */
+.card { border-radius: 0.5rem !important; }
+
+/* Reduce excessive card shadows */
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05) !important; }
+.shadow-md { box-shadow: 0 2px 4px 0 rgba(0,0,0,0.06) !important; }
+
+/* Tighter table cell padding */
+table td, table th { padding: 6px 8px; }
+@media (min-width: 768px) {
+  table td, table th { padding: 6px 10px; }
+}
+
+/* More compact button sizes */
+button[class*="h-9"] { height: 2rem; }
+
+/* Reduce dialog padding */
+[data-radix-dialog-content] { padding: 1rem !important; }
+@media (min-width: 640px) {
+  [data-radix-dialog-content] { padding: 1.25rem !important; }
+}
+
+/* ===================================================================
+   P1 — Global Design System Polish (industry-grade refinements)
+   Appended: do not modify rules above; only additive.
+   =================================================================== */
+
+/* (a) Smooth transitions on all interactive elements */
+button,
+a,
+[role="button"],
+input,
+select,
+textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+/* (b) Card hover lift effect (subtle) */
+.card-lift {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.card-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* (c) Better focus-visible ring (enhancement over base rule above) */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* (d) Skeleton shimmer variant — warm tone matching brand */
+.skeleton-warm {
+  background: linear-gradient(90deg, oklch(0.92 0.01 70) 0%, oklch(0.88 0.02 65) 50%, oklch(0.92 0.01 70) 100%);
+  background-size: 1000px 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+.dark .skeleton-warm {
+  background: linear-gradient(90deg, oklch(0.25 0.015 55) 0%, oklch(0.3 0.02 55) 50%, oklch(0.25 0.015 55) 100%);
+  background-size: 1000px 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+/* (e) Status badge variants — consistent semantic colors */
+.badge-success { background-color: oklch(0.95 0.05 145); color: oklch(0.4 0.12 145); border-color: oklch(0.8 0.08 145); }
+.badge-warning { background-color: oklch(0.95 0.05 85); color: oklch(0.45 0.13 65); border-color: oklch(0.8 0.08 75); }
+.badge-danger  { background-color: oklch(0.95 0.04 25); color: oklch(0.45 0.15 25); border-color: oklch(0.8 0.08 25); }
+.badge-info    { background-color: oklch(0.95 0.04 240); color: oklch(0.45 0.12 240); border-color: oklch(0.8 0.08 240); }
+.badge-neutral { background-color: oklch(0.95 0.005 70); color: oklch(0.45 0.01 70); border-color: oklch(0.85 0.005 70); }
+.dark .badge-success { background-color: oklch(0.3 0.08 145 / 0.3); color: oklch(0.8 0.12 145); border-color: oklch(0.4 0.1 145 / 0.5); }
+.dark .badge-warning { background-color: oklch(0.3 0.08 65 / 0.3); color: oklch(0.85 0.12 65); border-color: oklch(0.4 0.1 65 / 0.5); }
+.dark .badge-danger  { background-color: oklch(0.3 0.1 25 / 0.3); color: oklch(0.8 0.13 25); border-color: oklch(0.4 0.12 25 / 0.5); }
+.dark .badge-info    { background-color: oklch(0.3 0.1 240 / 0.3); color: oklch(0.8 0.12 240); border-color: oklch(0.4 0.1 240 / 0.5); }
+.dark .badge-neutral { background-color: oklch(0.3 0.005 70 / 0.3); color: oklch(0.8 0.005 70); border-color: oklch(0.4 0.005 70 / 0.5); }
+
+/* (f) Slide-in / scale-in animations for sheets & dialogs */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slideInUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+.animate-slide-in-right { animation: slideInRight 200ms ease-out; }
+.animate-slide-in-up     { animation: slideInUp 200ms ease-out; }
+.animate-scale-in        { animation: scaleIn 150ms ease-out; }
+
+/* (g) Better table row hover (subtle warm wash) */
+.table-row-hover {
+  transition: background-color 150ms ease;
+  position: relative;
+}
+.table-row-hover:hover {
+  background-color: oklch(0.96 0.01 70);
+}
+.dark .table-row-hover:hover {
+  background-color: oklch(0.28 0.015 55);
+}
+
+/* (h) Keyboard key / tooltip-style helper text */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* ===== Mobile-first responsive polish ===== */
+
+/* Base font size scales with viewport */
+html {
+  font-size: 14px;
+}
+@media (min-width: 768px) {
+  html { font-size: 15px; }
+}
+@media (min-width: 1280px) {
+  html { font-size: 16px; }
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Mobile: reduce all card padding */
+@media (max-width: 640px) {
+  [data-slot="card"] {
+    border-radius: 0.375rem !important;
+  }
+  [data-slot="card-header"] {
+    padding: 0.75rem 1rem !important;
+  }
+  [data-slot="card-content"] {
+    padding: 0.75rem 1rem !important;
+  }
+}
+
+/* Mobile: tables get horizontal scroll + smaller text */
+@media (max-width: 640px) {
+  table {
+    font-size: 11px;
+  }
+  th, td {
+    padding: 4px 6px !important;
+  }
+}
+
+/* Mobile: buttons get slightly larger touch targets */
+@media (max-width: 640px) {
+  button[class*="h-8"] {
+    height: 2.25rem;
+  }
+  button[class*="h-9"] {
+    height: 2.5rem;
+  }
+}
+
+/* Mobile: inputs get slightly taller for touch */
+@media (max-width: 640px) {
+  input, select, textarea {
+    min-height: 2.5rem;
+  }
+}
+
+/* Mobile: reduce gap in flex/grid containers */
+@media (max-width: 640px) {
+  .space-y-3 > * + * {
+    margin-top: 0.5rem;
+  }
+  .space-y-4 > * + * {
+    margin-top: 0.625rem;
+  }
+  .gap-3 {
+    gap: 0.5rem;
+  }
+  .gap-4 {
+    gap: 0.625rem;
+  }
+}
+
+/* Mobile: tabs scroll horizontally */
+@media (max-width: 640px) {
+  [role="tablist"] {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+  [role="tab"] {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+/* Mobile: dialogs go full-screen */
+@media (max-width: 640px) {
+  [data-radix-dialog-content] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: 1rem !important;
+  }
+  [data-radix-dialog-content] [data-slot="dialog-header"] {
+    padding-top: 0.5rem;
+  }
+}
+
+/* Touch device: larger scrollbars for easier touch scrolling */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.5);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+/* Smooth scrolling everywhere */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Prevent iOS bounce on overscroll */
+body {
+  overscroll-behavior: none;
+}
+
+/* Mobile: hide scrollbars on horizontal scroll containers but keep functionality */
+@media (max-width: 640px) {
+  .scrollbar-warm::-webkit-scrollbar {
+    height: 4px;
+  }
+}
+
+/* Desktop: nice hover effect on cards */
+@media (min-width: 1024px) {
+  [data-slot="card"]:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+}
+
+/* Focus-visible: better ring for keyboard nav */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print: hide all interactive chrome, show only content */
+@media print {
+  header, footer, nav, [role="tablist"], .no-print {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+}
+
+/* ===== Dark mode refinements ===== */
+
+/* Better contrast for dark mode cards */
+.dark [data-slot="card"] {
+  background-color: oklch(0.24 0.015 55);
+  border-color: oklch(1 0 0 / 12%);
+}
+
+/* Dark mode: subtle inner glow on active nav item */
+.dark .bg-primary {
+  box-shadow: 0 0 0 1px oklch(0.72 0.15 60 / 0.3);
+}
+
+/* Dark mode: tables get slightly lighter background for zebra rows */
+.dark table tbody tr:nth-child(even) {
+  background-color: oklch(0.26 0.015 55 / 0.5);
+}

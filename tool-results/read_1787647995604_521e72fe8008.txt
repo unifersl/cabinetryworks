@@ -1,0 +1,1102 @@
+     1→     1→// Prisma schema — Custom Kitchen & Cabinetry Manufacturing System
+     2→     2→// SQLite datasource (local file). UUIDs are generated explicitly in the
+     3→     3→// frontend / API layer to satisfy non-null id constraints safely.
+     4→     4→
+     5→     5→generator client {
+     6→     6→  provider = "prisma-client-js"
+     7→     7→}
+     8→     8→
+     9→     9→datasource db {
+    10→    10→  provider = "sqlite"
+    11→    11→  url      = env("DATABASE_URL")
+    12→    12→}
+    13→    13→
+    14→    14→model User {
+    15→    15→  id        String   @id // explicit UUID supplied by API layer
+    16→    16→  username  String   @unique
+    17→    17→  fullName  String
+    18→    18→  password  String // bcrypt hash
+    19→    19→  role      String   @default("Technician") // "Admin" | "SuperAdmin" | "Technician"
+    20→    20→  status    String   @default("active") // "active" | "suspended" | "inactive"
+    21→    21→  phone     String?
+    22→    22→  email     String?
+    23→    23→  createdAt DateTime @default(now())
+    24→    24→  updatedAt DateTime @updatedAt
+    25→    25→
+    26→    26→  jobOrders       JobOrder[]
+    27→    27→  measurements    SiteMeasurement[]
+    28→    28→  cuttingLists    CuttingList[]
+    29→    29→  auditLogs       AuditLog[]
+    30→    30→  timeLogs        JobTimeLog[]
+    31→    31→}
+    32→    32→
+    33→    33→model Customer {
+    34→    34→  id        String   @id
+    35→    35→  name      String
+    36→    36→  phone     String?
+    37→    37→  email     String?
+    38→    38→  address   String?
+    39→    39→  notes     String?
+    40→    40→  createdAt DateTime @default(now())
+    41→    41→  updatedAt DateTime @updatedAt
+    42→    42→
+    43→    43→  jobOrders JobOrder[]
+    44→    44→  quotes    SavedQuote[]
+    45→    45→  communications CommunicationLog[]
+    46→    46→}
+    47→    47→
+    48→    48→model JobOrder {
+    49→    49→  id            String   @id
+    50→    50→  orderNumber   String   @unique
+    51→    51→  title         String
+    52→    52→  customerId    String
+    53→    53→  status        String   @default("Pending") // Pending | Measured | Design | In Production | Cutting | Assembly | Installation | Completed | Cancelled
+    54→    54→  priority      String   @default("Normal") // Low | Normal | High | Urgent
+    55→    55→  assignedToId  String?
+    56→    56→  description   String?
+    57→    57→  deliveryDate  DateTime?
+    58→    58→  archived      Boolean  @default(false)
+    59→    59→  createdAt     DateTime @default(now())
+    60→    60→  updatedAt     DateTime @updatedAt
+    61→    61→
+    62→    62→  customer     Customer @relation(fields: [customerId], references: [id])
+    63→    63→  assignedTo   User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+    64→    64→  measurements SiteMeasurement[]
+    65→    65→  cuttingLists CuttingList[]
+    66→    66→  quotes       SavedQuote[]
+    67→    67→  stockRequests StockRequest[]
+    68→    68→  goodsIssues   GoodsIssue[]
+    69→    69→  goodsReturns  GoodsReturn[]
+    70→    70→  outsidePurchases OutsidePurchase[]
+    71→    71→  timeLogs      JobTimeLog[]
+    72→    72→  transports    JobTransport[]
+    73→    73→  foodBeverages JobFoodBeverage[]
+    74→    74→  toolIssues    JobToolIssue[]
+    75→    75→  toolReturns   JobToolReturn[]
+    76→    76→  expenses      JobExpense[]
+    77→    77→  attendance    AttendanceRecord[]
+    78→    78→  schedules     ProductionSchedule[]
+    79→    79→  qcCheckpoints QCCheckpoint[]
+    80→    80→  deliveries    DeliveryRecord[]
+    81→    81→  documents     JobDocument[]
+    82→    82→  warrantyClaims WarrantyClaim[]
+    83→    83→  siteVisits     SiteVisit[]
+    84→    84→  punchItems     PunchItem[]
+    85→    85→  changeOrders   ChangeOrder[]
+    86→    86→  communications CommunicationLog[]
+    87→    87→  subcontractorAssignments SubcontractorAssignment[]
+    88→    88→  equipmentAssignments EquipmentAssignment[]
+    89→    89→  milestones     Milestone[]
+    90→    90→  materialRequirements MaterialRequirement[]
+    91→    91→}
+    92→    92→
+    93→    93→model SiteMeasurement {
+    94→    94→  id         String   @id
+    95→    95→  jobId      String
+    96→    96→  takenById  String?
+    97→    97→  roomType   String? // Kitchen | Wardrobe | Vanity | Pantry | Other
+    98→    98→  wallLength String?  // free-form dims string
+    99→    99→  ceilingHt  String?
+   100→   100→  notes      String?
+   101→   101→  photoUrls   String? // serialized JSON array of photo paths/markups
+   102→   102→  blueprint   String? // elevation blueprint markup data (JSON)
+   103→   103→  status     String   @default("Draft") // Draft | Submitted | Approved
+   104→   104→  createdAt  DateTime @default(now())
+   105→   105→  updatedAt  DateTime @updatedAt
+   106→   106→
+   107→   107→  job      JobOrder @relation(fields: [jobId], references: [id])
+   108→   108→  takenBy  User?    @relation(fields: [takenById], references: [id], onDelete: SetNull)
+   109→   109→}
+   110→   110→
+   111→   111→model CuttingList {
+   112→   112→  id        String   @id
+   113→   113→  jobId     String
+   114→   114→  createdById String?
+   115→   115→  panelName String?
+   116→   116→  material  String? // MDF | Plywood | Particle Board | Solid Wood
+   117→   117→  items     String? // serialized JSON: [{ part, qty, length, width, thickness, edge }
+   118→   118→  status    String   @default("Draft") // Draft | Submitted | In Cutting | Done
+   119→   119→  createdAt DateTime @default(now())
+   120→   120→  updatedAt DateTime @updatedAt
+   121→   121→
+   122→   122→  job       JobOrder @relation(fields: [jobId], references: [id])
+   123→   123→  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+   124→   124→}
+   125→   125→
+   126→   126→model SystemSetting {
+   127→   127→  id    String @id
+   128→   128→  key   String @unique
+   129→   129→  value String?
+   130→   130→}
+   131→   131→
+   132→   132→model MaterialPrice {
+   133→   133→  id         String  @id
+   134→   134→  name       String  @unique
+   135→   135→  material   String
+   136→   136→  thickness  String?
+   137→   137→  pricePerSqm Decimal @default(0)
+   138→   138→  unit       String  @default("sqm")
+   139→   139→  edgeBandingPricePerM Decimal @default(0)
+   140→   140→  laborRatePerHour Decimal @default(0)
+   141→   141→  estimatedHours Decimal @default(0)
+   142→   142→  createdAt  DateTime @default(now())
+   143→   143→  updatedAt  DateTime @updatedAt
+   144→   144→}
+   145→   145→
+   146→   146→model SavedQuote {
+   147→   147→  id          String   @id
+   148→   148→  quoteNumber String   @unique
+   149→   149→  jobId       String
+   150→   150→  customerId  String
+   151→   151→  status      String   @default("draft") // draft | sent | accepted | rejected | expired
+   152→   152→  materialCost Decimal @default(0)
+   153→   153→  edgeCost    Decimal  @default(0)
+   154→   154→  laborCost   Decimal  @default(0)
+   155→   155→  subtotal    Decimal  @default(0)
+   156→   156→  taxRate     Decimal  @default(0)
+   157→   157→  taxAmount   Decimal  @default(0)
+   158→   158→  total       Decimal  @default(0)
+   159→   159→  currency    String   @default("USD")
+   160→   160→  notes       String?
+   161→   161→  validUntil  DateTime?
+   162→   162→  createdAt   DateTime @default(now())
+   163→   163→  updatedAt   DateTime @updatedAt
+   164→   164→
+   165→   165→  job      JobOrder @relation(fields: [jobId], references: [id])
+   166→   166→  customer Customer @relation(fields: [customerId], references: [id])
+   167→   167→}
+   168→   168→
+   169→   169→model InventoryCategory {
+   170→   170→  id          String   @id
+   171→   171→  name        String   @unique
+   172→   172→  description String?
+   173→   173→  createdAt   DateTime @default(now())
+   174→   174→  updatedAt   DateTime @updatedAt
+   175→   175→
+   176→   176→  items InventoryItem[]
+   177→   177→}
+   178→   178→
+   179→   179→model InventoryItem {
+   180→   180→  id          String   @id
+   181→   181→  name        String   @unique
+   182→   182→  code        String?  // SKU / part code
+   183→   183→  material    String   // MDF | Plywood | etc.
+   184→   184→  thickness   String?
+   185→   185→  unit        String   @default("sheet") // sheet | m² | m | liter | pcs | box
+   186→   186→  stockLevel  Decimal  @default(0) // total across all warehouses (computed)
+   187→   187→  minStock    Decimal  @default(0)
+   188→   188→  reorderPoint Decimal @default(0)
+   189→   189→  unitCost    Decimal  @default(0)
+   190→   190→  supplier    String?
+   191→   191→  categoryId  String?
+   192→   192→  status      String   @default("active") // active | disposed | inactive
+   193→   193→  notes       String?
+   194→   194→  lastRestocked DateTime?
+   195→   195→  createdAt   DateTime @default(now())
+   196→   196→  updatedAt   DateTime @updatedAt
+   197→   197→
+   198→   198→  category        InventoryCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+   199→   199→  stockLots       StockLot[]
+   200→   200→  transfers       StockTransferItem[]
+   201→   201→  adjustments     StockAdjustment[]
+   202→   202→  stockTakeLines  StockTakeLine[]
+   203→   203→  requestLines    StockRequestLine[]
+   204→   204→  issueLines      GoodsIssueLine[]
+   205→   205→  returnLines     GoodsReturnLine[]
+   206→   206→  outsidePurchaseLines OutsidePurchaseLine[]
+   207→   207→}
+   208→   208→
+   209→   209→model Warehouse {
+   210→   210→  id          String   @id
+   211→   211→  code        String   @unique // e.g. "WH-MAIN", "WH-SITE1"
+   212→   212→  name        String
+   213→   213→  location    String?
+   214→   214→  type        String   @default("main") // main | site | temporary
+   215→   215→  isActive    Boolean  @default(true)
+   216→   216→  createdAt   DateTime @default(now())
+   217→   217→  updatedAt   DateTime @updatedAt
+   218→   218→
+   219→   219→  stockLots       StockLot[]
+   220→   220→  transfersFrom   StockTransfer[]     @relation("TransferFrom")
+   221→   221→  transfersTo     StockTransfer[]     @relation("TransferTo")
+   222→   222→  adjustments     StockAdjustment[]
+   223→   223→  stockTakes      StockTake[]
+   224→   224→  stockRequests   StockRequest[]
+   225→   225→  issues          GoodsIssue[]
+   226→   226→  returns         GoodsReturn[]
+   227→   227→  outsidePurchases OutsidePurchase[]
+   228→   228→}
+   229→   229→
+   230→   230→// Stock lot — a batch of stock in a specific warehouse (FIFO/FEFO tracking)
+   231→   231→model StockLot {
+   232→   232→  id          String   @id
+   233→   233→  itemId      String
+   234→   234→  warehouseId String
+   235→   235→  quantity    Decimal  @default(0)
+   236→   236→  batchNo     String?  // batch / lot number
+   237→   237→  receivedDate DateTime @default(now())
+   238→   238→  notes       String?
+   239→   239→  createdAt   DateTime @default(now())
+   240→   240→  updatedAt   DateTime @updatedAt
+   241→   241→
+   242→   242→  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   243→   243→  warehouse Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   244→   244→
+   245→   245→  @@index([itemId, warehouseId])
+   246→   246→  @@index([warehouseId])
+   247→   247→}
+   248→   248→
+   249→   249→model StockTransfer {
+   250→   250→  id          String   @id
+   251→   251→  transferNo  String   @unique // e.g. "ST-2026-0001"
+   252→   252→  fromWarehouseId String
+   253→   253→  toWarehouseId   String
+   254→   254→  status      String   @default("draft") // draft | in_transit | received | cancelled
+   255→   255→  notes       String?
+   256→   256→  createdBy   String?
+   257→   257→  createdAt   DateTime @default(now())
+   258→   258→  updatedAt   DateTime @updatedAt
+   259→   259→  receivedAt  DateTime?
+   260→   260→
+   261→   261→  fromWarehouse Warehouse @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+   262→   262→  toWarehouse   Warehouse @relation("TransferTo", fields: [toWarehouseId], references: [id])
+   263→   263→  items         StockTransferItem[]
+   264→   264→
+   265→   265→  @@index([fromWarehouseId])
+   266→   266→  @@index([toWarehouseId])
+   267→   267→}
+   268→   268→
+   269→   269→model StockTransferItem {
+   270→   270→  id         String   @id
+   271→   271→  transferId String
+   272→   272→  itemId     String
+   273→   273→  quantity   Decimal  @default(0)
+   274→   274→  batchNo    String?
+   275→   275→
+   276→   276→  transfer StockTransfer   @relation(fields: [transferId], references: [id], onDelete: Cascade)
+   277→   277→  item     InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   278→   278→
+   279→   279→  @@index([transferId])
+   280→   280→}
+   281→   281→
+   282→   282→model StockAdjustment {
+   283→   283→  id          String   @id
+   284→   284→  adjNo       String   @unique // e.g. "ADJ-2026-0001"
+   285→   285→  itemId      String
+   286→   286→  warehouseId String
+   287→   287→  type        String   // set | add | remove | dispose
+   288→   288→  oldQty      Decimal  @default(0)
+   289→   289→  newQty      Decimal  @default(0)
+   290→   290→  diff        Decimal  @default(0)
+   291→   291→  reason      String?  // damage | loss | correction | disposal | found | other
+   292→   292→  notes       String?
+   293→   293→  adjustedBy  String?
+   294→   294→  createdAt   DateTime @default(now())
+   295→   295→
+   296→   296→  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   297→   297→  warehouse Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   298→   298→
+   299→   299→  @@index([itemId])
+   300→   300→  @@index([warehouseId])
+   301→   301→}
+   302→   302→
+   303→   303→model StockTake {
+   304→   304→  id          String   @id
+   305→   305→  takeNo      String   @unique // e.g. "STK-2026-0001"
+   306→   306→  warehouseId String
+   307→   307→  period      String   // e.g. "2026-08" (month-end)
+   308→   308→  status      String   @default("open") // open | counting | completed | closed
+   309→   309→  notes       String?
+   310→   310→  createdBy   String?
+   311→   311→  createdAt   DateTime @default(now())
+   312→   312→  updatedAt   DateTime @updatedAt
+   313→   313→  closedAt    DateTime?
+   314→   314→
+   315→   315→  warehouse Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   316→   316→  lines     StockTakeLine[]
+   317→   317→
+   318→   318→  @@index([warehouseId])
+   319→   319→}
+   320→   320→
+   321→   321→model StockTakeLine {
+   322→   322→  id         String   @id
+   323→   323→  takeId     String
+   324→   324→  itemId     String
+   325→   325→  systemQty  Decimal  @default(0)
+   326→   326→  countedQty Decimal  @default(0)
+   327→   327→  diff       Decimal  @default(0)
+   328→   328→  notes      String?
+   329→   329→
+   330→   330→  take StockTake       @relation(fields: [takeId], references: [id], onDelete: Cascade)
+   331→   331→  item InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   332→   332→
+   333→   333→  @@index([takeId])
+   334→   334→}
+   335→   335→
+   336→   336→// Site requests stock from warehouse
+   337→   337→model StockRequest {
+   338→   338→  id          String   @id
+   339→   339→  reqNo       String   @unique // e.g. "REQ-2026-0001"
+   340→   340→  jobId       String?  // optional link to job
+   341→   341→  warehouseId String
+   342→   342→  requestedBy String?
+   343→   343→  status      String   @default("pending") // pending | approved | rejected | issued | cancelled
+   344→   344→  notes       String?
+   345→   345→  createdAt   DateTime @default(now())
+   346→   346→  updatedAt   DateTime @updatedAt
+   347→   347→  approvedAt  DateTime?
+   348→   348→  approvedBy  String?
+   349→   349→
+   350→   350→  job       JobOrder?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   351→   351→  warehouse Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   352→   352→  lines     StockRequestLine[]
+   353→   353→
+   354→   354→  @@index([jobId])
+   355→   355→  @@index([warehouseId])
+   356→   356→}
+   357→   357→
+   358→   358→model StockRequestLine {
+   359→   359→  id         String   @id
+   360→   360→  requestId  String
+   361→   361→  itemId     String
+   362→   362→  quantity   Decimal  @default(0)
+   363→   363→
+   364→   364→  request StockRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+   365→   365→  item    InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   366→   366→
+   367→   367→  @@index([requestId])
+   368→   368→}
+   369→   369→
+   370→   370→// Goods issued to a job/site from a warehouse
+   371→   371→model GoodsIssue {
+   372→   372→  id          String   @id
+   373→   373→  issueNo     String   @unique // e.g. "GI-2026-0001"
+   374→   374→  jobId       String?
+   375→   375→  warehouseId String
+   376→   376→  requestId   String?  // optional link to approved stock request
+   377→   377→  issuedBy    String?
+   378→   378→  status      String   @default("issued") // issued | partial | returned | cancelled
+   379→   379→  notes       String?
+   380→   380→  createdAt   DateTime @default(now())
+   381→   381→  updatedAt   DateTime @updatedAt
+   382→   382→
+   383→   383→  job       JobOrder?         @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   384→   384→  warehouse Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   385→   385→  lines     GoodsIssueLine[]
+   386→   386→
+   387→   387→  @@index([jobId])
+   388→   388→  @@index([warehouseId])
+   389→   389→}
+   390→   390→
+   391→   391→model GoodsIssueLine {
+   392→   392→  id         String   @id
+   393→   393→  issueId    String
+   394→   394→  itemId     String
+   395→   395→  quantity   Decimal  @default(0)
+   396→   396→  batchNo    String?
+   397→   397→
+   398→   398→  issue GoodsIssue      @relation(fields: [issueId], references: [id], onDelete: Cascade)
+   399→   399→  item  InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   400→   400→
+   401→   401→  @@index([issueId])
+   402→   402→}
+   403→   403→
+   404→   404→// Goods returned from site/job back to warehouse
+   405→   405→model GoodsReturn {
+   406→   406→  id          String   @id
+   407→   407→  returnNo    String   @unique // e.g. "GR-2026-0001"
+   408→   408→  jobId       String?
+   409→   409→  warehouseId String
+   410→   410→  issueId     String?  // optional link to original goods issue
+   411→   411→  returnedBy  String?
+   412→   412→  status      String   @default("returned") // returned | partial | cancelled
+   413→   413→  notes       String?
+   414→   414→  createdAt   DateTime @default(now())
+   415→   415→  updatedAt   DateTime @updatedAt
+   416→   416→
+   417→   417→  job       JobOrder?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   418→   418→  warehouse Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+   419→   419→  lines     GoodsReturnLine[]
+   420→   420→
+   421→   421→  @@index([jobId])
+   422→   422→  @@index([warehouseId])
+   423→   423→}
+   424→   424→
+   425→   425→model GoodsReturnLine {
+   426→   426→  id         String   @id
+   427→   427→  returnId   String
+   428→   428→  itemId     String
+   429→   429→  quantity   Decimal  @default(0)
+   430→   430→  batchNo    String?
+   431→   431→
+   432→   432→  ret   GoodsReturn     @relation(fields: [returnId], references: [id], onDelete: Cascade)
+   433→   433→  item  InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+   434→   434→
+   435→   435→  @@index([returnId])
+   436→   436→}
+   437→   437→
+   438→   438→// Outside purchase — direct purchases for site work (not from main inventory)
+   439→   439→model OutsidePurchase {
+   440→   440→  id          String   @id
+   441→   441→  poNo        String   @unique // e.g. "OP-2026-0001"
+   442→   442→  jobId       String?
+   443→   443→  warehouseId String?  // optional receiving warehouse
+   444→   444→  supplier    String?
+   445→   445→  purchasedBy String?
+   446→   446→  status      String   @default("draft") // draft | received | cancelled
+   447→   447→  notes       String?
+   448→   448→  createdAt   DateTime @default(now())
+   449→   449→  updatedAt   DateTime @updatedAt
+   450→   450→  receivedAt  DateTime?
+   451→   451→
+   452→   452→  job       JobOrder?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   453→   453→  warehouse Warehouse?           @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+   454→   454→  lines     OutsidePurchaseLine[]
+   455→   455→
+   456→   456→  @@index([jobId])
+   457→   457→}
+   458→   458→
+   459→   459→model OutsidePurchaseLine {
+   460→   460→  id         String   @id
+   461→   461→  purchaseId String
+   462→   462→  itemId     String?  // optional link to inventory item
+   463→   463→  itemName   String   // free text item name
+   464→   464→  quantity   Decimal  @default(0)
+   465→   465→  unit       String   @default("pcs")
+   466→   466→  notes      String?
+   467→   467→
+   468→   468→  purchase OutsidePurchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+   469→   469→  item     InventoryItem?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+   470→   470→
+   471→   471→  @@index([purchaseId])
+   472→   472→}
+   473→   473→
+   474→   474→model Supplier {
+   475→   475→  id          String   @id
+   476→   476→  name        String   @unique
+   477→   477→  contactName String?
+   478→   478→  email       String?
+   479→   479→  phone       String?
+   480→   480→  address     String?
+   481→   481→  website     String?
+   482→   482→  paymentTerms String? // e.g. "Net 30", "COD"
+   483→   483→  notes       String?
+   484→   484→  createdAt   DateTime @default(now())
+   485→   485→  updatedAt   DateTime @updatedAt
+   486→   486→}
+   487→   487→
+   488→   488→model PurchaseOrder {
+   489→   489→  id            String   @id
+   490→   490→  poNumber      String   @unique
+   491→   491→  supplier      String
+   492→   492→  status        String   @default("draft") // draft | sent | received | cancelled
+   493→   493→  notes         String?
+   494→   494→  totalCost     Decimal  @default(0)
+   495→   495→  currency      String   @default("USD")
+   496→   496→  expectedDate  DateTime?
+   497→   497→  receivedDate  DateTime?
+   498→   498→  createdAt     DateTime @default(now())
+   499→   499→  updatedAt     DateTime @updatedAt
+   500→   500→
+   501→   501→  items         PurchaseOrderItem[]
+   502→   502→}
+   503→   503→
+   504→   504→model PurchaseOrderItem {
+   505→   505→  id             String   @id
+   506→   506→  purchaseOrderId String
+   507→   507→  inventoryItemId String?
+   508→   508→  itemName       String
+   509→   509→  quantity       Decimal  @default(0)
+   510→   510→  unit           String   @default("sheet")
+   511→   511→  unitCost       Decimal  @default(0)
+   512→   512→  lineTotal      Decimal  @default(0)
+   513→   513→
+   514→   514→  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+   515→   515→}
+   516→   516→
+   517→   517→model AuditLog {
+   518→   518→  id         String   @id
+   519→   519→  action     String   // create | update | delete | login | logout | status_change
+   520→   520→  entityType String   // job | customer | user | measurement | cutting_list | auth
+   521→   521→  entityId   String?
+   522→   522→  actorId    String?  // user who performed the action
+   523→   523→  actorName  String?
+   524→   524→  summary    String   // human-readable description
+   525→   525→  details    String?  // JSON string with before/after values
+   526→   526→  ipAddress  String?
+   527→   527→  createdAt  DateTime @default(now())
+   528→   528→
+   529→   529→  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+   530→   530→
+   531→   531→  @@index([entityType, entityId])
+   532→   532→  @@index([actorId])
+   533→   533→  @@index([createdAt])
+   534→   534→}
+   535→   535→
+   536→   536→// ============ PROJECT / SITE / JOB-WISE MANAGEMENT MODELS ============
+   537→   537→
+   538→   538→// Time tracking — per person, per day, multiple sessions per day (factory / onsite / travel)
+   539→   539→model JobTimeLog {
+   540→   540→  id          String   @id
+   541→   541→  jobId       String
+   542→   542→  userId      String?  // system user (worker) — nullable for non-system workers
+   543→   543→  workerName  String   // free-text worker name (always populated for display)
+   544→   544→  workDate    DateTime // the work date (date only, time ignored)
+   545→   545→  workType    String   @default("onsite") // factory | onsite | travel | meeting | other
+   546→   546→  clockIn     DateTime?
+   547→   547→  clockOut    DateTime?
+   548→   548→  hoursWorked Decimal  @default(0) // computed hours (decimal allows 1.5h etc.)
+   549→   549→  hourlyRate  Decimal  @default(0) // labor rate per hour (LKR)
+   550→   550→  laborCost   Decimal  @default(0) // computed: hoursWorked × hourlyRate
+   551→   551→  notes       String?
+   552→   552→  createdBy   String?
+   553→   553→  createdAt   DateTime @default(now())
+   554→   554→  updatedAt   DateTime @updatedAt
+   555→   555→
+   556→   556→  job  JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   557→   557→  user User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+   558→   558→
+   559→   559→  @@index([jobId])
+   560→   560→  @@index([workDate])
+   561→   561→  @@index([userId])
+   562→   562→}
+   563→   563→
+   564→   564→// Transportation for the job — vehicle trips, material delivery, worker transport
+   565→   565→model JobTransport {
+   566→   566→  id           String   @id
+   567→   567→  jobId        String
+   568→   568→  date         DateTime @default(now())
+   569→   569→  vehicleNo    String?  // vehicle registration number
+   570→   570→  driverName   String?
+   571→   571→  fromLocation String?
+   572→   572→  toLocation   String?
+   573→   573→  purpose      String   @default("material_delivery") // material_delivery | worker_transport | site_visit | other
+   574→   574→  distanceKm   Decimal  @default(0)
+   575→   575→  cost         Decimal  @default(0) // fuel / transport cost (LKR)
+   576→   576→  notes        String?
+   577→   577→  createdBy    String?
+   578→   578→  createdAt    DateTime @default(now())
+   579→   579→  updatedAt    DateTime @updatedAt
+   580→   580→
+   581→   581→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   582→   582→
+   583→   583→  @@index([jobId])
+   584→   584→  @@index([date])
+   585→   585→}
+   586→   586→
+   587→   587→// Food & beverages for workers on site
+   588→   588→model JobFoodBeverage {
+   589→   589→  id          String   @id
+   590→   590→  jobId       String
+   591→   591→  date        DateTime @default(now())
+   592→   592→  mealType    String   @default("lunch") // breakfast | lunch | dinner | snacks | tea | water
+   593→   593→  personCount Int      @default(1)
+   594→   594→  cost        Decimal  @default(0) // total meal cost (LKR)
+   595→   595→  description String?
+   596→   596→  notes       String?
+   597→   597→  createdBy   String?
+   598→   598→  createdAt   DateTime @default(now())
+   599→   599→  updatedAt   DateTime @updatedAt
+   600→   600→
+   601→   601→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   602→   602→
+   603→   603→  @@index([jobId])
+   604→   604→  @@index([date])
+   605→   605→}
+   606→   606→
+   607→   607→// Tool catalog — reusable tools tracked separately from inventory materials
+   608→   608→model JobTool {
+   609→   609→  id          String   @id
+   610→   610→  name        String   @unique
+   611→   611→  code        String?  @unique
+   612→   612→  category    String   @default("hand_tool") // power_tool | hand_tool | measuring | safety | ladder | other
+   613→   613→  description String?
+   614→   614→  status      String   @default("available") // available | issued | lost | damaged | retired
+   615→   615→  createdAt   DateTime @default(now())
+   616→   616→  updatedAt   DateTime @updatedAt
+   617→   617→
+   618→   618→  issueLines  JobToolIssueLine[]
+   619→   619→  returnLines JobToolReturnLine[]
+   620→   620→}
+   621→   621→
+   622→   622→// Tool issuing to a job/site
+   623→   623→model JobToolIssue {
+   624→   624→  id          String   @id
+   625→   625→  issueNo     String   @unique
+   626→   626→  jobId       String
+   627→   627→  issuedBy    String?
+   628→   628→  issuedTo    String?  // person who received the tools
+   629→   629→  date        DateTime @default(now())
+   630→   630→  status      String   @default("issued") // issued | partial | returned | lost
+   631→   631→  notes       String?
+   632→   632→  createdAt   DateTime @default(now())
+   633→   633→  updatedAt   DateTime @updatedAt
+   634→   634→
+   635→   635→  job    JobOrder           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   636→   636→  lines  JobToolIssueLine[]
+   637→   637→
+   638→   638→  @@index([jobId])
+   639→   639→}
+   640→   640→
+   641→   641→model JobToolIssueLine {
+   642→   642→  id         String   @id
+   643→   643→  issueId    String
+   644→   644→  toolId     String
+   645→   645→  quantity   Int      @default(1)
+   646→   646→  condition  String   @default("good") // good | fair | damaged
+   647→   647→
+   648→   648→  issue JobToolIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+   649→   649→  tool  JobTool      @relation(fields: [toolId], references: [id], onDelete: Cascade)
+   650→   650→
+   651→   651→  @@index([issueId])
+   652→   652→}
+   653→   653→
+   654→   654→// Tool returning from a job/site
+   655→   655→model JobToolReturn {
+   656→   656→  id           String   @id
+   657→   657→  returnNo     String   @unique
+   658→   658→  jobId        String
+   659→   659→  issueId      String?  // optional link to original issue
+   660→   660→  returnedBy   String?
+   661→   661→  returnedFrom String?  // person returning
+   662→   662→  date         DateTime @default(now())
+   663→   663→  status       String   @default("returned")
+   664→   664→  notes        String?
+   665→   665→  createdAt    DateTime @default(now())
+   666→   666→  updatedAt    DateTime @updatedAt
+   667→   667→
+   668→   668→  job    JobOrder            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   669→   669→  lines  JobToolReturnLine[]
+   670→   670→
+   671→   671→  @@index([jobId])
+   672→   672→}
+   673→   673→
+   674→   674→model JobToolReturnLine {
+   675→   675→  id         String   @id
+   676→   676→  returnId   String
+   677→   677→  toolId     String
+   678→   678→  quantity   Int      @default(1)
+   679→   679→  condition  String   @default("good") // good | fair | damaged | lost
+   680→   680→
+   681→   681→  ret   JobToolReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+   682→   682→  tool  JobTool       @relation(fields: [toolId], references: [id], onDelete: Cascade)
+   683→   683→
+   684→   684→  @@index([returnId])
+   685→   685→}
+   686→   686→
+   687→   687→// Job-wise expense records — track all costs incurred on a job (F&B, transport, tools, materials, labor, misc)
+   688→   688→model JobExpense {
+   689→   689→  id          String   @id
+   690→   690→  jobId       String
+   691→   691→  date        DateTime @default(now())
+   692→   692→  category    String   @default("miscellaneous") // fnb | transport | tools | materials | labor | fuel | parking | miscellaneous | other
+   693→   693→  amount      Decimal  @default(0)
+   694→   694→  currency    String   @default("LKR")
+   695→   695→  description String?
+   696→   696→  receiptNo   String?  // receipt / bill reference number
+   697→   697→  paidBy      String?  // person who paid
+   698→   698→  notes       String?
+   699→   699→  createdBy   String?
+   700→   700→  createdAt   DateTime @default(now())
+   701→   701→  updatedAt   DateTime @updatedAt
+   702→   702→
+   703→   703→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   704→   704→
+   705→   705→  @@index([jobId])
+   706→   706→  @@index([date])
+   707→   707→  @@index([category])
+   708→   708→}
+   709→   709→
+   710→   710→// ============ ATTENDANCE TRACKING ============
+   711→   711→
+   712→   712→// Worker — tracked separately from system Users (supports non-system workers)
+   713→   713→model Worker {
+   714→   714→  id          String   @id
+   715→   715→  code        String?  @unique // e.g. "W001"
+   716→   716→  name        String
+   717→   717→  phone       String?
+   718→   718→  role        String?  // Carpenter, Painter, Helper, etc.
+   719→   719→  type        String   @default("factory") // factory | onsite | both
+   720→   720→  status      String   @default("active") // active | inactive
+   721→   721→  hourlyRate  Decimal  @default(0)
+   722→   722→  createdAt   DateTime @default(now())
+   723→   723→  updatedAt   DateTime @updatedAt
+   724→   724→
+   725→   725→  attendance AttendanceRecord[]
+   726→   726→}
+   727→   727→
+   728→   728→// Attendance record — one per worker per day
+   729→   729→model AttendanceRecord {
+   730→   730→  id          String   @id
+   731→   731→  workerId    String
+   732→   732→  date        DateTime // the attendance date (date only)
+   733→   733→  jobId       String?  // optional link to job (for onsite work)
+   734→   734→  status      String   @default("present") // present | absent | half_day | short_leave | full_leave | holiday | sick
+   735→   735→  clockIn     String?  // "08:30" — time in
+   736→   736→  clockOut    String?  // "17:00" — time out
+   737→   737→  breakStart  String?  // "12:00"
+   738→   738→  breakEnd    String?  // "12:30"
+   739→   739→  hoursWorked Decimal  @default(0) // computed net hours
+   740→   740→  workLocation String? // factory | site name
+   741→   741→  notes       String?
+   742→   742→  createdBy   String?
+   743→   743→  createdAt   DateTime @default(now())
+   744→   744→  updatedAt   DateTime @updatedAt
+   745→   745→
+   746→   746→  worker Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+   747→   747→  job    JobOrder? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   748→   748→
+   749→   749→  @@index([workerId, date])
+   750→   750→  @@index([jobId])
+   751→   751→  @@index([date])
+   752→   752→}
+   753→   753→
+   754→   754→// ============ NEW TOGGLEABLE MODULES ============
+   755→   755→
+   756→   756→// Production Schedule — job production timeline & workstation allocation
+   757→   757→model ProductionSchedule {
+   758→   758→  id            String   @id
+   759→   759→  jobId         String
+   760→   760→  stage         String   // Cutting | Edge Banding | Assembly | Painting | Packing | Ready
+   761→   761→  workstation   String?  // machine/workstation name
+   762→   762→  scheduledDate DateTime
+   763→   763→  endDate       DateTime?
+   764→   764→  assignedToId  String?  // user assigned
+   765→   765→  status        String   @default("scheduled") // scheduled | in_progress | completed | delayed
+   766→   766→  notes         String?
+   767→   767→  createdBy     String?
+   768→   768→  createdAt     DateTime @default(now())
+   769→   769→  updatedAt     DateTime @updatedAt
+   770→   770→
+   771→   771→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   772→   772→
+   773→   773→  @@index([jobId])
+   774→   774→  @@index([scheduledDate])
+   775→   775→  @@index([status])
+   776→   776→}
+   777→   777→
+   778→   778→// Quality Control — inspection checkpoints per job stage
+   779→   779→model QCCheckpoint {
+   780→   780→  id          String   @id
+   781→   781→  jobId       String
+   782→   782→  stage       String   // Cutting | Assembly | Finishing | Installation
+   783→   783→  inspector   String?
+   784→   784→  status      String   @default("pending") // pending | passed | failed | rework
+   785→   785→  checklist   String?  // JSON: [{ item, checked, note }]
+   786→   786→  photos      String?  // JSON array of photo data URLs
+   787→   787→  notes       String?
+   788→   788→  inspectedAt DateTime?
+   789→   789→  createdAt   DateTime @default(now())
+   790→   790→  updatedAt   DateTime @updatedAt
+   791→   791→
+   792→   792→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   793→   793→
+   794→   794→  @@index([jobId])
+   795→   795→  @@index([status])
+   796→   796→}
+   797→   797→
+   798→   798→// Delivery & Installation Management
+   799→   799→model DeliveryRecord {
+   800→   800→  id              String   @id
+   801→   801→  jobId           String
+   802→   802→  type            String   @default("delivery") // delivery | installation
+   803→   803→  scheduledDate   DateTime
+   804→   804→  completedDate   DateTime?
+   805→   805→  driverName      String?
+   806→   806→  vehicleNo       String?
+   807→   807→  installTeam     String?  // names of installers
+   808→   808→  status          String   @default("scheduled") // scheduled | in_transit | delivered | installed | cancelled
+   809→   809→  preChecklist    String?  // JSON: site readiness checklist
+   810→   810→  postChecklist   String?  // JSON: installation sign-off checklist
+   811→   811→  photos          String?  // JSON array of photo data URLs
+   812→   812→  customerSignoff String?  // signature data URL
+   813→   813→  notes           String?
+   814→   814→  createdBy       String?
+   815→   815→  createdAt       DateTime @default(now())
+   816→   816→  updatedAt       DateTime @updatedAt
+   817→   817→
+   818→   818→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   819→   819→
+   820→   820→  @@index([jobId])
+   821→   821→  @@index([scheduledDate])
+   822→   822→  @@index([status])
+   823→   823→}
+   824→   824→
+   825→   825→// Job Documents — contracts, drawings, permits, warranty docs
+   826→   826→model JobDocument {
+   827→   827→  id          String   @id
+   828→   828→  jobId       String
+   829→   829→  name        String
+   830→   830→  type        String   @default("document") // document | contract | drawing | permit | warranty | other
+   831→   831→  fileType    String?  // pdf, jpg, dwg, etc
+   832→   832→  fileSize    Int      @default(0)
+   833→   833→  dataUrl     String   // base64 data URL or file path
+   834→   834→  version     Int      @default(1)
+   835→   835→  notes       String?
+   836→   836→  uploadedBy  String?
+   837→   837→  createdAt   DateTime @default(now())
+   838→   838→  updatedAt   DateTime @updatedAt
+   839→   839→
+   840→   840→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   841→   841→
+   842→   842→  @@index([jobId])
+   843→   843→}
+   844→   844→
+   845→   845→// Job Templates — recurring job configurations
+   846→   846→model JobTemplate {
+   847→   847→  id            String   @id
+   848→   848→  name          String   @unique
+   849→   849→  description   String?
+   850→   850→  category      String?  // Kitchen | Wardrobe | Vanity | Pantry | Other
+   851→   851→  defaultCuttingList String? // JSON: cutting list items
+   852→   852→  defaultHardware    String? // JSON: hardware specs
+   853→   853→  defaultBoM         String? // JSON: bill of materials
+   854→   854→  estimatedHours     Decimal  @default(0)
+   855→   855→  estimatedDays      Int      @default(0)
+   856→   856→  isActive      Boolean  @default(true)
+   857→   857→  createdAt     DateTime @default(now())
+   858→   858→  updatedAt     DateTime @updatedAt
+   859→   859→}
+   860→   860→
+   861→   861→// Warranty & After-Sales
+   862→   862→model WarrantyClaim {
+   863→   863→  id          String   @id
+   864→   864→  jobId       String?
+   865→   865→  claimNo     String   @unique
+   866→   866→  claimDate   DateTime @default(now())
+   867→   867→  issueType   String   // defect | damage | adjustment | replacement
+   868→   868→  description String?
+   869→   869→  status      String   @default("open") // open | in_progress | resolved | rejected
+   870→   870→  resolvedAt  DateTime?
+   871→   871→  resolution  String?
+   872→   872→  partsUsed   String?  // JSON: [{ itemId, qty }]
+   873→   873→  photos      String?  // JSON array
+   874→   874→  createdBy   String?
+   875→   875→  createdAt   DateTime @default(now())
+   876→   876→  updatedAt   DateTime @updatedAt
+   877→   877→
+   878→   878→  job JobOrder? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   879→   879→
+   880→   880→  @@index([jobId])
+   881→   881→  @@index([status])
+   882→   882→}
+   883→   883→
+   884→   884→// Barcode / QR code labels for inventory items
+   885→   885→model BarcodeLabel {
+   886→   886→  id          String   @id
+   887→   887→  itemId      String?  // inventory item (optional)
+   888→   888→  jobId       String?  // job order (optional)
+   889→   889→  code        String   @unique // the barcode/QR value
+   890→   890→  type        String   @default("qr") // qr | barcode
+   891→   891→  label       String?  // display label
+   892→   892→  printed     Boolean  @default(false)
+   893→   893→  createdAt   DateTime @default(now())
+   894→   894→}
+   895→   895→
+   896→   896→// ============ PHASE 2 NEW MODULES ============
+   897→   897→
+   898→   898→// Site Visit Log — record of visits to project sites
+   899→   899→model SiteVisit {
+   900→   900→  id          String   @id
+   901→   901→  jobId       String?
+   902→   902→  visitorName String
+   903→   903→  visitDate   DateTime @default(now())
+   904→   904→  purpose     String   @default("inspection") // inspection | measurement | meeting | handover | other
+   905→   905→  observations String?
+   906→   906→  photos      String?  // JSON array of photo data URLs
+   907→   907→  actionItems String?  // JSON: [{ item, done }]
+   908→   908→  notes       String?
+   909→   909→  createdBy   String?
+   910→   910→  createdAt   DateTime @default(now())
+   911→   911→  updatedAt   DateTime @updatedAt
+   912→   912→
+   913→   913→  job JobOrder? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   914→   914→
+   915→   915→  @@index([jobId])
+   916→   916→  @@index([visitDate])
+   917→   917→}
+   918→   918→
+   919→   919→// Punch List / Deficiency Tracking — post-installation issues
+   920→   920→model PunchItem {
+   921→   921→  id          String   @id
+   922→   922→  jobId       String
+   923→   923→  title       String
+   924→   924→  description String?
+   925→   925→  category    String   @default("general") // door | drawer | finish | alignment | hardware | damage | other
+   926→   926→  status      String   @default("open") // open | assigned | fixed | verified | closed
+   927→   927→  assignedTo  String?
+   928→   928→  photos      String?  // JSON array
+   929→   929→  resolvedAt  DateTime?
+   930→   930→  resolution  String?
+   931→   931→  createdBy   String?
+   932→   932→  createdAt   DateTime @default(now())
+   933→   933→  updatedAt   DateTime @updatedAt
+   934→   934→
+   935→   935→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   936→   936→
+   937→   937→  @@index([jobId])
+   938→   938→  @@index([status])
+   939→   939→}
+   940→   940→
+   941→   941→// Change Order — scope changes during production
+   942→   942→model ChangeOrder {
+   943→   943→  id          String   @id
+   944→   944→  jobId       String
+   945→   945→  changeNo    String   @unique
+   946→   946→  title       String
+   947→   947→  description String?
+   948→   948→  changeType  String   @default("modification") // modification | addition | deletion | material_change
+   949→   949→  affectedItems String? // JSON: list of affected parts/areas
+   950→   950→  status      String   @default("pending") // pending | approved | rejected | implemented
+   951→   951→  requestedBy String?
+   952→   952→  approvedBy  String?
+   953→   953→  approvedAt  DateTime?
+   954→   954→  impactNotes String?  // effect on materials, time, etc.
+   955→   955→  notes       String?
+   956→   956→  createdBy   String?
+   957→   957→  createdAt   DateTime @default(now())
+   958→   958→  updatedAt   DateTime @updatedAt
+   959→   959→
+   960→   960→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+   961→   961→
+   962→   962→  @@index([jobId])
+   963→   963→  @@index([status])
+   964→   964→}
+   965→   965→
+   966→   966→// Customer Communication Log
+   967→   967→model CommunicationLog {
+   968→   968→  id          String   @id
+   969→   969→  jobId       String?
+   970→   970→  customerId  String?
+   971→   971→  type        String   @default("call") // call | email | meeting | site_visit | message
+   972→   972→  subject     String
+   973→   973→  summary     String?
+   974→   974→  actionItems String?  // JSON: [{ item, done }]
+   975→   975→  communicatedBy String?
+   976→   976→  communicatedAt DateTime @default(now())
+   977→   977→  notes       String?
+   978→   978→  createdBy   String?
+   979→   979→  createdAt   DateTime @default(now())
+   980→   980→
+   981→   981→  job     JobOrder? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+   982→   982→  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+   983→   983→
+   984→   984→  @@index([jobId])
+   985→   985→  @@index([customerId])
+   986→   986→  @@index([communicatedAt])
+   987→   987→}
+   988→   988→
+   989→   989→// Subcontractor Management
+   990→   990→model Subcontractor {
+   991→   991→  id          String   @id
+   992→   992→  name        String   @unique
+   993→   993→  trade       String   // painter | tiler | electrician | plumber | installer | other
+   994→   994→  contactName String?
+   995→   995→  phone       String?
+   996→   996→  email       String?
+   997→   997→  rating      Int      @default(3) // 1-5
+   998→   998→  status      String   @default("active") // active | inactive
+   999→   999→  notes       String?
+  1000→  1000→  createdAt   DateTime @default(now())
+  1001→  1001→  updatedAt   DateTime @updatedAt
+  1002→  1002→
+  1003→  1003→  assignments SubcontractorAssignment[]
+  1004→  1004→}
+  1005→  1005→
+  1006→  1006→model SubcontractorAssignment {
+  1007→  1007→  id              String   @id
+  1008→  1008→  subcontractorId String
+  1009→  1009→  jobId           String
+  1010→  1010→  task            String   // e.g. "Paint kitchen cabinets"
+  1011→  1011→  scheduledDate   DateTime
+  1012→  1012→  completedDate   DateTime?
+  1013→  1013→  status          String   @default("scheduled") // scheduled | in_progress | completed | cancelled
+  1014→  1014→  notes           String?
+  1015→  1015→  createdAt       DateTime @default(now())
+  1016→  1016→  updatedAt       DateTime @updatedAt
+  1017→  1017→
+  1018→  1018→  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  1019→  1019→  job           JobOrder      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  1020→  1020→
+  1021→  1021→  @@index([subcontractorId])
+  1022→  1022→  @@index([jobId])
+  1023→  1023→}
+  1024→  1024→
+  1025→  1025→// Equipment / Machine Management
+  1026→  1026→model Equipment {
+  1027→  1027→  id            String   @id
+  1028→  1028→  name          String   @unique
+  1029→  1029→  code          String?  @unique
+  1030→  1030→  type          String   // cnc | panel_saw | edge_bander | drill | sander | press | other
+  1031→  1031→  manufacturer  String?
+  1032→  1032→  model         String?
+  1033→  1033→  status        String   @default("operational") // operational | maintenance | broken | retired
+  1034→  1034→  location      String?
+  1035→  1035→  capacityPerDay Decimal @default(0) // sheets/hours per day
+  1036→  1036→  lastServiceDate DateTime?
+  1037→  1037→  nextServiceDate DateTime?
+  1038→  1038→  notes         String?
+  1039→  1039→  createdAt     DateTime @default(now())
+  1040→  1040→  updatedAt     DateTime @updatedAt
+  1041→  1041→
+  1042→  1042→  assignments EquipmentAssignment[]
+  1043→  1043→}
+  1044→  1044→
+  1045→  1045→model EquipmentAssignment {
+  1046→  1046→  id            String   @id
+  1047→  1047→  equipmentId   String
+  1048→  1048→  jobId         String?
+  1049→  1049→  scheduledDate DateTime
+  1050→  1050→  endDate       DateTime?
+  1051→  1051→  status        String   @default("scheduled") // scheduled | in_use | completed | cancelled
+  1052→  1052→  notes         String?
+  1053→  1053→  createdAt     DateTime @default(now())
+  1054→  1054→  updatedAt     DateTime @updatedAt
+  1055→  1055→
+  1056→  1056→  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  1057→  1057→  job       JobOrder? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  1058→  1058→
+  1059→  1059→  @@index([equipmentId])
+  1060→  1060→  @@index([jobId])
+  1061→  1061→}
+  1062→  1062→
+  1063→  1063→// Project Milestones — key dates per job
+  1064→  1064→model Milestone {
+  1065→  1065→  id          String   @id
+  1066→  1066→  jobId       String
+  1067→  1067→  name        String   // Measurement Done | Design Approved | Cutting Started | Assembly Started | Installation Started | Handover
+  1068→  1068→  targetDate  DateTime
+  1069→  1069→  achievedDate DateTime?
+  1070→  1070→  status      String   @default("pending") // pending | achieved | delayed
+  1071→  1071→  notes       String?
+  1072→  1072→  createdBy   String?
+  1073→  1073→  createdAt   DateTime @default(now())
+  1074→  1074→  updatedAt   DateTime @updatedAt
+  1075→  1075→
+  1076→  1076→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  1077→  1077→
+  1078→  1078→  @@index([jobId])
+  1079→  1079→  @@index([status])
+  1080→  1080→}
+  1081→  1081→
+  1082→  1082→// Material Requirement — auto-generated from cutting lists
+  1083→  1083→model MaterialRequirement {
+  1084→  1084→  id          String   @id
+  1085→  1085→  jobId       String
+  1086→  1086→  cuttingListId String?
+  1087→  1087→  material    String
+  1088→  1088→  requiredQty Decimal  @default(0)
+  1089→  1089→  availableQty Decimal @default(0)
+  1090→  1090→  shortage    Decimal  @default(0)
+  1091→  1091→  unit        String   @default("sheet")
+  1092→  1092→  status      String   @default("pending") // pending | fulfilled | shortage | ordered
+  1093→  1093→  notes       String?
+  1094→  1094→  createdAt   DateTime @default(now())
+  1095→  1095→  updatedAt   DateTime @updatedAt
+  1096→  1096→
+  1097→  1097→  job JobOrder @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  1098→  1098→
+  1099→  1099→  @@index([jobId])
+  1100→  1100→  @@index([status])
+  1101→  1101→}
+  1102→  1102→

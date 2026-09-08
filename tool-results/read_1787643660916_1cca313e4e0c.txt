@@ -1,0 +1,1732 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { jobsApi, customersApi, usersApi, bulkApi } from "@/lib/api";
+     6→import type { JobOrder, JobStatus, Priority } from "@/lib/types";
+     7→import { Button } from "@/components/ui/button";
+     8→import { Input } from "@/components/ui/input";
+     9→import { Label } from "@/components/ui/label";
+    10→import { Textarea } from "@/components/ui/textarea";
+    11→import { Checkbox } from "@/components/ui/checkbox";
+    12→import {
+    13→  Card,
+    14→  CardContent,
+    15→  CardDescription,
+    16→  CardHeader,
+    17→  CardTitle,
+    18→} from "@/components/ui/card";
+    19→import { Badge } from "@/components/ui/badge";
+    20→import {
+    21→  Table,
+    22→  TableBody,
+    23→  TableCell,
+    24→  TableHead,
+    25→  TableHeader,
+    26→  TableRow,
+    27→} from "@/components/ui/table";
+    28→import {
+    29→  Dialog,
+    30→  DialogContent,
+    31→  DialogDescription,
+    32→  DialogFooter,
+    33→  DialogHeader,
+    34→  DialogTitle,
+    35→} from "@/components/ui/dialog";
+    36→import {
+    37→  Select,
+    38→  SelectContent,
+    39→  SelectItem,
+    40→  SelectTrigger,
+    41→  SelectValue,
+    42→} from "@/components/ui/select";
+    43→import { useAuth } from "@/components/providers";
+    44→import { JobManagementSheet } from "../jobs/job-management-sheet";
+    45→import { toast } from "sonner";
+    46→import {
+    47→  Plus,
+    48→  Search,
+    49→  Loader2,
+    50→  ClipboardList,
+    51→  Calendar,
+    52→  User as UserIcon,
+    53→  Ruler,
+    54→  Scissors,
+    55→  Filter,
+    56→  X,
+    57→  ChevronRight,
+    58→  Archive,
+    59→  Trash2,
+    60→  FileSpreadsheet,
+    61→  Upload,
+    62→  Download,
+    63→  LayoutGrid,
+    64→  Table as TableIcon,
+    65→  CalendarDays,
+    66→  Pencil,
+    67→  Copy,
+    68→  Eye,
+    69→  ArrowRightCircle,
+    70→  UserPlus,
+    71→  ChevronLeft,
+    72→  CircleAlert,
+    73→} from "lucide-react";
+    74→import {
+    75→  AlertDialog,
+    76→  AlertDialogAction,
+    77→  AlertDialogCancel,
+    78→  AlertDialogContent,
+    79→  AlertDialogDescription,
+    80→  AlertDialogFooter,
+    81→  AlertDialogHeader,
+    82→  AlertDialogTitle,
+    83→  AlertDialogTrigger,
+    84→} from "@/components/ui/alert-dialog";
+    85→import {
+    86→  DropdownMenu,
+    87→  DropdownMenuContent,
+    88→  DropdownMenuItem,
+    89→  DropdownMenuLabel,
+    90→  DropdownMenuSeparator,
+    91→  DropdownMenuTrigger,
+    92→  DropdownMenuSub,
+    93→  DropdownMenuSubTrigger,
+    94→  DropdownMenuSubContent,
+    95→  DropdownMenuShortcut,
+    96→} from "@/components/ui/dropdown-menu";
+    97→import { MoreHorizontal } from "lucide-react";
+    98→
+    99→const STATUSES: JobStatus[] = [
+   100→  "Pending",
+   101→  "Measured",
+   102→  "Design",
+   103→  "In Production",
+   104→  "Cutting",
+   105→  "Assembly",
+   106→  "Installation",
+   107→  "Completed",
+   108→  "Cancelled",
+   109→];
+   110→
+   111→const PRIORITIES: Priority[] = ["Low", "Normal", "High", "Urgent"];
+   112→
+   113→const STATUS_BADGE: Record<string, string> = {
+   114→  Pending: "bg-amber-500/15 text-amber-700 border-amber-500/30",
+   115→  Measured: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+   116→  Design: "bg-violet-500/15 text-violet-700 border-violet-500/30",
+   117→  "In Production": "bg-orange-500/15 text-orange-700 border-orange-500/30",
+   118→  Cutting: "bg-rose-500/15 text-rose-700 border-rose-500/30",
+   119→  Assembly: "bg-teal-500/15 text-teal-700 border-teal-500/30",
+   120→  Installation: "bg-cyan-500/15 text-cyan-700 border-cyan-500/30",
+   121→  Completed: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+   122→  Cancelled: "bg-zinc-500/15 text-zinc-600 border-zinc-500/30",
+   123→};
+   124→
+   125→const PRIORITY_BADGE: Record<string, string> = {
+   126→  Low: "bg-zinc-500/10 text-zinc-600",
+   127→  Normal: "bg-sky-500/10 text-sky-600",
+   128→  High: "bg-orange-500/10 text-orange-600",
+   129→  Urgent: "bg-rose-500/10 text-rose-600",
+   130→};
+   131→
+   132→export function JobOrdersView({
+   133→  focusJobId,
+   134→  onFocusConsumed,
+   135→}: {
+   136→  focusJobId?: string | null;
+   137→  onFocusConsumed?: () => void;
+   138→} = {}) {
+   139→  const { user } = useAuth();
+   140→  const isAdmin = user?.role === "Admin" || user?.role === "SuperAdmin";
+   141→  const queryClient = useQueryClient();
+   142→  const [createOpen, setCreateOpen] = React.useState(false);
+   143→  const [search, setSearch] = React.useState("");
+   144→  const [statusFilter, setStatusFilter] = React.useState<"all" | JobStatus>(
+   145→    "all"
+   146→  );
+   147→  const [priorityFilter, setPriorityFilter] = React.useState<"all" | Priority>(
+   148→    "all"
+   149→  );
+   150→  const [assignedFilter, setAssignedFilter] = React.useState<string>("all");
+   151→  const [viewMode, setViewMode] = React.useState<"table" | "board" | "calendar">(
+   152→    "table"
+   153→  );
+   154→  const [contextMenu, setContextMenu] = React.useState<{
+   155→    jobId: string;
+   156→    x: number;
+   157→    y: number;
+   158→  } | null>(null);
+   159→  const [selectedJobId, setSelectedJobId] = React.useState<string | null>(null);
+   160→  const [detailOpen, setDetailOpen] = React.useState(false);
+   161→
+   162→  // Handle focus from global search
+   163→  React.useEffect(() => {
+   164→    if (focusJobId) {
+   165→      setSelectedJobId(focusJobId);
+   166→      setDetailOpen(true);
+   167→      onFocusConsumed?.();
+   168→    }
+   169→  }, [focusJobId, onFocusConsumed]);
+   170→
+   171→  const [showArchived, setShowArchived] = React.useState(false);
+   172→  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+   173→
+   174→  const { data: jobsData, isLoading } = useQuery({
+   175→    queryKey: ["jobs", statusFilter, showArchived],
+   176→    queryFn: () =>
+   177→      jobsApi.list(
+   178→        showArchived
+   179→          ? { archived: true }
+   180→          : statusFilter === "all"
+   181→            ? undefined
+   182→            : { status: statusFilter }
+   183→      ),
+   184→  });
+   185→
+   186→  const { data: customersData } = useQuery({
+   187→    queryKey: ["customers"],
+   188→    queryFn: customersApi.list,
+   189→  });
+   190→  const { data: usersData } = useQuery({
+   191→    queryKey: ["users"],
+   192→    queryFn: usersApi.list,
+   193→  });
+   194→
+   195→  const jobs = jobsData?.jobs ?? [];
+   196→  const filtered = jobs.filter(
+   197→    (j) =>
+   198→      (!search ||
+   199→        j.title.toLowerCase().includes(search.toLowerCase()) ||
+   200→        j.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
+   201→        (j.customer?.name ?? "").toLowerCase().includes(search.toLowerCase())) &&
+   202→      (priorityFilter === "all" || j.priority === priorityFilter) &&
+   203→      (assignedFilter === "all" ||
+   204→        (assignedFilter === "unassigned" ? !j.assignedToId : j.assignedToId === assignedFilter))
+   205→  );
+   206→
+   207→  const activeFilterCount =
+   208→    (statusFilter !== "all" ? 1 : 0) +
+   209→    (priorityFilter !== "all" ? 1 : 0) +
+   210→    (assignedFilter !== "all" ? 1 : 0) +
+   211→    (search ? 1 : 0) +
+   212→    (showArchived ? 1 : 0);
+   213→
+   214→  function clearFilters() {
+   215→    setSearch("");
+   216→    setStatusFilter("all");
+   217→    setPriorityFilter("all");
+   218→    setAssignedFilter("all");
+   219→    setShowArchived(false);
+   220→  }
+   221→
+   222→  const updateStatus = useMutation({
+   223→    mutationFn: ({ id, status }: { id: string; status: JobStatus }) =>
+   224→      jobsApi.update(id, { status }),
+   225→    onSuccess: () => {
+   226→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   227→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   228→      toast.success("Job status updated");
+   229→    },
+   230→    onError: (e: Error) => toast.error(e.message),
+   231→  });
+   232→
+   233→  // ---- CSV Template / Import / Export ----
+   234→  function downloadJobTemplate() {
+   235→    const headers = ["Title", "Customer Name", "Status", "Priority", "Assigned To", "Description", "Delivery Date"];
+   236→    const sampleRows = [
+   237→      ["Kitchen Renovation", "John Smith", "Pending", "Normal", "technician", "Full kitchen refit", "2026-09-15"],
+   238→      ["Wardrobe Installation", "Jane Doe", "Design", "High", "technician", "3-door wardrobe", "2026-09-20"],
+   239→      ["Office Cabinetry", "ABC Corp", "In Production", "Urgent", "", "Reception desk + storage", "2026-08-30"],
+   240→    ];
+   241→    const csv = [headers.join(","), ...sampleRows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
+   242→    const blob = new Blob([csv], { type: "text/csv" });
+   243→    const url = URL.createObjectURL(blob);
+   244→    const a = document.createElement("a");
+   245→    a.href = url;
+   246→    a.download = "job-orders-import-template.csv";
+   247→    a.click();
+   248→    URL.revokeObjectURL(url);
+   249→    toast.success("Template downloaded — fill it and import back");
+   250→  }
+   251→
+   252→  function exportJobsCsv() {
+   253→    const headers = ["Order Number", "Title", "Customer", "Status", "Priority", "Assigned To", "Delivery Date", "Created"];
+   254→    const rows = (jobsData?.jobs ?? []).map((j) => [
+   255→      j.orderNumber,
+   256→      j.title,
+   257→      j.customer?.name ?? "",
+   258→      j.status,
+   259→      j.priority,
+   260→      j.assignedTo?.fullName ?? "",
+   261→      j.deliveryDate ? new Date(j.deliveryDate).toLocaleDateString("en-GB") : "",
+   262→      new Date(j.createdAt ?? Date.now()).toLocaleDateString("en-GB"),
+   263→    ]);
+   264→    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+   265→    const blob = new Blob([csv], { type: "text/csv" });
+   266→    const url = URL.createObjectURL(blob);
+   267→    const a = document.createElement("a");
+   268→    a.href = url;
+   269→    a.download = `job-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+   270→    a.click();
+   271→    URL.revokeObjectURL(url);
+   272→    toast.success("CSV exported");
+   273→  }
+   274→
+   275→  function importJobsCsv(file: File) {
+   276→    const reader = new FileReader();
+   277→    reader.onload = async () => {
+   278→      const text = String(reader.result ?? "");
+   279→      const lines = text.split("\n").filter((l) => l.trim());
+   280→      if (lines.length < 2) {
+   281→        toast.error("CSV must have a header and at least one row");
+   282→        return;
+   283→      }
+   284→      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+   285→      let imported = 0;
+   286→      let failed = 0;
+   287→      let customers = customersData?.customers ?? [];
+   288→      if (customers.length === 0) {
+   289→        try {
+   290→          const resp = await customersApi.list();
+   291→          customers = resp.customers;
+   292→        } catch { /* ignore */ }
+   293→      }
+   294→      const technicians = usersData?.users ?? [];
+   295→      const techMap = new Map(technicians.map((t) => [t.fullName.toLowerCase(), t.id]));
+   296→
+   297→      for (const line of lines.slice(1)) {
+   298→        const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, "").replace(/""/g, '"'));
+   299→        const get = (key: string) => {
+   300→          const idx = headers.indexOf(key);
+   301→          return idx >= 0 ? cells[idx] : "";
+   302→        };
+   303→        const title = get("title");
+   304→        const customerName = get("customer name") || get("customer");
+   305→        if (!title || !customerName) { failed++; continue; }
+   306→        const customer = customers.find((c) => c.name.toLowerCase() === customerName.toLowerCase());
+   307→        if (!customer) { failed++; continue; }
+   308→        const assignedTo = get("assigned to");
+   309→        const assignedToId = assignedTo ? (techMap.get(assignedTo.toLowerCase()) || "") : "";
+   310→        const statusVal = (get("status") as JobStatus) || "Pending";
+   311→        try {
+   312→          // The create endpoint intentionally omits `status` from its
+   313→          // payload type for security; we set it via a separate update
+   314→          // after the job is created, when the user picked a non-default
+   315→          // status in the import template.
+   316→          const created = await jobsApi.create({
+   317→            title,
+   318→            customerId: customer.id,
+   319→            assignedToId: assignedToId || undefined,
+   320→            priority: (get("priority") as Priority) || "Normal",
+   321→            description: get("description") || undefined,
+   322→            deliveryDate: get("delivery date") ? new Date(get("delivery date")).toISOString() : undefined,
+   323→          });
+   324→          if (statusVal && statusVal !== "Pending") {
+   325→            try {
+   326→              await jobsApi.update(created.job.id, { status: statusVal });
+   327→            } catch {
+   328→              /* best-effort status patch */
+   329→            }
+   330→          }
+   331→          imported++;
+   332→        } catch (e) {
+   333→          failed++;
+   334→          console.error("Import error:", e);
+   335→        }
+   336→      }
+   337→      toast.success(`Imported ${imported} job(s)${failed > 0 ? `, ${failed} failed` : ""}`);
+   338→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   339→    };
+   340→    reader.readAsText(file);
+   341→  }
+   342→
+   343→  async function duplicateJob(jobId: string) {
+   344→    try {
+   345→      const original = jobs.find((j) => j.id === jobId);
+   346→      if (!original) {
+   347→        toast.error("Job not found");
+   348→        return;
+   349→      }
+   350→      const created = await jobsApi.create({
+   351→        title: `${original.title} (copy)`,
+   352→        customerId: original.customerId,
+   353→        priority: original.priority,
+   354→        description: original.description ?? undefined,
+   355→        deliveryDate: original.deliveryDate ?? undefined,
+   356→      });
+   357→      toast.success(`Duplicated as ${created.job.orderNumber}`, {
+   358→        description: created.job.title,
+   359→      });
+   360→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   361→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+   362→    } catch (e) {
+   363→      toast.error(e instanceof Error ? e.message : "Failed to duplicate job");
+   364→    }
+   365→  }
+   366→
+   367→  async function archiveJob(jobId: string, archive: boolean) {
+   368→    try {
+   369→      await jobsApi.update(jobId, { archived: archive });
+   370→      toast.success(archive ? "Job archived" : "Job restored");
+   371→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   372→    } catch (e) {
+   373→      toast.error(e instanceof Error ? e.message : "Failed to update job");
+   374→    }
+   375→  }
+   376→
+   377→  // Close the right-click context menu on any outside click / scroll / Esc
+   378→  React.useEffect(() => {
+   379→    if (!contextMenu) return;
+   380→    function close() {
+   381→      setContextMenu(null);
+   382→    }
+   383→    function onKey(e: KeyboardEvent) {
+   384→      if (e.key === "Escape") close();
+   385→    }
+   386→    window.addEventListener("click", close);
+   387→    window.addEventListener("scroll", close, true);
+   388→    window.addEventListener("resize", close);
+   389→    window.addEventListener("keydown", onKey);
+   390→    return () => {
+   391→      window.removeEventListener("click", close);
+   392→      window.removeEventListener("scroll", close, true);
+   393→      window.removeEventListener("resize", close);
+   394→      window.removeEventListener("keydown", onKey);
+   395→    };
+   396→  }, [contextMenu]);
+   397→
+   398→  return (
+   399→    <div className="space-y-4">
+   400→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   401→        <div>
+   402→          <h1 className="text-lg font-bold tracking-tight">Job Orders</h1>
+   403→          <p className="text-sm text-muted-foreground">
+   404→            Track cabinetry production jobs through the full pipeline.
+   405→          </p>
+   406→        </div>
+   407→        <div className="flex flex-wrap items-center gap-2">
+   408→          {/* View mode segmented control */}
+   409→          <div className="flex rounded-lg border border-border bg-card p-0.5" role="group" aria-label="View mode">
+   410→            {([
+   411→              { id: "table", label: "Table", icon: TableIcon },
+   412→              { id: "board", label: "Board", icon: LayoutGrid },
+   413→              { id: "calendar", label: "Calendar", icon: CalendarDays },
+   414→            ] as const).map((m) => {
+   415→              const Icon = m.icon;
+   416→              const active = viewMode === m.id;
+   417→              return (
+   418→                <button
+   419→                  key={m.id}
+   420→                  onClick={() => setViewMode(m.id)}
+   421→                  className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${
+   422→                    active
+   423→                      ? "bg-primary text-primary-foreground shadow-sm"
+   424→                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+   425→                  }`}
+   426→                  aria-pressed={active}
+   427→                  title={`${m.label} view`}
+   428→                >
+   429→                  <Icon className="h-3.5 w-3.5" />
+   430→                  <span className="hidden sm:inline">{m.label}</span>
+   431→                </button>
+   432→              );
+   433→            })}
+   434→          </div>
+   435→          <input
+   436→            type="file"
+   437→            accept=".csv"
+   438→            id="job-import"
+   439→            className="hidden"
+   440→            onChange={(e) => {
+   441→              const f = e.target.files?.[0];
+   442→              if (f) importJobsCsv(f);
+   443→              e.target.value = "";
+   444→            }}
+   445→          />
+   446→          <Button variant="outline" size="sm" onClick={() => document.getElementById("job-import")?.click()}>
+   447→            <Upload className="mr-1.5 h-4 w-4" /> Import
+   448→          </Button>
+   449→          <Button variant="outline" size="sm" onClick={exportJobsCsv}>
+   450→            <Download className="mr-1.5 h-4 w-4" /> Export
+   451→          </Button>
+   452→          <Button variant="ghost" size="sm" onClick={downloadJobTemplate} title="Download CSV template with sample data">
+   453→            <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Template
+   454→          </Button>
+   455→          <Button onClick={() => setCreateOpen(true)}>
+   456→            <Plus className="mr-2 h-4 w-4" />
+   457→            New Job Order
+   458→          </Button>
+   459→        </div>
+   460→      </div>
+   461→
+   462→      {/* Bulk action bar — sticky at bottom */}
+   463→      {selectedIds.size > 0 && (
+   464→        <div className="sticky bottom-3 z-30 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 shadow-lg backdrop-blur">
+   465→          <span className="flex items-center gap-2 text-sm font-semibold">
+   466→            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs text-primary-foreground tabular-nums">
+   467→              {selectedIds.size}
+   468→            </span>
+   469→            selected
+   470→          </span>
+   471→          <div className="ml-auto flex flex-wrap gap-2">
+   472→            <Select
+   473→              onValueChange={async (status) => {
+   474→                try {
+   475→                  await bulkApi.updateJobs([...selectedIds], "status", status);
+   476→                  toast.success(`${selectedIds.size} job(s) → ${status}`);
+   477→                  setSelectedIds(new Set());
+   478→                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   479→                } catch (e) {
+   480→                  toast.error(e instanceof Error ? e.message : "Bulk action failed");
+   481→                }
+   482→              }}
+   483→            >
+   484→              <SelectTrigger className="h-8 w-[150px]">
+   485→                <ArrowRightCircle className="mr-1.5 h-3.5 w-3.5" />
+   486→                <span className="text-xs">Set status…</span>
+   487→              </SelectTrigger>
+   488→              <SelectContent>
+   489→                {STATUSES.map((s) => (
+   490→                  <SelectItem key={s} value={s}>
+   491→                    {s}
+   492→                  </SelectItem>
+   493→                ))}
+   494→              </SelectContent>
+   495→            </Select>
+   496→            <Select
+   497→              onValueChange={async (userId) => {
+   498→                try {
+   499→                  const target = userId === "unassigned" ? "" : userId;
+   500→                  await bulkApi.updateJobs([...selectedIds], "assign", target);
+   501→                  toast.success(
+   502→                    `${selectedIds.size} job(s) ${target ? "assigned" : "unassigned"}`
+   503→                  );
+   504→                  setSelectedIds(new Set());
+   505→                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   506→                } catch (e) {
+   507→                  toast.error(e instanceof Error ? e.message : "Bulk action failed");
+   508→                }
+   509→              }}
+   510→            >
+   511→              <SelectTrigger className="h-8 w-[160px]">
+   512→                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+   513→                <span className="text-xs">Assign to…</span>
+   514→              </SelectTrigger>
+   515→              <SelectContent>
+   516→                <SelectItem value="unassigned">— Unassigned —</SelectItem>
+   517→                {(usersData?.users ?? []).map((u) => (
+   518→                  <SelectItem key={u.id} value={u.id}>
+   519→                    {u.fullName} ({u.role})
+   520→                  </SelectItem>
+   521→                ))}
+   522→              </SelectContent>
+   523→            </Select>
+   524→            <Button
+   525→              variant="outline"
+   526→              size="sm"
+   527→              onClick={() => exportJobsCsv()}
+   528→            >
+   529→              <Download className="mr-1.5 h-3.5 w-3.5" />
+   530→              Export
+   531→            </Button>
+   532→            <Button
+   533→              variant="outline"
+   534→              size="sm"
+   535→              onClick={async () => {
+   536→                try {
+   537→                  await bulkApi.updateJobs([...selectedIds], showArchived ? "restore" : "archive");
+   538→                  toast.success(`${selectedIds.size} job(s) ${showArchived ? "restored" : "archived"}`);
+   539→                  setSelectedIds(new Set());
+   540→                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   541→                } catch (e) {
+   542→                  toast.error(e instanceof Error ? e.message : "Bulk action failed");
+   543→                }
+   544→              }}
+   545→            >
+   546→              <Archive className="mr-1.5 h-3.5 w-3.5" />
+   547→              {showArchived ? "Restore" : "Archive"}
+   548→            </Button>
+   549→            {isAdmin && (
+   550→              <AlertDialog>
+   551→                <AlertDialogTrigger asChild>
+   552→                  <Button variant="destructive" size="sm">
+   553→                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+   554→                    Delete
+   555→                  </Button>
+   556→                </AlertDialogTrigger>
+   557→                <AlertDialogContent>
+   558→                  <AlertDialogHeader>
+   559→                    <AlertDialogTitle>Delete {selectedIds.size} job(s) permanently?</AlertDialogTitle>
+   560→                    <AlertDialogDescription>
+   561→                      This will permanently delete all selected jobs and ALL their related data (time logs, transport, F&B, expenses, tools, stock movements, measurements, cutting lists, quotes). This action cannot be undone.
+   562→                    </AlertDialogDescription>
+   563→                  </AlertDialogHeader>
+   564→                  <AlertDialogFooter>
+   565→                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+   566→                    <AlertDialogAction
+   567→                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   568→                      onClick={async () => {
+   569→                        let ok = 0;
+   570→                        let fail = 0;
+   571→                        for (const id of [...selectedIds]) {
+   572→                          try {
+   573→                            await jobsApi.remove(id);
+   574→                            ok++;
+   575→                          } catch {
+   576→                            fail++;
+   577→                          }
+   578→                        }
+   579→                        toast.success(`${ok} job(s) deleted${fail > 0 ? `, ${fail} failed` : ""}`);
+   580→                        setSelectedIds(new Set());
+   581→                        queryClient.invalidateQueries({ queryKey: ["jobs"] });
+   582→                      }}
+   583→                    >
+   584→                      <Trash2 className="mr-1.5 h-4 w-4" />
+   585→                      Delete {selectedIds.size} Job(s)
+   586→                    </AlertDialogAction>
+   587→                  </AlertDialogFooter>
+   588→                </AlertDialogContent>
+   589→              </AlertDialog>
+   590→            )}
+   591→            <Button
+   592→              variant="ghost"
+   593→              size="sm"
+   594→              onClick={() => setSelectedIds(new Set())}
+   595→            >
+   596→              <X className="mr-1.5 h-3.5 w-3.5" />
+   597→              Clear
+   598→            </Button>
+   599→          </div>
+   600→        </div>
+   601→      )}
+   602→
+   603→      <Card>
+   604→        <CardHeader className="pb-2">
+   605→          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   606→            <div className="flex items-center gap-2">
+   607→              <div>
+   608→                <CardTitle className="text-base">All Jobs</CardTitle>
+   609→                <CardDescription>{filtered.length} jobs</CardDescription>
+   610→              </div>
+   611→              {activeFilterCount > 0 && (
+   612→                <Badge variant="secondary" className="ml-1 gap-1">
+   613→                  <Filter className="h-3 w-3" />
+   614→                  {activeFilterCount} active
+   615→                </Badge>
+   616→              )}
+   617→            </div>
+   618→            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+   619→              <div className="relative">
+   620→                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   621→                <Input
+   622→                  placeholder="Search jobs…"
+   623→                  value={search}
+   624→                  onChange={(e) => setSearch(e.target.value)}
+   625→                  className="h-9 pl-8 sm:w-56"
+   626→                />
+   627→              </div>
+   628→              <Select
+   629→                value={statusFilter}
+   630→                onValueChange={(v) => setStatusFilter(v as "all" | JobStatus)}
+   631→                disabled={showArchived}
+   632→              >
+   633→                <SelectTrigger className="h-9 w-full sm:w-40">
+   634→                  <Filter className="mr-1.5 h-3.5 w-3.5" />
+   635→                  <SelectValue />
+   636→                </SelectTrigger>
+   637→                <SelectContent>
+   638→                  <SelectItem value="all">All statuses</SelectItem>
+   639→                  {STATUSES.map((s) => (
+   640→                    <SelectItem key={s} value={s}>
+   641→                      {s}
+   642→                    </SelectItem>
+   643→                  ))}
+   644→                </SelectContent>
+   645→              </Select>
+   646→              <Select
+   647→                value={priorityFilter}
+   648→                onValueChange={(v) => setPriorityFilter(v as "all" | Priority)}
+   649→              >
+   650→                <SelectTrigger className="h-9 w-full sm:w-36">
+   651→                  <CircleAlert className="mr-1.5 h-3.5 w-3.5" />
+   652→                  <SelectValue />
+   653→                </SelectTrigger>
+   654→                <SelectContent>
+   655→                  <SelectItem value="all">All priorities</SelectItem>
+   656→                  {PRIORITIES.map((p) => (
+   657→                    <SelectItem key={p} value={p}>
+   658→                      {p}
+   659→                    </SelectItem>
+   660→                  ))}
+   661→                </SelectContent>
+   662→              </Select>
+   663→              <Select
+   664→                value={assignedFilter}
+   665→                onValueChange={setAssignedFilter}
+   666→              >
+   667→                <SelectTrigger className="h-9 w-full sm:w-44">
+   668→                  <UserIcon className="mr-1.5 h-3.5 w-3.5" />
+   669→                  <SelectValue />
+   670→                </SelectTrigger>
+   671→                <SelectContent>
+   672→                  <SelectItem value="all">All assignments</SelectItem>
+   673→                  <SelectItem value="unassigned">Unassigned</SelectItem>
+   674→                  {(usersData?.users ?? []).map((u) => (
+   675→                    <SelectItem key={u.id} value={u.id}>
+   676→                      {u.fullName}
+   677→                    </SelectItem>
+   678→                  ))}
+   679→                </SelectContent>
+   680→              </Select>
+   681→              <Button
+   682→                variant={showArchived ? "default" : "outline"}
+   683→                size="sm"
+   684→                className="h-9 gap-1.5"
+   685→                onClick={() => setShowArchived((s) => !s)}
+   686→              >
+   687→                <Archive className="h-3.5 w-3.5" />
+   688→                {showArchived ? "Showing archived" : "Archived"}
+   689→              </Button>
+   690→              {activeFilterCount > 0 && (
+   691→                <Button
+   692→                  variant="ghost"
+   693→                  size="sm"
+   694→                  className="h-9 gap-1.5 text-muted-foreground"
+   695→                  onClick={clearFilters}
+   696→                  title="Clear all filters"
+   697→                >
+   698→                  <X className="h-3.5 w-3.5" />
+   699→                  Clear
+   700→                </Button>
+   701→              )}
+   702→            </div>
+   703→          </div>
+   704→        </CardHeader>
+   705→        <CardContent className="p-0">
+   706→          {isLoading ? (
+   707→            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+   708→              <Loader2 className="h-5 w-5 animate-spin" />
+   709→              Loading jobs…
+   710→            </div>
+   711→          ) : filtered.length === 0 ? (
+   712→            <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+   713→              <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+   714→                <ClipboardList className="h-7 w-7 text-primary" />
+   715→                {activeFilterCount > 0 && (
+   716→                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+   717→                    {activeFilterCount}
+   718→                  </span>
+   719→                )}
+   720→              </div>
+   721→              <div className="space-y-1">
+   722→                <p className="font-medium">
+   723→                  {activeFilterCount > 0
+   724→                    ? "No jobs match your filters"
+   725→                    : "No job orders yet"}
+   726→                </p>
+   727→                <p className="text-sm text-muted-foreground">
+   728→                  {activeFilterCount > 0
+   729→                    ? "Try adjusting or clearing the active filters to see more jobs."
+   730→                    : "Create your first job order to start tracking cabinetry production."}
+   731→                </p>
+   732→              </div>
+   733→              {activeFilterCount > 0 ? (
+   734→                <Button variant="outline" size="sm" onClick={clearFilters}>
+   735→                  <X className="mr-1.5 h-4 w-4" />
+   736→                  Clear filters
+   737→                </Button>
+   738→              ) : (
+   739→                <Button size="sm" onClick={() => setCreateOpen(true)}>
+   740→                  <Plus className="mr-1.5 h-4 w-4" />
+   741→                  Create your first job
+   742→                </Button>
+   743→              )}
+   744→            </div>
+   745→          ) : viewMode === "table" ? (
+   746→            <div className="max-h-[65vh] overflow-auto scrollbar-warm">
+   747→              <Table>
+   748→                <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
+   749→                  <TableRow className="hover:bg-transparent">
+   750→                    <TableHead className="w-10">
+   751→                      <Checkbox
+   752→                        checked={
+   753→                          filtered.length > 0 &&
+   754→                          filtered.every((j) => selectedIds.has(j.id))
+   755→                        }
+   756→                        onCheckedChange={(checked) => {
+   757→                          if (checked) {
+   758→                            setSelectedIds(new Set(filtered.map((j) => j.id)));
+   759→                          } else {
+   760→                            setSelectedIds(new Set());
+   761→                          }
+   762→                        }}
+   763→                        aria-label="Select all"
+   764→                      />
+   765→                    </TableHead>
+   766→                    <TableHead className="min-w-[140px]">Order</TableHead>
+   767→                    <TableHead className="min-w-[110px]">Customer</TableHead>
+   768→                    <TableHead className="hidden md:table-cell min-w-[90px]">
+   769→                      Assigned
+   770→                    </TableHead>
+   771→                    <TableHead className="min-w-[80px]">Priority</TableHead>
+   772→                    <TableHead className="min-w-[100px]">Status</TableHead>
+   773→                    <TableHead className="hidden sm:table-cell min-w-[90px]">
+   774→                      Deliver
+   775→                    </TableHead>
+   776→                    <TableHead className="text-right min-w-[52px]">Manage</TableHead>
+   777→                  </TableRow>
+   778→                </TableHeader>
+   779→                <TableBody>
+   780→                  {filtered.map((job, idx) => (
+   781→                    <TableRow
+   782→                      key={job.id}
+   783→                      className={`cursor-pointer hover:bg-muted/50 ${idx % 2 === 1 ? "bg-muted/40" : ""}`}
+   784→                      onClick={() => {
+   785→                        setSelectedJobId(job.id);
+   786→                        setDetailOpen(true);
+   787→                      }}
+   788→                      onContextMenu={(e) => {
+   789→                        e.preventDefault();
+   790→                        setContextMenu({ jobId: job.id, x: e.clientX, y: e.clientY });
+   791→                      }}
+   792→                    >
+   793→                      <TableCell onClick={(e) => e.stopPropagation()}>
+   794→                        <Checkbox
+   795→                          checked={selectedIds.has(job.id)}
+   796→                          onCheckedChange={(checked) => {
+   797→                            setSelectedIds((prev) => {
+   798→                              const next = new Set(prev);
+   799→                              if (checked) next.add(job.id);
+   800→                              else next.delete(job.id);
+   801→                              return next;
+   802→                            });
+   803→                          }}
+   804→                          aria-label={`Select ${job.orderNumber}`}
+   805→                        />
+   806→                      </TableCell>
+   807→                      <TableCell>
+   808→                        <div>
+   809→                          <p className="font-mono text-xs text-primary">
+   810→                            {job.orderNumber}
+   811→                          </p>
+   812→                          <p className="text-sm font-medium">{job.title}</p>
+   813→                          {(job._count?.measurements ||
+   814→                            job._count?.cuttingLists) && (
+   815→                            <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
+   816→                              {job._count?.measurements ? (
+   817→                                <span className="flex items-center gap-1">
+   818→                                  <Ruler className="h-3 w-3" />
+   819→                                  {job._count.measurements}
+   820→                                </span>
+   821→                              ) : null}
+   822→                              {job._count?.cuttingLists ? (
+   823→                                <span className="flex items-center gap-1">
+   824→                                  <Scissors className="h-3 w-3" />
+   825→                                  {job._count.cuttingLists}
+   826→                                </span>
+   827→                              ) : null}
+   828→                            </div>
+   829→                          )}
+   830→                        </div>
+   831→                      </TableCell>
+   832→                      <TableCell>
+   833→                        <div className="text-sm">
+   834→                          <p className="font-medium">
+   835→                            {job.customer?.name ?? "—"}
+   836→                          </p>
+   837→                          {job.customer?.phone && (
+   838→                            <p className="text-xs text-muted-foreground">
+   839→                              {job.customer.phone}
+   840→                            </p>
+   841→                          )}
+   842→                        </div>
+   843→                      </TableCell>
+   844→                      <TableCell className="hidden md:table-cell">
+   845→                        {job.assignedTo ? (
+   846→                          <span className="flex items-center gap-1.5 text-xs">
+   847→                            <UserIcon className="h-3 w-3 text-muted-foreground" />
+   848→                            {job.assignedTo.fullName}
+   849→                          </span>
+   850→                        ) : (
+   851→                          <span className="text-xs text-muted-foreground">
+   852→                            Unassigned
+   853→                          </span>
+   854→                        )}
+   855→                      </TableCell>
+   856→                      <TableCell>
+   857→                        <Badge
+   858→                          variant="outline"
+   859→                          className={PRIORITY_BADGE[job.priority]}
+   860→                        >
+   861→                          {job.priority}
+   862→                        </Badge>
+   863→                      </TableCell>
+   864→                      <TableCell>
+   865→                        <Badge
+   866→                          variant="outline"
+   867→                          className={STATUS_BADGE[job.status]}
+   868→                        >
+   869→                          {job.status}
+   870→                        </Badge>
+   871→                      </TableCell>
+   872→                      <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">
+   873→                        {job.deliveryDate ? (
+   874→                          <span className="flex items-center gap-1">
+   875→                            <Calendar className="h-3 w-3" />
+   876→                            {new Date(job.deliveryDate).toLocaleDateString()}
+   877→                          </span>
+   878→                        ) : (
+   879→                          "—"
+   880→                        )}
+   881→                      </TableCell>
+   882→                      <TableCell className="text-right">
+   883→                        <div
+   884→                          className="flex items-center justify-end gap-1"
+   885→                          onClick={(e) => e.stopPropagation()}
+   886→                        >
+   887→                          <DropdownMenu>
+   888→                            <DropdownMenuTrigger asChild>
+   889→                              <Button
+   890→                                size="sm"
+   891→                                variant="outline"
+   892→                                className="h-8 w-8 p-0"
+   893→                                title="More actions"
+   894→                              >
+   895→                                <MoreHorizontal className="h-3.5 w-3.5" />
+   896→                              </Button>
+   897→                            </DropdownMenuTrigger>
+   898→                            <DropdownMenuContent align="end" className="w-56">
+   899→                              <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+   900→                                {job.orderNumber}
+   901→                              </DropdownMenuLabel>
+   902→                              <DropdownMenuSeparator />
+   903→                              <DropdownMenuItem
+   904→                                onClick={() => {
+   905→                                  setSelectedJobId(job.id);
+   906→                                  setDetailOpen(true);
+   907→                                }}
+   908→                                className="gap-2 text-xs"
+   909→                              >
+   910→                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+   911→                                View / edit details
+   912→                                <DropdownMenuShortcut>⏎</DropdownMenuShortcut>
+   913→                              </DropdownMenuItem>
+   914→                              <DropdownMenuItem
+   915→                                onClick={() => duplicateJob(job.id)}
+   916→                                className="gap-2 text-xs"
+   917→                              >
+   918→                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+   919→                                Duplicate
+   920→                                <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
+   921→                              </DropdownMenuItem>
+   922→                              <DropdownMenuItem
+   923→                                onClick={() =>
+   924→                                  archiveJob(job.id, !showArchived)
+   925→                                }
+   926→                                className="gap-2 text-xs"
+   927→                              >
+   928→                                <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+   929→                                {showArchived ? "Restore" : "Archive"}
+   930→                              </DropdownMenuItem>
+   931→                              <DropdownMenuSeparator />
+   932→                              <DropdownMenuSub>
+   933→                                <DropdownMenuSubTrigger className="gap-2 text-xs">
+   934→                                  <ArrowRightCircle className="h-3.5 w-3.5 text-muted-foreground" />
+   935→                                  Edit status
+   936→                                </DropdownMenuSubTrigger>
+   937→                                <DropdownMenuSubContent className="w-44">
+   938→                                  {STATUSES.map((s) => (
+   939→                                    <DropdownMenuItem
+   940→                                      key={s}
+   941→                                      onClick={() =>
+   942→                                        updateStatus.mutate({
+   943→                                          id: job.id,
+   944→                                          status: s as JobStatus,
+   945→                                        })
+   946→                                      }
+   947→                                      disabled={
+   948→                                        s === job.status ||
+   949→                                        updateStatus.isPending
+   950→                                      }
+   951→                                      className="gap-2 text-xs"
+   952→                                    >
+   953→                                      <span
+   954→                                        className="h-2 w-2 rounded-full"
+   955→                                        style={{
+   956→                                          backgroundColor:
+   957→                                            s === job.status
+   958→                                              ? "var(--primary)"
+   959→                                              : "transparent",
+   960→                                        }}
+   961→                                      />
+   962→                                      {s}
+   963→                                      {s === job.status && (
+   964→                                        <DropdownMenuShortcut>
+   965→                                          current
+   966→                                        </DropdownMenuShortcut>
+   967→                                      )}
+   968→                                    </DropdownMenuItem>
+   969→                                  ))}
+   970→                                </DropdownMenuSubContent>
+   971→                              </DropdownMenuSub>
+   972→                              {isAdmin && (
+   973→                                <>
+   974→                                  <DropdownMenuSeparator />
+   975→                                  <AlertDialog>
+   976→                                    <AlertDialogTrigger asChild>
+   977→                                      <DropdownMenuItem
+   978→                                        onSelect={(e) => e.preventDefault()}
+   979→                                        className="gap-2 text-xs text-destructive focus:text-destructive"
+   980→                                      >
+   981→                                        <Trash2 className="h-3.5 w-3.5" />
+   982→                                        Delete permanently
+   983→                                        <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
+   984→                                      </DropdownMenuItem>
+   985→                                    </AlertDialogTrigger>
+   986→                                    <AlertDialogContent>
+   987→                                      <AlertDialogHeader>
+   988→                                        <AlertDialogTitle>Delete job {job.orderNumber}?</AlertDialogTitle>
+   989→                                        <AlertDialogDescription>
+   990→                                          This will permanently delete the job and ALL related data: time logs, transport, F&B, expenses, tool issues/returns, stock movements, measurements, cutting lists, and quotes. This action cannot be undone.
+   991→                                        </AlertDialogDescription>
+   992→                                      </AlertDialogHeader>
+   993→                                      <AlertDialogFooter>
+   994→                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+   995→                                        <AlertDialogAction
+   996→                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   997→                                          onClick={async () => {
+   998→                                            try {
+   999→                                              await jobsApi.remove(job.id);
+  1000→                                              toast.success(`Job ${job.orderNumber} deleted`);
+  1001→                                              queryClient.invalidateQueries({ queryKey: ["jobs"] });
+  1002→                                            } catch (e) {
+  1003→                                              toast.error(e instanceof Error ? e.message : "Failed to delete job");
+  1004→                                            }
+  1005→                                          }}
+  1006→                                        >
+  1007→                                          <Trash2 className="mr-1.5 h-4 w-4" />
+  1008→                                          Delete Permanently
+  1009→                                        </AlertDialogAction>
+  1010→                                      </AlertDialogFooter>
+  1011→                                    </AlertDialogContent>
+  1012→                                  </AlertDialog>
+  1013→                                </>
+  1014→                              )}
+  1015→                            </DropdownMenuContent>
+  1016→                          </DropdownMenu>
+  1017→                        </div>
+  1018→                      </TableCell>
+  1019→                    </TableRow>
+  1020→                  ))}
+  1021→                </TableBody>
+  1022→              </Table>
+  1023→            </div>
+  1024→          ) : viewMode === "board" ? (
+  1025→            <BoardView
+  1026→              jobs={filtered}
+  1027→              selectedIds={selectedIds}
+  1028→              onToggleSelect={(id) =>
+  1029→                setSelectedIds((prev) => {
+  1030→                  const next = new Set(prev);
+  1031→                  if (next.has(id)) next.delete(id);
+  1032→                  else next.add(id);
+  1033→                  return next;
+  1034→                })
+  1035→              }
+  1036→              onJobClick={(id) => {
+  1037→                setSelectedJobId(id);
+  1038→                setDetailOpen(true);
+  1039→              }}
+  1040→              onStatusChange={(id, status) =>
+  1041→                updateStatus.mutate({ id, status })
+  1042→              }
+  1043→              onContextMenu={(id, x, y) =>
+  1044→                setContextMenu({ jobId: id, x, y })
+  1045→              }
+  1046→            />
+  1047→          ) : (
+  1048→            <CalendarView
+  1049→              jobs={filtered}
+  1050→              onJobClick={(id) => {
+  1051→                setSelectedJobId(id);
+  1052→                setDetailOpen(true);
+  1053→              }}
+  1054→              onContextMenu={(id, x, y) =>
+  1055→                setContextMenu({ jobId: id, x, y })
+  1056→              }
+  1057→            />
+  1058→          )}
+  1059→        </CardContent>
+  1060→      </Card>
+  1061→
+  1062→      {/* Right-click context menu (portal-free, fixed position) */}
+  1063→      {contextMenu && (
+  1064→        <ContextMenu
+  1065→          x={contextMenu.x}
+  1066→          y={contextMenu.y}
+  1067→          job={jobs.find((j) => j.id === contextMenu.jobId)}
+  1068→          isAdmin={isAdmin}
+  1069→          showArchived={showArchived}
+  1070→          onClose={() => setContextMenu(null)}
+  1071→          onView={(id) => {
+  1072→            setSelectedJobId(id);
+  1073→            setDetailOpen(true);
+  1074→            setContextMenu(null);
+  1075→          }}
+  1076→          onDuplicate={(id) => {
+  1077→            duplicateJob(id);
+  1078→            setContextMenu(null);
+  1079→          }}
+  1080→          onArchive={(id, archive) => {
+  1081→            archiveJob(id, archive);
+  1082→            setContextMenu(null);
+  1083→          }}
+  1084→          onSetStatus={(id, status) => {
+  1085→            updateStatus.mutate({ id, status });
+  1086→            setContextMenu(null);
+  1087→          }}
+  1088→          onDelete={(id) => {
+  1089→            // trigger delete via dropdown equivalent: open alert by reusing dropdown path
+  1090→            setContextMenu(null);
+  1091→            // Reuse the AlertDialog path by selecting the job and showing details, then user uses ⋯ menu to delete.
+  1092→            // Simpler: call jobsApi.remove directly with confirm.
+  1093→            if (
+  1094→              window.confirm(
+  1095→                "Permanently delete this job and ALL related data? This cannot be undone."
+  1096→              )
+  1097→            ) {
+  1098→              jobsApi
+  1099→                .remove(id)
+  1100→                .then(() => {
+  1101→                  toast.success("Job deleted");
+  1102→                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
+  1103→                })
+  1104→                .catch((e) =>
+  1105→                  toast.error(e instanceof Error ? e.message : "Delete failed")
+  1106→                );
+  1107→            }
+  1108→          }}
+  1109→        />
+  1110→      )}
+  1111→
+  1112→      <CreateJobDialog
+  1113→        open={createOpen}
+  1114→        onOpenChange={setCreateOpen}
+  1115→        customers={customersData?.customers ?? []}
+  1116→        technicians={usersData?.users.filter((u) => u.role === "Technician") ?? []}
+  1117→      />
+  1118→
+  1119→      <JobManagementSheet
+  1120→        jobId={selectedJobId}
+  1121→        open={detailOpen}
+  1122→        onOpenChange={(o) => {
+  1123→          setDetailOpen(o);
+  1124→          if (!o) setSelectedJobId(null);
+  1125→        }}
+  1126→      />
+  1127→    </div>
+  1128→  );
+  1129→}
+  1130→
+  1131→function CreateJobDialog({
+  1132→  open,
+  1133→  onOpenChange,
+  1134→  customers,
+  1135→  technicians,
+  1136→}: {
+  1137→  open: boolean;
+  1138→  onOpenChange: (o: boolean) => void;
+  1139→  customers: { id: string; name: string }[];
+  1140→  technicians: { id: string; fullName: string }[];
+  1141→}) {
+  1142→  const queryClient = useQueryClient();
+  1143→  const [title, setTitle] = React.useState("");
+  1144→  const [customerId, setCustomerId] = React.useState("");
+  1145→  const [assignedToId, setAssignedToId] = React.useState("");
+  1146→  const [priority, setPriority] = React.useState<Priority>("Normal");
+  1147→  const [deliveryDate, setDeliveryDate] = React.useState("");
+  1148→  const [description, setDescription] = React.useState("");
+  1149→
+  1150→  const create = useMutation({
+  1151→    mutationFn: () =>
+  1152→      jobsApi.create({
+  1153→        title: title.trim(),
+  1154→        customerId,
+  1155→        assignedToId: assignedToId || undefined,
+  1156→        priority,
+  1157→        deliveryDate: deliveryDate || undefined,
+  1158→        description: description || undefined,
+  1159→      }),
+  1160→    onSuccess: (data) => {
+  1161→      toast.success("Job order created", {
+  1162→        description: `${data.job.orderNumber} — ${data.job.title}`,
+  1163→      });
+  1164→      setTitle("");
+  1165→      setCustomerId("");
+  1166→      setAssignedToId("");
+  1167→      setPriority("Normal");
+  1168→      setDeliveryDate("");
+  1169→      setDescription("");
+  1170→      onOpenChange(false);
+  1171→      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+  1172→      queryClient.invalidateQueries({ queryKey: ["stats"] });
+  1173→    },
+  1174→    onError: (e: Error) => toast.error(e.message),
+  1175→  });
+  1176→
+  1177→  return (
+  1178→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1179→      <DialogContent showCloseButton={false} className="sm:max-w-[500px]">
+  1180→        <DialogHeader>
+  1181→          <div className="flex items-start justify-between">
+  1182→            <div>
+  1183→              <DialogTitle>New Job Order</DialogTitle>
+  1184→              <DialogDescription>
+  1185→                Create a new cabinetry production job.
+  1186→              </DialogDescription>
+  1187→            </div>
+  1188→            <Button
+  1189→              variant="ghost"
+  1190→              size="icon"
+  1191→              className="h-7 w-7"
+  1192→              onClick={() => onOpenChange(false)}
+  1193→            >
+  1194→              <X className="h-4 w-4" />
+  1195→            </Button>
+  1196→          </div>
+  1197→        </DialogHeader>
+  1198→        <form
+  1199→          onSubmit={(e) => {
+  1200→            e.preventDefault();
+  1201→            if (!title.trim() || !customerId) {
+  1202→              toast.error("Title and customer are required");
+  1203→              return;
+  1204→            }
+  1205→            create.mutate();
+  1206→          }}
+  1207→          className="space-y-4"
+  1208→        >
+  1209→          <div className="space-y-2">
+  1210→            <Label htmlFor="job-title">
+  1211→              Job Title <span className="text-destructive">*</span>
+  1212→            </Label>
+  1213→            <Input
+  1214→              id="job-title"
+  1215→              placeholder="e.g. Kitchen renovation — Oak cabinets"
+  1216→              value={title}
+  1217→              onChange={(e) => setTitle(e.target.value)}
+  1218→              required
+  1219→            />
+  1220→          </div>
+  1221→          <div className="grid grid-cols-2 gap-3">
+  1222→            <div className="space-y-2">
+  1223→              <Label>
+  1224→                Customer <span className="text-destructive">*</span>
+  1225→              </Label>
+  1226→              <Select value={customerId} onValueChange={setCustomerId}>
+  1227→                <SelectTrigger>
+  1228→                  <SelectValue placeholder="Select customer" />
+  1229→                </SelectTrigger>
+  1230→                <SelectContent>
+  1231→                  {customers.map((c) => (
+  1232→                    <SelectItem key={c.id} value={c.id}>
+  1233→                      {c.name}
+  1234→                    </SelectItem>
+  1235→                  ))}
+  1236→                </SelectContent>
+  1237→              </Select>
+  1238→              {customers.length === 0 && (
+  1239→                <p className="text-xs text-muted-foreground">
+  1240→                  No customers yet — add one first.
+  1241→                </p>
+  1242→              )}
+  1243→            </div>
+  1244→            <div className="space-y-2">
+  1245→              <Label>Assign Technician</Label>
+  1246→              <Select
+  1247→                value={assignedToId}
+  1248→                onValueChange={setAssignedToId}
+  1249→              >
+  1250→                <SelectTrigger>
+  1251→                  <SelectValue placeholder="Unassigned" />
+  1252→                </SelectTrigger>
+  1253→                <SelectContent>
+  1254→                  {technicians.map((t) => (
+  1255→                    <SelectItem key={t.id} value={t.id}>
+  1256→                      {t.fullName}
+  1257→                    </SelectItem>
+  1258→                  ))}
+  1259→                </SelectContent>
+  1260→              </Select>
+  1261→            </div>
+  1262→          </div>
+  1263→          <div className="grid grid-cols-2 gap-3">
+  1264→            <div className="space-y-2">
+  1265→              <Label>Priority</Label>
+  1266→              <Select
+  1267→                value={priority}
+  1268→                onValueChange={(v) => setPriority(v as Priority)}
+  1269→              >
+  1270→                <SelectTrigger>
+  1271→                  <SelectValue />
+  1272→                </SelectTrigger>
+  1273→                <SelectContent>
+  1274→                  {PRIORITIES.map((p) => (
+  1275→                    <SelectItem key={p} value={p}>
+  1276→                      {p}
+  1277→                    </SelectItem>
+  1278→                  ))}
+  1279→                </SelectContent>
+  1280→              </Select>
+  1281→            </div>
+  1282→            <div className="space-y-2">
+  1283→              <Label htmlFor="job-delivery">Delivery Date</Label>
+  1284→              <Input
+  1285→                id="job-delivery"
+  1286→                type="date"
+  1287→                value={deliveryDate}
+  1288→                onChange={(e) => setDeliveryDate(e.target.value)}
+  1289→              />
+  1290→            </div>
+  1291→          </div>
+  1292→          <div className="space-y-2">
+  1293→            <Label htmlFor="job-desc">Description</Label>
+  1294→            <Textarea
+  1295→              id="job-desc"
+  1296→              placeholder="Scope, materials, special instructions…"
+  1297→              value={description}
+  1298→              onChange={(e) => setDescription(e.target.value)}
+  1299→              rows={3}
+  1300→            />
+  1301→          </div>
+  1302→          <DialogFooter>
+  1303→            <Button
+  1304→              type="button"
+  1305→              variant="outline"
+  1306→              onClick={() => onOpenChange(false)}
+  1307→            >
+  1308→              Cancel
+  1309→            </Button>
+  1310→            <Button type="submit" disabled={create.isPending}>
+  1311→              {create.isPending ? (
+  1312→                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+  1313→              ) : (
+  1314→                <Plus className="mr-2 h-4 w-4" />
+  1315→              )}
+  1316→              Create Job
+  1317→            </Button>
+  1318→          </DialogFooter>
+  1319→        </form>
+  1320→      </DialogContent>
+  1321→    </Dialog>
+  1322→  );
+  1323→}
+  1324→
+  1325→/* ============ Board View — simple inline kanban ============ */
+  1326→const BOARD_COLUMNS: { status: JobStatus; tint: string; dot: string }[] = [
+  1327→  { status: "Pending", tint: "border-amber-500/40 bg-amber-500/5", dot: "bg-amber-500" },
+  1328→  { status: "In Production", tint: "border-orange-500/40 bg-orange-500/5", dot: "bg-orange-500" },
+  1329→  { status: "Cutting", tint: "border-rose-500/40 bg-rose-500/5", dot: "bg-rose-500" },
+  1330→  { status: "Completed", tint: "border-emerald-500/40 bg-emerald-500/5", dot: "bg-emerald-500" },
+  1331→];
+  1332→
+  1333→function BoardView({
+  1334→  jobs,
+  1335→  selectedIds,
+  1336→  onToggleSelect,
+  1337→  onJobClick,
+  1338→  onStatusChange,
+  1339→  onContextMenu,
+  1340→}: {
+  1341→  jobs: JobOrder[];
+  1342→  selectedIds: Set<string>;
+  1343→  onToggleSelect: (id: string) => void;
+  1344→  onJobClick: (id: string) => void;
+  1345→  onStatusChange: (id: string, status: JobStatus) => void;
+  1346→  onContextMenu: (id: string, x: number, y: number) => void;
+  1347→}) {
+  1348→  const [draggedId, setDraggedId] = React.useState<string | null>(null);
+  1349→  const [dragOver, setDragOver] = React.useState<string | null>(null);
+  1350→
+  1351→  return (
+  1352→    <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+  1353→      {BOARD_COLUMNS.map((col) => {
+  1354→        const colJobs = jobs.filter((j) => j.status === col.status);
+  1355→        return (
+  1356→          <div
+  1357→            key={col.status}
+  1358→            onDragOver={(e) => {
+  1359→              e.preventDefault();
+  1360→              setDragOver(col.status);
+  1361→            }}
+  1362→            onDragLeave={() => setDragOver((c) => (c === col.status ? null : c))}
+  1363→            onDrop={() => {
+  1364→              if (draggedId) {
+  1365→                onStatusChange(draggedId, col.status);
+  1366→                setDraggedId(null);
+  1367→              }
+  1368→              setDragOver(null);
+  1369→            }}
+  1370→            className={`flex max-h-[65vh] flex-col rounded-lg border p-2 transition-colors ${col.tint} ${
+  1371→              dragOver === col.status ? "ring-2 ring-primary/40" : ""
+  1372→            }`}
+  1373→          >
+  1374→            <div className="mb-2 flex items-center justify-between px-1">
+  1375→              <div className="flex items-center gap-2">
+  1376→                <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+  1377→                <span className="text-xs font-semibold">{col.status}</span>
+  1378→              </div>
+  1379→              <span className="rounded-full bg-card px-1.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+  1380→                {colJobs.length}
+  1381→              </span>
+  1382→            </div>
+  1383→            <div className="flex-1 space-y-2 overflow-y-auto scrollbar-warm pr-1">
+  1384→              {colJobs.length === 0 ? (
+  1385→                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border/60 text-[10px] text-muted-foreground">
+  1386→                  Drop here
+  1387→                </div>
+  1388→              ) : (
+  1389→                colJobs.map((job) => {
+  1390→                  const selected = selectedIds.has(job.id);
+  1391→                  return (
+  1392→                    <div
+  1393→                      key={job.id}
+  1394→                      draggable
+  1395→                      onDragStart={() => setDraggedId(job.id)}
+  1396→                      onDragEnd={() => setDraggedId(null)}
+  1397→                      onClick={() => onJobClick(job.id)}
+  1398→                      onContextMenu={(e) => {
+  1399→                        e.preventDefault();
+  1400→                        e.stopPropagation();
+  1401→                        onContextMenu(job.id, e.clientX, e.clientY);
+  1402→                      }}
+  1403→                      className={`group cursor-pointer rounded-md border bg-card p-2 text-left shadow-sm transition-all hover:shadow-md ${
+  1404→                        selected ? "border-primary ring-1 ring-primary/40" : "border-border"
+  1405→                      }`}
+  1406→                    >
+  1407→                      <div className="flex items-start justify-between gap-1.5">
+  1408→                        <div className="min-w-0 flex-1">
+  1409→                          <p className="font-mono text-[10px] text-primary">
+  1410→                            {job.orderNumber}
+  1411→                          </p>
+  1412→                          <p className="truncate text-xs font-medium">
+  1413→                            {job.title}
+  1414→                          </p>
+  1415→                        </div>
+  1416→                        <Checkbox
+  1417→                          checked={selected}
+  1418→                          onCheckedChange={() => onToggleSelect(job.id)}
+  1419→                          onClick={(e) => e.stopPropagation()}
+  1420→                          aria-label={`Select ${job.orderNumber}`}
+  1421→                          className="h-3.5 w-3.5"
+  1422→                        />
+  1423→                      </div>
+  1424→                      <div className="mt-1.5 flex items-center justify-between">
+  1425→                        <Badge
+  1426→                          variant="outline"
+  1427→                          className={`h-4 px-1 text-[9px] ${PRIORITY_BADGE[job.priority]}`}
+  1428→                        >
+  1429→                          {job.priority}
+  1430→                        </Badge>
+  1431→                        {job.assignedTo ? (
+  1432→                          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+  1433→                            <UserIcon className="h-2.5 w-2.5" />
+  1434→                            {job.assignedTo.fullName.split(" ")[0]}
+  1435→                          </span>
+  1436→                        ) : (
+  1437→                          <span className="text-[10px] text-muted-foreground">
+  1438→                            Unassigned
+  1439→                          </span>
+  1440→                        )}
+  1441→                      </div>
+  1442→                      {job.deliveryDate && (
+  1443→                        <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+  1444→                          <Calendar className="h-2.5 w-2.5" />
+  1445→                          {new Date(job.deliveryDate).toLocaleDateString(undefined, {
+  1446→                            month: "short",
+  1447→                            day: "numeric",
+  1448→                          })}
+  1449→                        </div>
+  1450→                      )}
+  1451→                    </div>
+  1452→                  );
+  1453→                })
+  1454→              )}
+  1455→            </div>
+  1456→          </div>
+  1457→        );
+  1458→      })}
+  1459→    </div>
+  1460→  );
+  1461→}
+  1462→
+  1463→/* ============ Calendar View — simple month grid ============ */
+  1464→function CalendarView({
+  1465→  jobs,
+  1466→  onJobClick,
+  1467→  onContextMenu,
+  1468→}: {
+  1469→  jobs: JobOrder[];
+  1470→  onJobClick: (id: string) => void;
+  1471→  onContextMenu: (id: string, x: number, y: number) => void;
+  1472→}) {
+  1473→  const [cursor, setCursor] = React.useState(() => {
+  1474→    const now = new Date();
+  1475→    return new Date(now.getFullYear(), now.getMonth(), 1);
+  1476→  });
+  1477→
+  1478→  const year = cursor.getFullYear();
+  1479→  const month = cursor.getMonth();
+  1480→  const monthLabel = cursor.toLocaleDateString(undefined, {
+  1481→    month: "long",
+  1482→    year: "numeric",
+  1483→  });
+  1484→
+  1485→  // Build a 6-week grid starting on Sunday
+  1486→  const firstOfMonth = new Date(year, month, 1);
+  1487→  const startDay = firstOfMonth.getDay(); // 0..6 (Sun..Sat)
+  1488→  const gridStart = new Date(year, month, 1 - startDay);
+  1489→  const days: Date[] = [];
+  1490→  for (let i = 0; i < 42; i++) {
+  1491→    const d = new Date(gridStart);
+  1492→    d.setDate(gridStart.getDate() + i);
+  1493→    days.push(d);
+  1494→  }
+  1495→
+  1496→  function jobsOnDay(d: Date): JobOrder[] {
+  1497→    return jobs.filter((j) => {
+  1498→      if (!j.deliveryDate) return false;
+  1499→      const dd = new Date(j.deliveryDate);
+  1500→      return (
+  1501→        dd.getFullYear() === d.getFullYear() &&
+  1502→        dd.getMonth() === d.getMonth() &&
+  1503→        dd.getDate() === d.getDate()
+  1504→      );
+  1505→    });
+  1506→  }
+  1507→
+  1508→  const today = new Date();
+  1509→  const isToday = (d: Date) =>
+  1510→    d.getFullYear() === today.getFullYear() &&
+  1511→    d.getMonth() === today.getMonth() &&
+  1512→    d.getDate() === today.getDate();
+  1513→
+  1514→  return (
+  1515→    <div className="flex flex-col gap-2 p-3">
+  1516→      <div className="flex items-center justify-between gap-2">
+  1517→        <h3 className="text-sm font-semibold">{monthLabel}</h3>
+  1518→        <div className="flex items-center gap-1">
+  1519→          <Button
+  1520→            variant="outline"
+  1521→            size="icon"
+  1522→            className="h-7 w-7"
+  1523→            onClick={() => setCursor(new Date(year, month - 1, 1))}
+  1524→            title="Previous month"
+  1525→          >
+  1526→            <ChevronLeft className="h-3.5 w-3.5" />
+  1527→          </Button>
+  1528→          <Button
+  1529→            variant="ghost"
+  1530→            size="sm"
+  1531→            className="h-7 px-2 text-xs"
+  1532→            onClick={() => {
+  1533→              const now = new Date();
+  1534→              setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+  1535→            }}
+  1536→          >
+  1537→            Today
+  1538→          </Button>
+  1539→          <Button
+  1540→            variant="outline"
+  1541→            size="icon"
+  1542→            className="h-7 w-7"
+  1543→            onClick={() => setCursor(new Date(year, month + 1, 1))}
+  1544→            title="Next month"
+  1545→          >
+  1546→            <ChevronRight className="h-3.5 w-3.5" />
+  1547→          </Button>
+  1548→        </div>
+  1549→      </div>
+  1550→      <div className="grid grid-cols-7 gap-1">
+  1551→        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+  1552→          <div
+  1553→            key={d}
+  1554→            className="px-1 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+  1555→          >
+  1556→            {d}
+  1557→          </div>
+  1558→        ))}
+  1559→        {days.map((d, i) => {
+  1560→          const inMonth = d.getMonth() === month;
+  1561→          const dayJobs = jobsOnDay(d);
+  1562→          return (
+  1563→            <div
+  1564→              key={i}
+  1565→              className={`flex min-h-[88px] flex-col gap-1 rounded-md border p-1 ${
+  1566→                inMonth ? "border-border bg-card" : "border-border/40 bg-muted/30"
+  1567→              } ${isToday(d) ? "ring-1 ring-primary" : ""}`}
+  1568→            >
+  1569→              <span
+  1570→                className={`text-[10px] font-medium ${
+  1571→                  isToday(d)
+  1572→                    ? "text-primary"
+  1573→                    : inMonth
+  1574→                      ? "text-foreground"
+  1575→                      : "text-muted-foreground/60"
+  1576→                }`}
+  1577→              >
+  1578→                {d.getDate()}
+  1579→              </span>
+  1580→              <div className="flex flex-col gap-0.5 overflow-hidden">
+  1581→                {dayJobs.slice(0, 3).map((j) => (
+  1582→                  <button
+  1583→                    key={j.id}
+  1584→                    onClick={() => onJobClick(j.id)}
+  1585→                    onContextMenu={(e) => {
+  1586→                      e.preventDefault();
+  1587→                      onContextMenu(j.id, e.clientX, e.clientY);
+  1588→                    }}
+  1589→                    className={`truncate rounded px-1 py-0.5 text-left text-[9px] font-medium transition-colors ${
+  1590→                      j.status === "Completed"
+  1591→                        ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25"
+  1592→                        : j.status === "Cancelled"
+  1593→                          ? "bg-zinc-500/15 text-zinc-600 hover:bg-zinc-500/25"
+  1594→                          : "bg-primary/15 text-primary hover:bg-primary/25"
+  1595→                    }`}
+  1596→                    title={`${j.orderNumber} · ${j.title} · ${j.status}`}
+  1597→                  >
+  1598→                    {j.orderNumber}
+  1599→                  </button>
+  1600→                ))}
+  1601→                {dayJobs.length > 3 && (
+  1602→                  <span className="px-1 text-[9px] text-muted-foreground">
+  1603→                    +{dayJobs.length - 3} more
+  1604→                  </span>
+  1605→                )}
+  1606→              </div>
+  1607→            </div>
+  1608→          );
+  1609→        })}
+  1610→      </div>
+  1611→    </div>
+  1612→  );
+  1613→}
+  1614→
+  1615→/* ============ Right-click Context Menu (fixed position) ============ */
+  1616→function ContextMenu({
+  1617→  x,
+  1618→  y,
+  1619→  job,
+  1620→  isAdmin,
+  1621→  showArchived,
+  1622→  onClose,
+  1623→  onView,
+  1624→  onDuplicate,
+  1625→  onArchive,
+  1626→  onSetStatus,
+  1627→  onDelete,
+  1628→}: {
+  1629→  x: number;
+  1630→  y: number;
+  1631→  job: JobOrder | undefined;
+  1632→  isAdmin: boolean;
+  1633→  showArchived: boolean;
+  1634→  onClose: () => void;
+  1635→  onView: (id: string) => void;
+  1636→  onDuplicate: (id: string) => void;
+  1637→  onArchive: (id: string, archive: boolean) => void;
+  1638→  onSetStatus: (id: string, status: JobStatus) => void;
+  1639→  onDelete: (id: string) => void;
+  1640→}) {
+  1641→  if (!job) return null;
+  1642→  // Clamp to viewport so the menu never goes off-screen
+  1643→  const menuW = 200;
+  1644→  const menuH = 280;
+  1645→  const left = Math.min(x, window.innerWidth - menuW - 8);
+  1646→  const top = Math.min(y, window.innerHeight - menuH - 8);
+  1647→
+  1648→  return (
+  1649→    <div
+  1650→      className="fixed z-50 min-w-[200px] overflow-hidden rounded-md border border-border bg-popover p-1 shadow-lg"
+  1651→      style={{ left, top }}
+  1652→      onClick={(e) => e.stopPropagation()}
+  1653→    >
+  1654→      <DropdownMenuLabel className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+  1655→        <span className="truncate">{job.orderNumber}</span>
+  1656→      </DropdownMenuLabel>
+  1657→      <DropdownMenuSeparator />
+  1658→      <button
+  1659→        type="button"
+  1660→        onClick={() => onView(job.id)}
+  1661→        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+  1662→      >
+  1663→        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+  1664→        View Details
+  1665→        <span className="ml-auto text-[10px] text-muted-foreground">⏎</span>
+  1666→      </button>
+  1667→      {/* Edit Status submenu (inline, expanded) */}
+  1668→      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+  1669→        Edit status
+  1670→      </div>
+  1671→      <div className="max-h-44 overflow-y-auto scrollbar-warm">
+  1672→        {STATUSES.map((s) => (
+  1673→          <button
+  1674→            key={s}
+  1675→            type="button"
+  1676→            disabled={s === job.status}
+  1677→            onClick={() => onSetStatus(job.id, s)}
+  1678→            className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+  1679→          >
+  1680→            <ArrowRightCircle className="h-3 w-3 text-muted-foreground" />
+  1681→            {s}
+  1682→            {s === job.status && (
+  1683→              <span className="ml-auto text-[9px] text-muted-foreground">current</span>
+  1684→            )}
+  1685→          </button>
+  1686→        ))}
+  1687→      </div>
+  1688→      <DropdownMenuSeparator />
+  1689→      <button
+  1690→        type="button"
+  1691→        onClick={() => onDuplicate(job.id)}
+  1692→        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+  1693→      >
+  1694→        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+  1695→        Duplicate
+  1696→        <span className="ml-auto text-[10px] text-muted-foreground">⌘D</span>
+  1697→      </button>
+  1698→      <button
+  1699→        type="button"
+  1700→        onClick={() => onArchive(job.id, !showArchived)}
+  1701→        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+  1702→      >
+  1703→        <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+  1704→        {showArchived ? "Restore" : "Archive"}
+  1705→      </button>
+  1706→      {isAdmin && (
+  1707→        <>
+  1708→          <DropdownMenuSeparator />
+  1709→          <button
+  1710→            type="button"
+  1711→            onClick={() => onDelete(job.id)}
+  1712→            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+  1713→          >
+  1714→            <Trash2 className="h-3.5 w-3.5" />
+  1715→            Delete
+  1716→            <span className="ml-auto text-[10px] opacity-70">⌫</span>
+  1717→          </button>
+  1718→        </>
+  1719→      )}
+  1720→      <DropdownMenuSeparator />
+  1721→      <button
+  1722→        type="button"
+  1723→        onClick={onClose}
+  1724→        className="flex w-full items-center justify-center gap-1 rounded-sm px-2 py-1 text-[10px] text-muted-foreground hover:bg-accent"
+  1725→      >
+  1726→        <X className="h-3 w-3" />
+  1727→        Close
+  1728→      </button>
+  1729→    </div>
+  1730→  );
+  1731→}
+  1732→

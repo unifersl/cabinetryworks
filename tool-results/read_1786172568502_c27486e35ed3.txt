@@ -1,0 +1,1148 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { jobsApi } from "@/lib/api";
+     6→import { useAuth } from "@/components/providers";
+     7→import {
+     8→  type SiteJobData,
+     9→  type CabinetModule,
+    10→  type CabinetType,
+    11→  type OpeningStyle,
+    12→  type MaterialTag,
+    13→  type SectionType,
+    14→  type HardwareSpecs,
+    15→  CABINET_TYPES,
+    16→  OPENING_STYLES,
+    17→  MATERIAL_TAGS,
+    18→  SECTION_TYPES,
+    19→  COMPONENT_NOTES,
+    20→  CARCASE_BOARD_OPTIONS,
+    21→  DOOR_FINISH_OPTIONS,
+    22→  EDGE_BANDING_OPTIONS,
+    23→  HINGES_OPTIONS,
+    24→  DRAWER_RUNNERS_OPTIONS,
+    25→  HANDLE_STYLE_OPTIONS,
+    26→  createEmptyModule,
+    27→  createEmptySiteData,
+    28→} from "@/lib/site-notebook-types";
+    29→import { ElevationCanvas } from "../site-notebook/elevation-canvas";
+    30→import { ImageMarkupModal } from "../site-notebook/image-markup-modal";
+    31→import { BlueprintSketchpad } from "../site-notebook/blueprint-sketchpad";
+    32→import { SignaturePad } from "../site-notebook/signature-pad";
+    33→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+    34→import { Button } from "@/components/ui/button";
+    35→import { Input } from "@/components/ui/input";
+    36→import { Label } from "@/components/ui/label";
+    37→import { Textarea } from "@/components/ui/textarea";
+    38→import { Badge } from "@/components/ui/badge";
+    39→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    40→import { Separator } from "@/components/ui/separator";
+    41→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    42→import { toast } from "sonner";
+    43→import {
+    44→  ClipboardList,
+    45→  Plus,
+    46→  Trash2,
+    47→  Download,
+    48→  Upload,
+    49→  Copy,
+    50→  Ruler,
+    51→  Layers,
+    52→  Pencil,
+    53→  FileJson,
+    54→  Camera,
+    55→  X,
+    56→  ChevronDown,
+    57→  ChevronRight,
+    58→  Package,
+    59→  Settings2,
+    60→  PenTool,
+    61→  PenLine,
+    62→  Calculator,
+    63→} from "lucide-react";
+    64→
+    65→export function SiteNotebookView() {
+    66→  const { user } = useAuth();
+    67→  const isAdmin = user?.role === "Admin" || user?.role === "SuperAdmin";
+    68→  const [data, setData] = React.useState<SiteJobData>(createEmptySiteData());
+    69→  const [expandedModules, setExpandedModules] = React.useState<Set<string>>(new Set());
+    70→  const [markupOpen, setMarkupOpen] = React.useState(false);
+    71→  const [markupImage, setMarkupImage] = React.useState<string | null>(null);
+    72→  const [photos, setPhotos] = React.useState<string[]>([]);
+    73→  const fileInputRef = React.useRef<HTMLInputElement>(null);
+    74→  const importInputRef = React.useRef<HTMLInputElement>(null);
+    75→
+    76→  // Load saved data from localStorage on mount
+    77→  React.useEffect(() => {
+    78→    const saved = localStorage.getItem("site-notebook-data");
+    79→    if (saved) {
+    80→      try {
+    81→        setData(JSON.parse(saved));
+    82→      } catch {
+    83→        /* ignore */
+    84→      }
+    85→    }
+    86→  }, []);
+    87→
+    88→  // Auto-save to localStorage
+    89→  React.useEffect(() => {
+    90→    localStorage.setItem("site-notebook-data", JSON.stringify(data));
+    91→  }, [data]);
+    92→
+    93→  function updateData(patch: Partial<SiteJobData>) {
+    94→    setData((d) => ({ ...d, ...patch }));
+    95→  }
+    96→
+    97→  function addModule() {
+    98→    const code = String(data.modules.length + 1).padStart(2, "0");
+    99→    const newMod = createEmptyModule(code);
+   100→    setData((d) => ({ ...d, modules: [...d.modules, newMod] }));
+   101→    setExpandedModules((s) => new Set([...s, newMod.id]));
+   102→    toast.success(`Module ${code} added`);
+   103→  }
+   104→
+   105→  function updateModule(id: string, patch: Partial<CabinetModule>) {
+   106→    setData((d) => ({
+   107→      ...d,
+   108→      modules: d.modules.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+   109→    }));
+   110→  }
+   111→
+   112→  function deleteModule(id: string) {
+   113→    setData((d) => ({
+   114→      ...d,
+   115→      modules: d.modules
+   116→        .filter((m) => m.id !== id)
+   117→        .map((m, i) => ({ ...m, code: String(i + 1).padStart(2, "0") })),
+   118→    }));
+   119→    toast.success("Module removed");
+   120→  }
+   121→
+   122→  function duplicateModule(id: string) {
+   123→    const mod = data.modules.find((m) => m.id === id);
+   124→    if (!mod) return;
+   125→    const idx = data.modules.indexOf(mod);
+   126→    const newMod: CabinetModule = {
+   127→      ...mod,
+   128→      id: crypto.randomUUID(),
+   129→      cuttingList: mod.cuttingList.map((c) => ({ ...c, id: crypto.randomUUID() })),
+   130→    };
+   131→    const newModules = [...data.modules];
+   132→    newModules.splice(idx + 1, 0, newMod);
+   133→    // Recode
+   134→    newModules.forEach((m, i) => (m.code = String(i + 1).padStart(2, "0")));
+   135→    setData((d) => ({ ...d, modules: newModules }));
+   136→    toast.success(`Module ${mod.code} duplicated`);
+   137→  }
+   138→
+   139→  function toggleExpand(id: string) {
+   140→    setExpandedModules((s) => {
+   141→      const next = new Set(s);
+   142→      if (next.has(id)) next.delete(id);
+   143→      else next.add(id);
+   144→      return next;
+   145→    });
+   146→  }
+   147→
+   148→  function addCuttingEntry(moduleId: string) {
+   149→    const mod = data.modules.find((m) => m.id === moduleId);
+   150→    if (!mod) return;
+   151→    const newEntry = {
+   152→      id: crypto.randomUUID(),
+   153→      length: 580,
+   154→      width: 560,
+   155→      qty: 2,
+   156→      material: "Standard Board" as MaterialTag,
+   157→      note: "Side Panel",
+   158→    };
+   159→    updateModule(moduleId, { cuttingList: [...mod.cuttingList, newEntry] });
+   160→  }
+   161→
+   162→  function updateCuttingEntry(moduleId: string, entryId: string, patch: Partial<{ length: number; width: number; qty: number; material: MaterialTag; note: string }>) {
+   163→    const mod = data.modules.find((m) => m.id === moduleId);
+   164→    if (!mod) return;
+   165→    updateModule(moduleId, {
+   166→      cuttingList: mod.cuttingList.map((e) => (e.id === entryId ? { ...e, ...patch } : e)),
+   167→    });
+   168→  }
+   169→
+   170→  function deleteCuttingEntry(moduleId: string, entryId: string) {
+   171→    const mod = data.modules.find((m) => m.id === moduleId);
+   172→    if (!mod) return;
+   173→    updateModule(moduleId, { cuttingList: mod.cuttingList.filter((e) => e.id !== entryId) });
+   174→  }
+   175→
+   176→  function exportJSON() {
+   177→    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+   178→    const url = URL.createObjectURL(blob);
+   179→    const a = document.createElement("a");
+   180→    a.href = url;
+   181→    a.download = `site-notebook-${data.siteName || "untitled"}-${data.jobNumber || Date.now()}.json`;
+   182→    a.click();
+   183→    URL.revokeObjectURL(url);
+   184→    toast.success("Site data exported as JSON");
+   185→  }
+   186→
+   187→  function importJSON(e: React.ChangeEvent<HTMLInputElement>) {
+   188→    const file = e.target.files?.[0];
+   189→    if (!file) return;
+   190→    const reader = new FileReader();
+   191→    reader.onload = (ev) => {
+   192→      try {
+   193→        const parsed = JSON.parse(ev.target?.result as string) as SiteJobData;
+   194→        if (!parsed.modules) throw new Error("Invalid format");
+   195→        setData(parsed);
+   196→        toast.success("Site data imported");
+   197→      } catch {
+   198→        toast.error("Invalid JSON file");
+   199→      }
+   200→    };
+   201→    reader.readAsText(file);
+   202→    e.target.value = "";
+   203→  }
+   204→
+   205→  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+   206→    const files = e.target.files;
+   207→    if (!files) return;
+   208→    Array.from(files).forEach((file) => {
+   209→      const reader = new FileReader();
+   210→      reader.onload = (ev) => {
+   211→        setPhotos((p) => [...p, ev.target?.result as string]);
+   212→      };
+   213→      reader.readAsDataURL(file);
+   214→    });
+   215→    e.target.value = "";
+   216→  }
+   217→
+   218→  function removePhoto(idx: number) {
+   219→    setPhotos((p) => p.filter((_, i) => i !== idx));
+   220→  }
+   221→
+   222→  // Calculate total cutting list entries
+   223→  const totalEntries = data.modules.reduce((s, m) => s + m.cuttingList.length, 0);
+   224→  const totalPieces = data.modules.reduce(
+   225→    (s, m) => s + m.cuttingList.reduce((ms, e) => ms + e.qty, 0),
+   226→    0
+   227→  );
+   228→
+   229→  return (
+   230→    <div className="space-y-5">
+   231→      {/* Header — compact on mobile */}
+   232→      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   233→        <div>
+   234→          <h1 className="flex items-center gap-2 text-lg sm:text-xl font-bold tracking-tight">
+   235→            <ClipboardList className="h-5 w-5 text-primary shrink-0" />
+   236→            <span className="truncate">Site Notebook Builder</span>
+   237→          </h1>
+   238→          <p className="text-xs sm:text-sm text-muted-foreground">
+   239→            Practical elevation &amp; cutting list builder
+   240→          </p>
+   241→        </div>
+   242→        <div className="flex gap-2">
+   243→          <input
+   244→            ref={importInputRef}
+   245→            type="file"
+   246→            accept="application/json"
+   247→            onChange={importJSON}
+   248→            className="hidden"
+   249→          />
+   250→          <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()} className="h-8 px-2.5">
+   251→            <Upload className="h-4 w-4 sm:mr-1.5" />
+   252→            <span className="hidden sm:inline">Import</span>
+   253→          </Button>
+   254→          <Button variant="outline" size="sm" onClick={exportJSON} className="h-8 px-2.5">
+   255→            <Download className="h-4 w-4 sm:mr-1.5" />
+   256→            <span className="hidden sm:inline">Export</span>
+   257→          </Button>
+   258→        </div>
+   259→      </div>
+   260→
+   261→      <Tabs defaultValue="notebook">
+   262→        <TabsList className="w-full justify-start overflow-x-auto scrollbar-warm">
+   263→          <TabsTrigger value="notebook" className="gap-1.5 text-xs sm:text-sm">
+   264→            <Layers className="h-3.5 w-3.5" />
+   265→            <span className="hidden xs:inline sm:inline">Notebook</span>
+   266→          </TabsTrigger>
+   267→          <TabsTrigger value="sketchpad" className="gap-1.5 text-xs sm:text-sm">
+   268→            <PenTool className="h-3.5 w-3.5" />
+   269→            <span className="hidden xs:inline sm:inline">Sketchpad</span>
+   270→          </TabsTrigger>
+   271→          <TabsTrigger value="assets" className="gap-1.5 text-xs sm:text-sm">
+   272→            <Camera className="h-3.5 w-3.5" />
+   273→            <span>Photos ({photos.length})</span>
+   274→          </TabsTrigger>
+   275→          <TabsTrigger value="signoff" className="gap-1.5 text-xs sm:text-sm">
+   276→            <PenLine className="h-3.5 w-3.5" />
+   277→            <span className="hidden xs:inline sm:inline">Sign-off</span>
+   278→          </TabsTrigger>
+   279→        </TabsList>
+   280→
+   281→        {/* Notebook tab */}
+   282→        <TabsContent value="notebook" className="space-y-5">
+   283→          {/* Site Header */}
+   284→          <Card>
+   285→            <CardHeader className="pb-3">
+   286→              <CardTitle className="flex items-center gap-2 text-base">
+   287→                <ClipboardList className="h-4 w-4 text-primary" />
+   288→                Site Information
+   289→              </CardTitle>
+   290→            </CardHeader>
+   291→            <CardContent>
+   292→              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+   293→                <div className="space-y-1.5">
+   294→                  <Label htmlFor="site-name">Site / Client Name</Label>
+   295→                  <Input
+   296→                    id="site-name"
+   297→                    placeholder="e.g. Polhena - Matara"
+   298→                    value={data.siteName}
+   299→                    onChange={(e) => updateData({ siteName: e.target.value })}
+   300→                  />
+   301→                </div>
+   302→                <div className="space-y-1.5">
+   303→                  <Label htmlFor="job-number">Job Number</Label>
+   304→                  <Input
+   305→                    id="job-number"
+   306→                    placeholder="e.g. KCM-0001"
+   307→                    value={data.jobNumber}
+   308→                    onChange={(e) => updateData({ jobNumber: e.target.value })}
+   309→                  />
+   310→                </div>
+   311→                <div className="space-y-1.5">
+   312→                  <Label htmlFor="job-date">Job Date</Label>
+   313→                  <Input
+   314→                    id="job-date"
+   315→                    type="date"
+   316→                    value={data.jobDate}
+   317→                    onChange={(e) => updateData({ jobDate: e.target.value })}
+   318→                  />
+   319→                </div>
+   320→                <div className="space-y-1.5">
+   321→                  <Label>Section / Wall</Label>
+   322→                  <Select
+   323→                    value={data.section}
+   324→                    onValueChange={(v) => updateData({ section: v as SectionType })}
+   325→                  >
+   326→                    <SelectTrigger>
+   327→                      <SelectValue />
+   328→                    </SelectTrigger>
+   329→                    <SelectContent>
+   330→                      {SECTION_TYPES.map((s) => (
+   331→                        <SelectItem key={s} value={s}>
+   332→                          {s}
+   333→                        </SelectItem>
+   334→                      ))}
+   335→                    </SelectContent>
+   336→                  </Select>
+   337→                </div>
+   338→              </div>
+   339→
+   340→              <Separator className="my-4" />
+   341→
+   342→              {/* Overall Dimensions */}
+   343→              <div>
+   344→                <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+   345→                  <Ruler className="h-3.5 w-3.5" />
+   346→                  OVERALL OUTER DIMENSIONS
+   347→                </p>
+   348→                <div className="grid grid-cols-3 gap-4">
+   349→                  <div className="space-y-1.5">
+   350→                    <Label htmlFor="total-width" className="text-xs">Total Width (mm)</Label>
+   351→                    <Input
+   352→                      id="total-width"
+   353→                      type="number"
+   354→                      placeholder="3400"
+   355→                      value={data.overallDimensions.width}
+   356→                      onChange={(e) =>
+   357→                        updateData({
+   358→                          overallDimensions: {
+   359→                            ...data.overallDimensions,
+   360→                            width: Number(e.target.value) || 0,
+   361→                          },
+   362→                        })
+   363→                      }
+   364→                    />
+   365→                  </div>
+   366→                  <div className="space-y-1.5">
+   367→                    <Label htmlFor="total-height" className="text-xs">Total Height (mm)</Label>
+   368→                    <Input
+   369→                      id="total-height"
+   370→                      type="number"
+   371→                      placeholder="2150"
+   372→                      value={data.overallDimensions.height}
+   373→                      onChange={(e) =>
+   374→                        updateData({
+   375→                          overallDimensions: {
+   376→                            ...data.overallDimensions,
+   377→                            height: Number(e.target.value) || 0,
+   378→                          },
+   379→                        })
+   380→                      }
+   381→                    />
+   382→                  </div>
+   383→                  <div className="space-y-1.5">
+   384→                    <Label htmlFor="total-depth" className="text-xs">Standard Depth (mm)</Label>
+   385→                    <Input
+   386→                      id="total-depth"
+   387→                      type="number"
+   388→                      placeholder="600"
+   389→                      value={data.overallDimensions.depth}
+   390→                      onChange={(e) =>
+   391→                        updateData({
+   392→                          overallDimensions: {
+   393→                            ...data.overallDimensions,
+   394→                            depth: Number(e.target.value) || 0,
+   395→                          },
+   396→                        })
+   397→                      }
+   398→                    />
+   399→                  </div>
+   400→                </div>
+   401→              </div>
+   402→            </CardContent>
+   403→          </Card>
+   404→
+   405→          {/* 2/3 + 1/3 split layout: Drawing canvas (2/3) + Settings panel (1/3) */}
+   406→          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   407→            {/* LEFT 2/3: Elevation drawing canvas */}
+   408→            <Card className="lg:col-span-2">
+   409→              <CardHeader className="pb-3">
+   410→                <div className="flex items-center justify-between">
+   411→                  <div>
+   412→                    <CardTitle className="flex items-center gap-2 text-base">
+   413→                      <Layers className="h-4 w-4 text-primary" />
+   414→                      Elevation Blueprint
+   415→                    </CardTitle>
+   416→                    <CardDescription className="text-xs">
+   417→                      {data.modules.length} modules · {data.modules.reduce((s, m) => s + m.width, 0)}mm · Drag cabinets from palette · Click to edit
+   418→                    </CardDescription>
+   419→                  </div>
+   420→                  <Button size="sm" onClick={addModule}>
+   421→                    <Plus className="mr-1.5 h-4 w-4" />
+   422→                    <span className="hidden sm:inline">Add Module</span>
+   423→                  </Button>
+   424→                </div>
+   425→              </CardHeader>
+   426→              <CardContent>
+   427→                <ElevationCanvas
+   428→                  data={data}
+   429→                  onUpdateModules={(mods) => updateData({ modules: mods })}
+   430→                />
+   431→              </CardContent>
+   432→            </Card>
+   433→
+   434→            {/* RIGHT 1/3: Module cutting lists & settings panel */}
+   435→            <Card className="lg:col-span-1">
+   436→              <CardHeader className="pb-3">
+   437→                <div className="flex items-center justify-between">
+   438→                  <div>
+   439→                    <CardTitle className="flex items-center gap-2 text-base">
+   440→                      <Package className="h-4 w-4 text-primary" />
+   441→                      Module Cutting Lists
+   442→                    </CardTitle>
+   443→                    <CardDescription className="text-xs">
+   444→                      {totalEntries} entries · {totalPieces} total pieces
+   445→                    </CardDescription>
+   446→                  </div>
+   447→                  <Button size="sm" variant="outline" onClick={addModule}>
+   448→                    <Plus className="mr-1.5 h-4 w-4" />
+   449→                  </Button>
+   450→                </div>
+   451→              </CardHeader>
+   452→              <CardContent className="space-y-3 max-h-[600px] overflow-y-auto scrollbar-warm">
+   453→              {data.modules.length === 0 ? (
+   454→                <div className="flex flex-col items-center gap-3 py-12 text-center">
+   455→                  <div className="rounded-full bg-muted p-4">
+   456→                    <Layers className="h-8 w-8 text-muted-foreground" />
+   457→                  </div>
+   458→                  <div>
+   459→                    <p className="font-medium">No modules yet</p>
+   460→                    <p className="text-sm text-muted-foreground">
+   461→                      Add modules to start building your elevation and cutting list.
+   462→                    </p>
+   463→                  </div>
+   464→                  <Button onClick={addModule}>
+   465→                    <Plus className="mr-2 h-4 w-4" />
+   466→                    Add First Module
+   467→                  </Button>
+   468→                </div>
+   469→              ) : (
+   470→                data.modules.map((mod) => {
+   471→                  const isExpanded = expandedModules.has(mod.id);
+   472→                  const cabType = CABINET_TYPES.find((t) => t.value === mod.type);
+   473→                  const opening = OPENING_STYLES.find((t) => t.value === mod.openingStyle);
+   474→                  return (
+   475→                    <div
+   476→                      key={mod.id}
+   477→                      className="rounded-lg border border-border overflow-hidden"
+   478→                    >
+   479→                      {/* Module header */}
+   480→                      <div className="flex items-center gap-3 bg-muted/40 px-4 py-3">
+   481→                        <button
+   482→                          onClick={() => toggleExpand(mod.id)}
+   483→                          className="text-muted-foreground hover:text-foreground"
+   484→                        >
+   485→                          {isExpanded ? (
+   486→                            <ChevronDown className="h-4 w-4" />
+   487→                          ) : (
+   488→                            <ChevronRight className="h-4 w-4" />
+   489→                          )}
+   490→                        </button>
+   491→                        <Badge className="bg-primary text-primary-foreground font-mono">
+   492→                          {mod.code}
+   493→                        </Badge>
+   494→                        <span className="text-sm font-medium">{cabType?.label ?? mod.type}</span>
+   495→                        <Badge variant="outline" className="text-xs">
+   496→                          {mod.width}mm
+   497→                        </Badge>
+   498→                        <Badge variant="outline" className="text-xs font-mono">
+   499→                          {opening?.symbol ?? ""}
+   500→                        </Badge>
+   501→                        <Badge variant="outline" className="text-xs">
+   502→                          {mod.cuttingList.length} parts
+   503→                        </Badge>
+   504→                        <div className="ml-auto flex gap-1">
+   505→                          <Button
+   506→                            variant="ghost"
+   507→                            size="icon"
+   508→                            className="h-7 w-7"
+   509→                            onClick={() => duplicateModule(mod.id)}
+   510→                            title="Duplicate"
+   511→                          >
+   512→                            <Copy className="h-3.5 w-3.5" />
+   513→                          </Button>
+   514→                          <Button
+   515→                            variant="ghost"
+   516→                            size="icon"
+   517→                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   518→                            onClick={() => deleteModule(mod.id)}
+   519→                            title="Delete"
+   520→                          >
+   521→                            <Trash2 className="h-3.5 w-3.5" />
+   522→                          </Button>
+   523→                        </div>
+   524→                      </div>
+   525→
+   526→                      {/* Module body (expandable) */}
+   527→                      {isExpanded && (
+   528→                        <div className="space-y-3 p-4">
+   529→                          {/* Module config */}
+   530→                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   531→                            <div className="space-y-1.5">
+   532→                              <Label className="text-xs">Module Width (mm)</Label>
+   533→                              <Input
+   534→                                type="number"
+   535→                                value={mod.width}
+   536→                                onChange={(e) =>
+   537→                                  updateModule(mod.id, { width: Number(e.target.value) || 0 })
+   538→                                }
+   539→                              />
+   540→                            </div>
+   541→                            <div className="space-y-1.5">
+   542→                              <Label className="text-xs">Cabinet Type</Label>
+   543→                              <Select
+   544→                                value={mod.type}
+   545→                                onValueChange={(v) => updateModule(mod.id, { type: v as CabinetType })}
+   546→                              >
+   547→                                <SelectTrigger>
+   548→                                  <SelectValue />
+   549→                                </SelectTrigger>
+   550→                                <SelectContent>
+   551→                                  {CABINET_TYPES.map((t) => (
+   552→                                    <SelectItem key={t.value} value={t.value}>
+   553→                                      {t.icon} {t.label}
+   554→                                    </SelectItem>
+   555→                                  ))}
+   556→                                </SelectContent>
+   557→                              </Select>
+   558→                            </div>
+   559→                            <div className="space-y-1.5">
+   560→                              <Label className="text-xs">Opening Style</Label>
+   561→                              <Select
+   562→                                value={mod.openingStyle}
+   563→                                onValueChange={(v) =>
+   564→                                  updateModule(mod.id, { openingStyle: v as OpeningStyle })
+   565→                                }
+   566→                              >
+   567→                                <SelectTrigger>
+   568→                                  <SelectValue />
+   569→                                </SelectTrigger>
+   570→                                <SelectContent>
+   571→                                  {OPENING_STYLES.map((t) => (
+   572→                                    <SelectItem key={t.value} value={t.value}>
+   573→                                      {t.symbol} — {t.label}
+   574→                                    </SelectItem>
+   575→                                  ))}
+   576→                                </SelectContent>
+   577→                              </Select>
+   578→                            </div>
+   579→                          </div>
+   580→
+   581→                          {/* Cutting list entries */}
+   582→                          <div>
+   583→                            <div className="mb-2 flex items-center justify-between">
+   584→                              <Label className="text-xs font-medium">Cutting List Entries</Label>
+   585→                              <Button
+   586→                                variant="outline"
+   587→                                size="sm"
+   588→                                className="h-7 text-xs"
+   589→                                onClick={() => addCuttingEntry(mod.id)}
+   590→                              >
+   591→                                <Plus className="mr-1 h-3 w-3" />
+   592→                                Add Entry
+   593→                              </Button>
+   594→                            </div>
+   595→
+   596→                            {mod.cuttingList.length === 0 ? (
+   597→                              <div className="rounded-md border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
+   598→                                No cutting list entries yet
+   599→                              </div>
+   600→                            ) : (
+   601→                              <div className="space-y-2">
+   602→                                {/* Notebook-style entries */}
+   603→                                {mod.cuttingList.map((entry, idx) => (
+   604→                                  <div
+   605→                                    key={entry.id}
+   606→                                    className="grid grid-cols-12 items-center gap-2 rounded-md border border-border bg-card p-2"
+   607→                                  >
+   608→                                    <span className="col-span-1 font-mono text-xs text-muted-foreground">
+   609→                                      {String(idx + 1).padStart(2, "0")}.
+   610→                                    </span>
+   611→                                    <div className="col-span-2">
+   612→                                      <Input
+   613→                                        type="number"
+   614→                                        className="h-7 text-xs"
+   615→                                        value={entry.length}
+   616→                                        onChange={(e) =>
+   617→                                          updateCuttingEntry(mod.id, entry.id, {
+   618→                                            length: Number(e.target.value) || 0,
+   619→                                          })
+   620→                                        }
+   621→                                        placeholder="854"
+   622→                                      />
+   623→                                    </div>
+   624→                                    <span className="col-span-0 text-xs">×</span>
+   625→                                    <div className="col-span-2">
+   626→                                      <Input
+   627→                                        type="number"
+   628→                                        className="h-7 text-xs"
+   629→                                        value={entry.width}
+   630→                                        onChange={(e) =>
+   631→                                          updateCuttingEntry(mod.id, entry.id, {
+   632→                                            width: Number(e.target.value) || 0,
+   633→                                          })
+   634→                                        }
+   635→                                        placeholder="560"
+   636→                                      />
+   637→                                    </div>
+   638→                                    <div className="col-span-1">
+   639→                                      <Input
+   640→                                        type="number"
+   641→                                        className="h-7 text-xs text-center"
+   642→                                        value={entry.qty}
+   643→                                        onChange={(e) =>
+   644→                                          updateCuttingEntry(mod.id, entry.id, {
+   645→                                            qty: Number(e.target.value) || 0,
+   646→                                          })
+   647→                                        }
+   648→                                        placeholder="04"
+   649→                                      />
+   650→                                    </div>
+   651→                                    <div className="col-span-2">
+   652→                                      <Select
+   653→                                        value={entry.material}
+   654→                                        onValueChange={(v) =>
+   655→                                          updateCuttingEntry(mod.id, entry.id, {
+   656→                                            material: v as MaterialTag,
+   657→                                          })
+   658→                                        }
+   659→                                      >
+   660→                                        <SelectTrigger className="h-7 text-xs">
+   661→                                          <SelectValue />
+   662→                                        </SelectTrigger>
+   663→                                        <SelectContent>
+   664→                                          {MATERIAL_TAGS.map((m) => (
+   665→                                            <SelectItem key={m} value={m}>
+   666→                                              {m}
+   667→                                            </SelectItem>
+   668→                                          ))}
+   669→                                        </SelectContent>
+   670→                                      </Select>
+   671→                                    </div>
+   672→                                    <div className="col-span-1">
+   673→                                      <Select
+   674→                                        value={entry.note ?? ""}
+   675→                                        onValueChange={(v) =>
+   676→                                          updateCuttingEntry(mod.id, entry.id, { note: v })
+   677→                                        }
+   678→                                      >
+   679→                                        <SelectTrigger className="h-7 text-xs">
+   680→                                          <SelectValue placeholder="—" />
+   681→                                        </SelectTrigger>
+   682→                                        <SelectContent>
+   683→                                          {COMPONENT_NOTES.map((n) => (
+   684→                                            <SelectItem key={n} value={n}>
+   685→                                              {n}
+   686→                                            </SelectItem>
+   687→                                          ))}
+   688→                                        </SelectContent>
+   689→                                      </Select>
+   690→                                    </div>
+   691→                                    <div className="col-span-1 text-right">
+   692→                                      <Button
+   693→                                        variant="ghost"
+   694→                                        size="icon"
+   695→                                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
+   696→                                        onClick={() => deleteCuttingEntry(mod.id, entry.id)}
+   697→                                      >
+   698→                                        <Trash2 className="h-3 w-3" />
+   699→                                      </Button>
+   700→                                    </div>
+   701→                                  </div>
+   702→                                ))}
+   703→
+   704→                                {/* Notebook-style log preview */}
+   705→                                <div className="rounded-md border border-border bg-muted/20 p-3">
+   706→                                  <p className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">
+   707→                                    Notebook Log Preview
+   708→                                  </p>
+   709→                                  <div className="space-y-0.5 font-mono text-xs">
+   710→                                    {mod.cuttingList.map((entry, idx) => (
+   711→                                      <div key={entry.id} className="flex gap-2">
+   712→                                        <span className="text-muted-foreground">
+   713→                                          {String(idx + 1).padStart(2, "0")}.
+   714→                                        </span>
+   715→                                        <span>
+   716→                                          {entry.length} × {entry.width} -{" "}
+   717→                                          {String(entry.qty).padStart(2, "0")} | {entry.material}
+   718→                                        </span>
+   719→                                        {entry.note && (
+   720→                                          <span className="text-muted-foreground">
+   721→                                            * {entry.note}
+   722→                                          </span>
+   723→                                        )}
+   724→                                      </div>
+   725→                                    ))}
+   726→                                  </div>
+   727→                                </div>
+   728→                              </div>
+   729→                            )}
+   730→                          </div>
+   731→                        </div>
+   732→                      )}
+   733→                    </div>
+   734→                  );
+   735→                })
+   736→              )}
+   737→            </CardContent>
+   738→            </Card>
+   739→          </div>
+   740→
+   741→          {/* Hardware Specs Panel */}
+   742→          <Card>
+   743→            <CardHeader className="pb-3">
+   744→              <CardTitle className="flex items-center gap-2 text-base">
+   745→                <Settings2 className="h-4 w-4 text-primary" />
+   746→                Material &amp; Hardware Specifications
+   747→              </CardTitle>
+   748→              <CardDescription>
+   749→                Board, door finish, edge banding, and fittings specs
+   750→              </CardDescription>
+   751→            </CardHeader>
+   752→            <CardContent>
+   753→              <div className="mb-4">
+   754→                <p className="mb-2 text-xs font-medium text-muted-foreground">BOARD &amp; PANEL SPECS</p>
+   755→                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   756→                  <div className="space-y-1.5">
+   757→                    <Label className="text-xs">Carcase Board Material</Label>
+   758→                    <Select
+   759→                      value={data.hardwareSpecs.carcaseBoard}
+   760→                      onValueChange={(v) =>
+   761→                        updateData({
+   762→                          hardwareSpecs: { ...data.hardwareSpecs, carcaseBoard: v },
+   763→                        })
+   764→                      }
+   765→                    >
+   766→                      <SelectTrigger className="h-8 text-xs">
+   767→                        <SelectValue />
+   768→                      </SelectTrigger>
+   769→                      <SelectContent>
+   770→                        {CARCASE_BOARD_OPTIONS.map((o) => (
+   771→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   772→                        ))}
+   773→                      </SelectContent>
+   774→                    </Select>
+   775→                  </div>
+   776→                  <div className="space-y-1.5">
+   777→                    <Label className="text-xs">Door Finish</Label>
+   778→                    <Select
+   779→                      value={data.hardwareSpecs.doorFinish}
+   780→                      onValueChange={(v) =>
+   781→                        updateData({
+   782→                          hardwareSpecs: { ...data.hardwareSpecs, doorFinish: v },
+   783→                        })
+   784→                      }
+   785→                    >
+   786→                      <SelectTrigger className="h-8 text-xs">
+   787→                        <SelectValue />
+   788→                      </SelectTrigger>
+   789→                      <SelectContent>
+   790→                        {DOOR_FINISH_OPTIONS.map((o) => (
+   791→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   792→                        ))}
+   793→                      </SelectContent>
+   794→                    </Select>
+   795→                  </div>
+   796→                  <div className="space-y-1.5">
+   797→                    <Label className="text-xs">Edge Banding Tape</Label>
+   798→                    <Select
+   799→                      value={data.hardwareSpecs.edgeBanding}
+   800→                      onValueChange={(v) =>
+   801→                        updateData({
+   802→                          hardwareSpecs: { ...data.hardwareSpecs, edgeBanding: v },
+   803→                        })
+   804→                      }
+   805→                    >
+   806→                      <SelectTrigger className="h-8 text-xs">
+   807→                        <SelectValue />
+   808→                      </SelectTrigger>
+   809→                      <SelectContent>
+   810→                        {EDGE_BANDING_OPTIONS.map((o) => (
+   811→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   812→                        ))}
+   813→                      </SelectContent>
+   814→                    </Select>
+   815→                  </div>
+   816→                </div>
+   817→              </div>
+   818→
+   819→              <Separator className="my-3" />
+   820→
+   821→              <div>
+   822→                <p className="mb-2 text-xs font-medium text-muted-foreground">FITTINGS &amp; HARDWARE SPECS</p>
+   823→                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+   824→                  <div className="space-y-1.5">
+   825→                    <Label className="text-xs">Hinges</Label>
+   826→                    <Select
+   827→                      value={data.hardwareSpecs.hinges}
+   828→                      onValueChange={(v) =>
+   829→                        updateData({
+   830→                          hardwareSpecs: { ...data.hardwareSpecs, hinges: v },
+   831→                        })
+   832→                      }
+   833→                    >
+   834→                      <SelectTrigger className="h-8 text-xs">
+   835→                        <SelectValue />
+   836→                      </SelectTrigger>
+   837→                      <SelectContent>
+   838→                        {HINGES_OPTIONS.map((o) => (
+   839→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   840→                        ))}
+   841→                      </SelectContent>
+   842→                    </Select>
+   843→                  </div>
+   844→                  <div className="space-y-1.5">
+   845→                    <Label className="text-xs">Drawer Runners</Label>
+   846→                    <Select
+   847→                      value={data.hardwareSpecs.drawerRunners}
+   848→                      onValueChange={(v) =>
+   849→                        updateData({
+   850→                          hardwareSpecs: { ...data.hardwareSpecs, drawerRunners: v },
+   851→                        })
+   852→                      }
+   853→                    >
+   854→                      <SelectTrigger className="h-8 text-xs">
+   855→                        <SelectValue />
+   856→                      </SelectTrigger>
+   857→                      <SelectContent>
+   858→                        {DRAWER_RUNNERS_OPTIONS.map((o) => (
+   859→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   860→                        ))}
+   861→                      </SelectContent>
+   862→                    </Select>
+   863→                  </div>
+   864→                  <div className="space-y-1.5">
+   865→                    <Label className="text-xs">Handle Style</Label>
+   866→                    <Select
+   867→                      value={data.hardwareSpecs.handleStyle}
+   868→                      onValueChange={(v) =>
+   869→                        updateData({
+   870→                          hardwareSpecs: { ...data.hardwareSpecs, handleStyle: v },
+   871→                        })
+   872→                      }
+   873→                    >
+   874→                      <SelectTrigger className="h-8 text-xs">
+   875→                        <SelectValue />
+   876→                      </SelectTrigger>
+   877→                      <SelectContent>
+   878→                        {HANDLE_STYLE_OPTIONS.map((o) => (
+   879→                          <SelectItem key={o} value={o}>{o}</SelectItem>
+   880→                        ))}
+   881→                      </SelectContent>
+   882→                    </Select>
+   883→                  </div>
+   884→                </div>
+   885→              </div>
+   886→            </CardContent>
+   887→          </Card>
+   888→
+   889→          {/* Board Sheet Estimator */}
+   890→          <Card className="border-primary/30">
+   891→            <CardHeader className="pb-3">
+   892→              <CardTitle className="flex items-center gap-2 text-base">
+   893→                <Calculator className="h-4 w-4 text-primary" />
+   894→                Automated Board Sheet Estimator
+   895→              </CardTitle>
+   896→              <CardDescription>
+   897→                Real-time calculation from cutting list data (8ft × 4ft / 2440mm × 1220mm sheets)
+   898→              </CardDescription>
+   899→            </CardHeader>
+   900→            <CardContent>
+   901→              {(() => {
+   902→                const totalAreaSqm = data.modules.reduce(
+   903→                  (s, m) =>
+   904→                    s +
+   905→                    m.cuttingList.reduce(
+   906→                      (ms, e) => ms + (e.length * e.width * e.qty) / 1_000_000,
+   907→                      0
+   908→                    ),
+   909→                  0
+   910→                );
+   911→                const sheetAreaSqm = (2440 * 1220) / 1_000_000; // ~2.977 m²
+   912→                const withWastage = totalAreaSqm * 1.15; // 15% wastage
+   913→                const sheetsNeeded = Math.ceil(withWastage / sheetAreaSqm);
+   914→                const totalPieces = data.modules.reduce(
+   915→                  (s, m) => s + m.cuttingList.reduce((ms, e) => ms + e.qty, 0),
+   916→                  0
+   917→                );
+   918→
+   919→                return (
+   920→                  <div className="space-y-3">
+   921→                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+   922→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   923→                        <p className="text-[10px] uppercase text-muted-foreground">Total Area</p>
+   924→                        <p className="text-lg font-bold tabular-nums">{totalAreaSqm.toFixed(2)} m²</p>
+   925→                      </div>
+   926→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   927→                        <p className="text-[10px] uppercase text-muted-foreground">+ 15% Wastage</p>
+   928→                        <p className="text-lg font-bold tabular-nums text-amber-600">{withWastage.toFixed(2)} m²</p>
+   929→                      </div>
+   930→                      <div className="rounded-lg border border-border bg-card p-3 text-center">
+   931→                        <p className="text-[10px] uppercase text-muted-foreground">Total Pieces</p>
+   932→                        <p className="text-lg font-bold tabular-nums">{totalPieces}</p>
+   933→                      </div>
+   934→                      <div className="rounded-lg border-2 border-primary bg-primary/5 p-3 text-center">
+   935→                        <p className="text-[10px] uppercase text-muted-foreground">Sheets Needed</p>
+   936→                        <p className="text-2xl font-bold tabular-nums text-primary">~{sheetsNeeded}</p>
+   937→                      </div>
+   938→                    </div>
+   939→                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center">
+   940→                      <p className="text-sm font-semibold text-primary">
+   941→                        Estimated Board Requirement: ~ {sheetsNeeded} Sheets
+   942→                      </p>
+   943→                      <p className="text-xs text-muted-foreground">
+   944→                        Standard 8ft × 4ft / 2440mm × 1220mm (incl. 15% cutting wastage)
+   945→                      </p>
+   946→                    </div>
+   947→                  </div>
+   948→                );
+   949→              })()}
+   950→            </CardContent>
+   951→          </Card>
+   952→
+   953→          {/* JSON preview — admin only */}
+   954→          {isAdmin && (
+   955→          <Card>
+   956→            <CardHeader className="pb-3">
+   957→              <CardTitle className="flex items-center gap-2 text-base">
+   958→                <FileJson className="h-4 w-4 text-primary" />
+   959→                Serialized Site Data (JSON)
+   960→              </CardTitle>
+   961→              <CardDescription>
+   962→                Factory export format — auto-saved locally
+   963→              </CardDescription>
+   964→            </CardHeader>
+   965→            <CardContent>
+   966→              <pre className="max-h-64 overflow-y-auto scrollbar-warm rounded-md border border-border bg-muted/30 p-3 text-xs">
+   967→                {JSON.stringify(data, null, 2)}
+   968→              </pre>
+   969→            </CardContent>
+   970→          </Card>
+   971→          )}
+   972→        </TabsContent>
+   973→
+   974→        {/* Assets tab */}
+   975→        <TabsContent value="assets" className="space-y-5">
+   976→          <Card>
+   977→            <CardHeader className="pb-3">
+   978→              <div className="flex items-center justify-between">
+   979→                <div>
+   980→                  <CardTitle className="flex items-center gap-2 text-base">
+   981→                    <Camera className="h-4 w-4 text-primary" />
+   982→                    Site Photos
+   983→                  </CardTitle>
+   984→                  <CardDescription>
+   985→                    Upload site photos and mark them up with annotations
+   986→                  </CardDescription>
+   987→                </div>
+   988→                <div>
+   989→                  <input
+   990→                    ref={fileInputRef}
+   991→                    type="file"
+   992→                    accept="image/*"
+   993→                    multiple
+   994→                    onChange={handlePhotoUpload}
+   995→                    className="hidden"
+   996→                  />
+   997→                  <Button size="sm" onClick={() => fileInputRef.current?.click()}>
+   998→                    <Plus className="mr-1.5 h-4 w-4" />
+   999→                    Upload Photos
+  1000→                  </Button>
+  1001→                </div>
+  1002→              </div>
+  1003→            </CardHeader>
+  1004→            <CardContent>
+  1005→              {photos.length === 0 ? (
+  1006→                <div className="flex flex-col items-center gap-3 py-12 text-center">
+  1007→                  <div className="rounded-full bg-muted p-4">
+  1008→                    <Camera className="h-8 w-8 text-muted-foreground" />
+  1009→                  </div>
+  1010→                  <div>
+  1011→                    <p className="font-medium">No photos uploaded</p>
+  1012→                    <p className="text-sm text-muted-foreground">
+  1013→                      Upload site photos to annotate with measurements and notes.
+  1014→                    </p>
+  1015→                  </div>
+  1016→                  <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+  1017→                    <Plus className="mr-2 h-4 w-4" />
+  1018→                    Upload First Photo
+  1019→                  </Button>
+  1020→                </div>
+  1021→              ) : (
+  1022→                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+  1023→                  {photos.map((photo, idx) => (
+  1024→                    <div
+  1025→                      key={idx}
+  1026→                      className="group relative overflow-hidden rounded-lg border border-border"
+  1027→                    >
+  1028→                      <img
+  1029→                        src={photo}
+  1030→                        alt={`Site photo ${idx + 1}`}
+  1031→                        className="aspect-square w-full object-cover"
+  1032→                      />
+  1033→                      <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+  1034→                        <Button
+  1035→                          size="sm"
+  1036→                          variant="secondary"
+  1037→                          onClick={() => {
+  1038→                            setMarkupImage(photo);
+  1039→                            setMarkupOpen(true);
+  1040→                          }}
+  1041→                        >
+  1042→                          <Pencil className="mr-1 h-3.5 w-3.5" />
+  1043→                          Markup
+  1044→                        </Button>
+  1045→                        <Button
+  1046→                          size="icon"
+  1047→                          variant="destructive"
+  1048→                          className="h-8 w-8"
+  1049→                          onClick={() => removePhoto(idx)}
+  1050→                        >
+  1051→                          <X className="h-4 w-4" />
+  1052→                        </Button>
+  1053→                      </div>
+  1054→                      <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+  1055→                        #{idx + 1}
+  1056→                      </span>
+  1057→                    </div>
+  1058→                  ))}
+  1059→                </div>
+  1060→              )}
+  1061→            </CardContent>
+  1062→          </Card>
+  1063→        </TabsContent>
+  1064→
+  1065→        {/* Sketchpad tab */}
+  1066→        <TabsContent value="sketchpad" className="space-y-5">
+  1067→          <Card>
+  1068→            <CardHeader className="pb-3">
+  1069→              <CardTitle className="flex items-center gap-2 text-base">
+  1070→                <PenTool className="h-4 w-4 text-primary" />
+  1071→                Freehand Blueprint Sketchpad
+  1072→              </CardTitle>
+  1073→              <CardDescription>
+  1074→                Draw elevation sketches with dimension line labels
+  1075→              </CardDescription>
+  1076→            </CardHeader>
+  1077→            <CardContent>
+  1078→              <BlueprintSketchpad onSave={(dataUrl) => {
+  1079→                setPhotos((p) => [...p, dataUrl]);
+  1080→                toast.success("Sketch saved to Photos tab");
+  1081→              }} />
+  1082→            </CardContent>
+  1083→          </Card>
+  1084→        </TabsContent>
+  1085→
+  1086→        {/* Sign-off tab */}
+  1087→        <TabsContent value="signoff" className="space-y-5">
+  1088→          <Card>
+  1089→            <CardHeader className="pb-3">
+  1090→              <CardTitle className="flex items-center gap-2 text-base">
+  1091→                <PenLine className="h-4 w-4 text-primary" />
+  1092→                Client Digital Sign-off
+  1093→              </CardTitle>
+  1094→              <CardDescription>
+  1095→                Capture client signature to confirm site measurement before factory cutting
+  1096→              </CardDescription>
+  1097→            </CardHeader>
+  1098→            <CardContent>
+  1099→              <SignaturePad
+  1100→                value={data.signature}
+  1101→                onChange={(sig) => updateData({ signature: sig })}
+  1102→              />
+  1103→            </CardContent>
+  1104→          </Card>
+  1105→
+  1106→          {/* Summary card */}
+  1107→          <Card className="border-primary/30">
+  1108→            <CardHeader className="pb-3">
+  1109→              <CardTitle className="text-base">Site Inspection Summary</CardTitle>
+  1110→            </CardHeader>
+  1111→            <CardContent>
+  1112→              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  1113→                <div className="rounded-lg border border-border p-3 text-center">
+  1114→                  <p className="text-[10px] uppercase text-muted-foreground">Site</p>
+  1115→                  <p className="text-sm font-medium truncate">{data.siteName || "—"}</p>
+  1116→                </div>
+  1117→                <div className="rounded-lg border border-border p-3 text-center">
+  1118→                  <p className="text-[10px] uppercase text-muted-foreground">Job #</p>
+  1119→                  <p className="text-sm font-medium">{data.jobNumber || "—"}</p>
+  1120→                </div>
+  1121→                <div className="rounded-lg border border-border p-3 text-center">
+  1122→                  <p className="text-[10px] uppercase text-muted-foreground">Modules</p>
+  1123→                  <p className="text-sm font-bold">{data.modules.length}</p>
+  1124→                </div>
+  1125→                <div className="rounded-lg border-2 border-primary bg-primary/5 p-3 text-center">
+  1126→                  <p className="text-[10px] uppercase text-muted-foreground">Status</p>
+  1127→                  <p className={`text-sm font-bold ${data.signature.signedAt ? "text-emerald-600" : "text-amber-600"}`}>
+  1128→                    {data.signature.signedAt ? "✓ Signed" : "Pending"}
+  1129→                  </p>
+  1130→                </div>
+  1131→              </div>
+  1132→            </CardContent>
+  1133→          </Card>
+  1134→        </TabsContent>
+  1135→      </Tabs>
+  1136→
+  1137→      <ImageMarkupModal
+  1138→        open={markupOpen}
+  1139→        onOpenChange={setMarkupOpen}
+  1140→        imageUrl={markupImage}
+  1141→        onSave={(dataUrl) => {
+  1142→          setPhotos((p) => p.map((ph) => (ph === markupImage ? dataUrl : ph)));
+  1143→        }}
+  1144→      />
+  1145→    </div>
+  1146→  );
+  1147→}
+  1148→

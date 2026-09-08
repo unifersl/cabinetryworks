@@ -1,0 +1,875 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import type { CabinetModule, SiteJobData } from "@/lib/site-notebook-types";
+     5→import {
+     6→  CABINET_TYPES, OPENING_STYLES, createEmptyModule,
+     7→  distributeEvenly, ensureDrawersShelves, safeNum,
+     8→  APPLIANCE_TYPES, OPEN_SHELVING_TYPES, TALL_UNIT_TYPES,
+     9→} from "@/lib/site-notebook-types";
+    10→import { Button } from "@/components/ui/button";
+    11→import { Input } from "@/components/ui/input";
+    12→import { Label } from "@/components/ui/label";
+    13→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    14→import { toast } from "sonner";
+    15→import {
+    16→  ZoomIn, ZoomOut, Maximize, Minimize, Expand, Trash2, Copy, Lock, Unlock,
+    17→  HelpCircle, Plus, Minus, GripVertical,
+    18→  Square, SquareStack, CookingPot, Wind, Refrigerator,
+    19→  ArrowUpFromLine, PanelTopOpen, ArrowLeftRight,
+    20→  Microwave, WashingMachine, Wine, Columns3, Grid3x3,
+    21→  DoorOpen, Utensils, Archive, Frame, LayoutGrid, Layers,
+    22→  DoorClosed, Disc3, GripHorizontal,
+    23→} from "lucide-react";
+    24→
+    25→type PaletteIcon = React.ComponentType<{ className?: string }>;
+    26→
+    27→const PALETTE: { type: string; label: string; w: number; h: number; icon: PaletteIcon; hint: string }[] = [
+    28→  // Base & Wall Cabinets
+    29→  { type: "Base Cabinet", label: "Base", w: 600, h: 720, icon: Square, hint: "Floor-standing base cabinet (720mm tall)" },
+    30→  { type: "Wall Cabinet", label: "Wall", w: 600, h: 720, icon: SquareStack, hint: "Wall-mounted upper cabinet" },
+    31→  { type: "Corner Base Unit", label: "Corner B", w: 900, h: 720, icon: DoorOpen, hint: "L-shaped corner base cabinet (900mm)" },
+    32→  { type: "Corner Wall Unit", label: "Corner W", w: 900, h: 720, icon: DoorOpen, hint: "L-shaped corner wall cabinet (900mm)" },
+    33→  // Appliances
+    34→  { type: "Sink Unit (Zink)", label: "Sink", w: 800, h: 720, icon: CookingPot, hint: "Sink unit with basin cut-out (800mm)" },
+    35→  { type: "Hob Unit", label: "Hob", w: 600, h: 720, icon: CookingPot, hint: "Hob / cooktop unit with 4 burner markers" },
+    36→  { type: "Cooker Hood Space", label: "Hood", w: 600, h: 400, icon: Wind, hint: "Cooker hood canopy space (400mm)" },
+    37→  { type: "Fridge Space", label: "Fridge", w: 900, h: 1800, icon: Refrigerator, hint: "Fridge / freezer housing (900×1800mm)" },
+    38→  { type: "Oven Housing", label: "Oven", w: 600, h: 720, icon: Microwave, hint: "Built-in oven housing unit (600×720mm)" },
+    39→  { type: "Microwave Housing", label: "Micro", w: 600, h: 720, icon: Microwave, hint: "Microwave housing unit (600×720mm)" },
+    40→  { type: "Dishwasher Space", label: "D/W", w: 600, h: 720, icon: WashingMachine, hint: "Dishwasher space (600×720mm)" },
+    41→  { type: "Washing Machine Space", label: "W/M", w: 600, h: 850, icon: WashingMachine, hint: "Washing machine space (600×850mm)" },
+    42→  { type: "Appliance Garage", label: "Garage", w: 600, h: 300, icon: DoorClosed, hint: "Appliance garage — counter-top retractable door (600×300mm)" },
+    43→  // Tall Units
+    44→  { type: "Appliance Tower", label: "Tower", w: 600, h: 1800, icon: ArrowUpFromLine, hint: "Tall appliance tower (1800mm) for ovens/microwaves" },
+    45→  { type: "Pantry Tall Unit", label: "Pantry", w: 600, h: 2100, icon: Archive, hint: "Tall pantry unit with internal shelves (600×2100mm)" },
+    46→  // Specialty Units
+    47→  { type: "Up-Lift Flap Cabinet", label: "Up-Lift", w: 900, h: 720, icon: PanelTopOpen, hint: "Up-lift flap door cabinet (900mm wide)" },
+    48→  { type: "Wine Rack Unit", label: "Wine", w: 300, h: 720, icon: Wine, hint: "Wine bottle rack unit (300×720mm)" },
+    49→  { type: "Spice Rack Pull-out", label: "Spice", w: 150, h: 720, icon: GripVertical, hint: "Pull-out spice rack (150×720mm)" },
+    50→  { type: "Bin Pull-out Unit", label: "Bin", w: 300, h: 720, icon: Disc3, hint: "Pull-out bin/waste unit (300×720mm)" },
+    51→  { type: "Plate Rack Unit", label: "Plate", w: 400, h: 720, icon: Utensils, hint: "Plate rack with vertical dividers (400×720mm)" },
+    52→  { type: "Tray Divider Unit", label: "Tray", w: 300, h: 720, icon: GripHorizontal, hint: "Tray divider with horizontal slots (300×720mm)" },
+    53→  // Open & Display
+    54→  { type: "Open Shelving Unit", label: "Open Shelf", w: 600, h: 720, icon: Grid3x3, hint: "Open shelving unit — no doors, just shelves (600×720mm)" },
+    55→  { type: "Glass Display Cabinet", label: "Glass", w: 600, h: 720, icon: Frame, hint: "Glass-front display cabinet with shelves (600×720mm)" },
+    56→  // Architectural / Trim
+    57→  { type: "Window Clearance", label: "Window", w: 1200, h: 600, icon: ArrowLeftRight, hint: "Window clearance zone — no cabinetry (amber tinted)" },
+    58→  { type: "Plinth / Kickboard", label: "Plinth", w: 600, h: 150, icon: LayoutGrid, hint: "Plinth / kickboard at floor level (600×150mm)" },
+    59→  { type: "Cornice / Crown Moulding", label: "Cornice", w: 600, h: 80, icon: Layers, hint: "Cornice / crown moulding at top (600×80mm)" },
+    60→  { type: "End Panel / Bullnose", label: "End Panel", w: 18, h: 720, icon: Columns3, hint: "End panel / bullnose trim (18×720mm)" },
+    61→];
+    62→
+    63→interface ElevationCanvasProps {
+    64→  data: SiteJobData;
+    65→  height?: number;
+    66→  onUpdateModules?: (modules: CabinetModule[]) => void;
+    67→}
+    68→
+    69→export function ElevationCanvas({ data, height = 500, onUpdateModules }: ElevationCanvasProps) {
+    70→  const { modules: rawModules, overallDimensions } = data;
+    71→  // Guard overall dimensions against NaN/undefined — a common cause of NaN SVG attributes
+    72→  const totalW = safeNum(overallDimensions?.width, 3400);
+    73→  const totalH = safeNum(overallDimensions?.height, 2150);
+    74→
+    75→  const [zoom, setZoom] = React.useState(1);
+    76→  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+    77→  const [lockedIds, setLockedIds] = React.useState<Set<string>>(new Set());
+    78→  const [contextMenu, setContextMenu] = React.useState<{ id: string; x: number; y: number } | null>(null);
+    79→  const [isFullscreen, setIsFullscreen] = React.useState(false);
+    80→  const [showHelp, setShowHelp] = React.useState(false);
+    81→
+    82→  const dragData = React.useRef<{
+    83→    id: string; type: "move" | "resize"; edge?: string;
+    84→    startPxX: number; startPxY: number;
+    85→    origX: number; origY: number; origW: number; origH: number;
+    86→  } | null>(null);
+    87→  const innerRef = React.useRef<HTMLDivElement>(null);
+    88→
+    89→  // Normalize legacy modules so drawerHeights / shelfHeights always exist AND
+    90→  // all core numeric fields are finite numbers. This is the primary guard
+    91→  // against the "Received NaN for attribute" console errors — it migrates any
+    92→  // module loaded from localStorage that was saved before these fields existed
+    93→  // or that has undefined/NaN width/height/x/y.
+    94→  const modules = React.useMemo(
+    95→    () => rawModules.map((m) => ensureDrawersShelves(m)),
+    96→    [rawModules],
+    97→  );
+    98→
+    99→  const basePxPerMm = Math.min(700 / Math.max(totalW, 1), 350 / Math.max(totalH, 1));
+   100→  const pxPerMm = safeNum(basePxPerMm * zoom, 0.2);
+   101→  const wallPxW = totalW * pxPerMm;
+   102→  const wallPxH = totalH * pxPerMm;
+   103→  const PAD = 40;
+   104→  const innerW = Math.max(wallPxW + PAD * 2, 700);
+   105→  const innerH = Math.max(wallPxH + PAD * 2, 400);
+   106→  // NaN-safe mm→px converter: any non-finite input falls back to 0
+   107→  const mm = (v: number) => safeNum(v, 0) * pxPerMm;
+   108→  const SNAP_THRESHOLD_MM = 50;
+   109→
+   110→  // --- Accidental close prevention ---
+   111→  // When there are modules on the canvas, warn before the tab/window is closed
+   112→  // or refreshed so unsaved work isn't lost.
+   113→  React.useEffect(() => {
+   114→    if (modules.length === 0) return;
+   115→    function onBeforeUnload(e: BeforeUnloadEvent) {
+   116→      e.preventDefault();
+   117→      e.returnValue = "";
+   118→    }
+   119→    window.addEventListener("beforeunload", onBeforeUnload);
+   120→    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+   121→  }, [modules.length]);
+   122→
+   123→  // Esc to exit fullscreen
+   124→  React.useEffect(() => {
+   125→    if (!isFullscreen) return;
+   126→    function onKey(e: KeyboardEvent) {
+   127→      if (e.key === "Escape") setIsFullscreen(false);
+   128→    }
+   129→    window.addEventListener("keydown", onKey);
+   130→    return () => window.removeEventListener("keydown", onKey);
+   131→  }, [isFullscreen]);
+   132→
+   133→  // --- Snap helper: find nearby edges to snap to ---
+   134→  function getSnappedPos(modId: string, newX: number, newY: number, newW: number, newH: number): { x: number; y: number } {
+   135→    let snapX = newX, snapY = newY;
+   136→    const myEdges = {
+   137→      left: newX, right: newX + newW,
+   138→      top: newY, bottom: newY + newH,
+   139→      centerX: newX + newW / 2, centerY: newY + newH / 2,
+   140→    };
+   141→    for (const other of modules) {
+   142→      if (other.id === modId) continue;
+   143→      const oEdges = {
+   144→        left: other.x, right: other.x + other.width,
+   145→        top: other.y, bottom: other.y + other.height,
+   146→        centerX: other.x + other.width / 2, centerY: other.y + other.height / 2,
+   147→      };
+   148→      for (const [myKey, myVal] of Object.entries(myEdges)) {
+   149→        if (!myKey.includes("x") && myKey !== "left" && myKey !== "right" && myKey !== "centerX") continue;
+   150→        for (const [oKey, oVal] of Object.entries(oEdges)) {
+   151→          if (!oKey.includes("x") && oKey !== "left" && oKey !== "right" && oKey !== "centerX") continue;
+   152→          if (Math.abs(myVal - oVal) < SNAP_THRESHOLD_MM) {
+   153→            if (myKey === "left" || myKey === "right" || myKey === "centerX") {
+   154→              const diff = oVal - myVal;
+   155→              snapX = newX + diff;
+   156→            }
+   157→          }
+   158→        }
+   159→      }
+   160→      for (const [myKey, myVal] of Object.entries(myEdges)) {
+   161→        if (myKey !== "top" && myKey !== "bottom" && myKey !== "centerY") continue;
+   162→        for (const [oKey, oVal] of Object.entries(oEdges)) {
+   163→          if (oKey !== "top" && oKey !== "bottom" && oKey !== "centerY") continue;
+   164→          if (Math.abs(myVal - oVal) < SNAP_THRESHOLD_MM) {
+   165→            if (myKey === "top" || myKey === "bottom" || myKey === "centerY") {
+   166→              const diff = oVal - myVal;
+   167→              snapY = newY + diff;
+   168→            }
+   169→          }
+   170→        }
+   171→      }
+   172→    }
+   173→    if (Math.abs(snapX) < SNAP_THRESHOLD_MM) snapX = 0;
+   174→    if (Math.abs(snapY) < SNAP_THRESHOLD_MM) snapY = 0;
+   175→    if (Math.abs(snapX + newW - totalW) < SNAP_THRESHOLD_MM) snapX = totalW - newW;
+   176→    if (Math.abs(snapY + newH - totalH) < SNAP_THRESHOLD_MM) snapY = totalH - newH;
+   177→    return { x: snapX, y: snapY };
+   178→  }
+   179→
+   180→  function handleDrop(e: React.DragEvent) {
+   181→    e.preventDefault();
+   182→    const type = e.dataTransfer.getData("text/cabinet-type");
+   183→    if (!type || !onUpdateModules) return;
+   184→    const item = PALETTE.find((p) => p.type === type);
+   185→    if (!item) return;
+   186→    const inner = innerRef.current;
+   187→    if (!inner) return;
+   188→    const rect = inner.getBoundingClientRect();
+   189→    const mmX = (e.clientX - rect.left - PAD) / pxPerMm;
+   190→    const mmY = (e.clientY - rect.top - PAD) / pxPerMm;
+   191→    const newCode = String(modules.length + 1).padStart(2, "0");
+   192→    const newMod = createEmptyModule(newCode);
+   193→    newMod.type = type as any;
+   194→    newMod.width = item.w;
+   195→    newMod.height = item.h;
+   196→    newMod.x = Math.round(Math.max(0, Math.min(totalW - item.w, mmX - item.w / 2)));
+   197→    newMod.y = Math.round(Math.max(0, Math.min(totalH - item.h, mmY - item.h / 2)));
+   198→    onUpdateModules([...modules, newMod]);
+   199→    setSelectedId(newMod.id);
+   200→  }
+   201→
+   202→  function onModuleDown(e: React.PointerEvent, mod: CabinetModule) {
+   203→    if (!onUpdateModules) return;
+   204→    e.stopPropagation();
+   205→    setSelectedId(mod.id);
+   206→    if (lockedIds.has(mod.id)) return;
+   207→    dragData.current = {
+   208→      id: mod.id, type: "move",
+   209→      startPxX: e.clientX, startPxY: e.clientY,
+   210→      origX: mod.x, origY: mod.y, origW: mod.width, origH: mod.height,
+   211→    };
+   212→    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+   213→  }
+   214→
+   215→  function onResizeDown(e: React.PointerEvent, mod: CabinetModule, edge: string) {
+   216→    e.stopPropagation();
+   217→    setSelectedId(mod.id);
+   218→    if (lockedIds.has(mod.id)) return;
+   219→    dragData.current = {
+   220→      id: mod.id, type: "resize", edge,
+   221→      startPxX: e.clientX, startPxY: e.clientY,
+   222→      origX: mod.x, origY: mod.y, origW: mod.width, origH: mod.height,
+   223→    };
+   224→    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+   225→  }
+   226→
+   227→  function onCanvasMove(e: React.PointerEvent) {
+   228→    const dd = dragData.current;
+   229→    if (!dd || !onUpdateModules) return;
+   230→    const dxMm = (e.clientX - dd.startPxX) / pxPerMm;
+   231→    const dyMm = (e.clientY - dd.startPxY) / pxPerMm;
+   232→    if (dd.type === "move") {
+   233→      let newX = Math.max(0, Math.min(totalW - 50, Math.round(dd.origX + dxMm)));
+   234→      let newY = Math.max(0, Math.min(totalH - 50, Math.round(dd.origY + dyMm)));
+   235→      const snapped = getSnappedPos(dd.id, newX, newY, dd.origW, dd.origH);
+   236→      newX = snapped.x; newY = snapped.y;
+   237→      onUpdateModules(modules.map((m) => m.id === dd.id ? { ...m, x: newX, y: newY } : m));
+   238→    } else if (dd.type === "resize") {
+   239→      const min = 100;
+   240→      let nw = dd.origW, nh = dd.origH, nx = dd.origX, ny = dd.origY;
+   241→      if (dd.edge === "right") nw = Math.max(min, Math.round(dd.origW + dxMm));
+   242→      if (dd.edge === "left") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); }
+   243→      if (dd.edge === "bottom") nh = Math.max(min, Math.round(dd.origH + dyMm));
+   244→      if (dd.edge === "top") { nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+   245→      if (dd.edge === "br") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
+   246→      if (dd.edge === "bl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
+   247→      if (dd.edge === "tr") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+   248→      if (dd.edge === "tl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+   249→      onUpdateModules(modules.map((m) => m.id === dd.id ? { ...m, width: nw, height: nh, x: nx, y: ny } : m));
+   250→    }
+   251→  }
+   252→
+   253→  function onCanvasUp() { dragData.current = null; }
+   254→
+   255→  function deleteModule(id: string) {
+   256→    if (!onUpdateModules) return;
+   257→    onUpdateModules(modules.filter((m) => m.id !== id).map((m, i) => ({ ...m, code: String(i + 1).padStart(2, "0") })));
+   258→    setSelectedId(null);
+   259→    setLockedIds((s) => { const n = new Set(s); n.delete(id); return n; });
+   260→  }
+   261→
+   262→  function duplicateModule(id: string) {
+   263→    if (!onUpdateModules) return;
+   264→    const mod = modules.find((m) => m.id === id);
+   265→    if (!mod) return;
+   266→    const newCode = String(modules.length + 1).padStart(2, "0");
+   267→    const copy: CabinetModule = {
+   268→      ...mod,
+   269→      id: crypto.randomUUID(),
+   270→      code: newCode,
+   271→      x: mod.x + 50,
+   272→      y: mod.y + 50,
+   273→      cuttingList: mod.cuttingList.map(c => ({ ...c, id: crypto.randomUUID() })),
+   274→      drawerHeights: [...(mod.drawerHeights ?? [])],
+   275→      shelfHeights: [...(mod.shelfHeights ?? [])],
+   276→    };
+   277→    onUpdateModules([...modules, copy]);
+   278→    setSelectedId(copy.id);
+   279→    toast.success(`Duplicated Module ${mod.code} → ${newCode}`);
+   280→  }
+   281→
+   282→  function toggleLock(id: string) {
+   283→    setLockedIds((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+   284→  }
+   285→
+   286→  // --- Drawer & shelf management (per-module, individually editable) ---
+   287→  function patchModule(id: string, patch: Partial<CabinetModule>) {
+   288→    if (!onUpdateModules) return;
+   289→    onUpdateModules(modules.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+   290→  }
+   291→
+   292→  function setDrawerCount(id: string, count: number) {
+   293→    const c = Math.max(1, Math.min(10, Math.floor(count)));
+   294→    const mod = modules.find((m) => m.id === id);
+   295→    if (!mod) return;
+   296→    patchModule(id, { drawerHeights: distributeEvenly(c, mod.height, 0) });
+   297→  }
+   298→
+   299→  function setDrawerHeight(id: string, idx: number, h: number) {
+   300→    const mod = modules.find((m) => m.id === id);
+   301→    if (!mod) return;
+   302→    const next = [...(mod.drawerHeights ?? [])];
+   303→    next[idx] = Math.max(50, Math.round(h));
+   304→    patchModule(id, { drawerHeights: next });
+   305→  }
+   306→
+   307→  function setShelfCount(id: string, count: number) {
+   308→    const c = Math.max(0, Math.min(8, Math.floor(count)));
+   309→    const mod = modules.find((m) => m.id === id);
+   310→    if (!mod) return;
+   311→    const positions = Array.from({ length: c }, (_, i) =>
+   312→      Math.round((mod.height * (i + 1)) / (c + 1)),
+   313→    );
+   314→    patchModule(id, { shelfHeights: positions });
+   315→  }
+   316→
+   317→  function setShelfHeight(id: string, idx: number, hFromBottom: number) {
+   318→    const mod = modules.find((m) => m.id === id);
+   319→    if (!mod) return;
+   320→    const next = [...(mod.shelfHeights ?? [])];
+   321→    next[idx] = Math.max(20, Math.min(mod.height - 20, Math.round(hFromBottom)));
+   322→    patchModule(id, { shelfHeights: next });
+   323→  }
+   324→
+   325→  function onModuleContextMenu(e: React.MouseEvent, mod: CabinetModule) {
+   326→    e.preventDefault();
+   327→    e.stopPropagation();
+   328→    setSelectedId(mod.id);
+   329→    setContextMenu({ id: mod.id, x: e.clientX, y: e.clientY });
+   330→  }
+   331→
+   332→  // Close context menu on any click outside
+   333→  React.useEffect(() => {
+   334→    function close() { setContextMenu(null); }
+   335→    window.addEventListener("click", close);
+   336→    window.addEventListener("pointerdown", close);
+   337→    return () => { window.removeEventListener("click", close); window.removeEventListener("pointerdown", close); };
+   338→  }, []);
+   339→
+   340→  function renderShape(mod: CabinetModule, w: number, h: number) {
+   341→    const show = w > 25 && h > 25;
+   342→    const drawers = Array.isArray(mod.drawerHeights) ? mod.drawerHeights : [];
+   343→    const shelves = Array.isArray(mod.shelfHeights) ? mod.shelfHeights : [];
+   344→    const t = mod.type;
+   345→
+   346→    // Determine what to show based on type
+   347→    const isAppliance = APPLIANCE_TYPES.has(t);
+   348→    const isOpenShelf = OPEN_SHELVING_TYPES.has(t);
+   349→    const isTallUnit = TALL_UNIT_TYPES.has(t);
+   350→
+   351→    // Shelves only for standard cabinets and open shelving
+   352→    const showShelves = !isAppliance && !isTallUnit && !isOpenShelf
+   353→      ? (mod.openingStyle !== "Drawers" && mod.openingStyle !== "Up-Lift Flap")
+   354→      : isOpenShelf;
+   355→
+   356→    // Door lines only for standard cabinets (not appliances, not open shelving)
+   357→    const showDoors = !isAppliance && !isOpenShelf && !isTallUnit;
+   358→
+   359→    return (
+   360→      <svg width={w} height={h} style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none", overflow: "visible" }}>
+   361→        {/* Door split lines — ONLY for standard cabinets */}
+   362→        {showDoors && mod.openingStyle === "Single Door" && show && <line x1={w/2} y1={3} x2={w/2} y2={h-3} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 2" />}
+   363→        {showDoors && mod.openingStyle === "Double Door" && show && (<><line x1={w*0.33} y1={3} x2={w*0.33} y2={h-3} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 2" /><line x1={w*0.66} y1={3} x2={w*0.66} y2={h-3} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 2" /></>)}
+   364→
+   365→        {/* Drawers — ONLY for standard cabinets with Drawers opening style */}
+   366→        {showDoors && mod.openingStyle === "Drawers" && show && (() => {
+   367→          let cumY = 0;
+   368→          return drawers.map((dh, i) => {
+   369→            const drawerPxH = Math.max(2, safeNum(dh, 0) * pxPerMm);
+   370→            const top = cumY;
+   371→            cumY += drawerPxH;
+   372→            if (cumY > h + 50) return null;
+   373→            return (
+   374→              <g key={`dr-${i}`}>
+   375→                {i > 0 && <line x1={2} y1={top} x2={w-2} y2={top} stroke="#64748b" strokeWidth="1" />}
+   376→                <line x1={w*0.4} y1={top + drawerPxH*0.5} x2={w*0.6} y2={top + drawerPxH*0.5} stroke="#475569" strokeWidth="1.5" />
+   377→                {drawerPxH > 14 && w > 50 && (
+   378→                  <text x={w-4} y={top + drawerPxH*0.5 + 2} textAnchor="end" fill="#0e7490" fontSize="6.5" fontWeight="bold" fontFamily="monospace">{dh}</text>
+   379→                )}
+   380→              </g>
+   381→            );
+   382→          });
+   383→        })()}
+   384→
+   385→        {/* Shelves — for standard cabinets and open shelving types */}
+   386→        {showShelves && show && shelves.map((sh, i) => {
+   387→          const y = h - safeNum(sh, 0) * pxPerMm;
+   388→          if (!Number.isFinite(y) || y < 3 || y > h - 3) return null;
+   389→          return (
+   390→            <g key={`sh-${i}`}>
+   391→              <line x1={2} y1={y} x2={w-2} y2={y} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 2" />
+   392→              {w > 50 && <text x={4} y={y-1.5} fill="#0e7490" fontSize="6.5" fontWeight="bold" fontFamily="monospace">{sh}</text>}
+   393→            </g>
+   394→          );
+   395→        })}
+   396→
+   397→        {/* Up-Lift Flap */}
+   398→        {(mod.openingStyle === "Up-Lift Flap" || t === "Up-Lift Flap Cabinet") && show && showDoors && (<><line x1={3} y1={h*0.3} x2={w-3} y2={h*0.3} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4 2" /><path d={`M ${w/2-6} ${h*0.2} L ${w/2} ${h*0.08} L ${w/2+6} ${h*0.2}`} fill="none" stroke="#475569" strokeWidth="1.5" /></>)}
+   399→
+   400→        {/* ===== APPLIANCE-SPECIFIC SHAPES ===== */}
+   401→
+   402→        {/* Sink Unit — basin with faucet */}
+   403→        {t === "Sink Unit (Zink)" && show && (<g><rect x={w*0.12} y={h*0.2} width={w*0.76} height={h*0.55} fill="none" stroke="#64748b" strokeWidth="1.5" rx="4" /><rect x={w*0.17} y={h*0.25} width={w*0.66} height={h*0.45} fill="none" stroke="#94a3b8" strokeWidth="0.8" rx="3" /><line x1={w/2} y1={h*0.1} x2={w/2} y2={h*0.2} stroke="#64748b" strokeWidth="2" /><circle cx={w/2} cy={h*0.1} r="3" fill="#64748b" /></g>)}
+   404→
+   405→        {/* Hob Unit — 4 burner circles */}
+   406→        {t === "Hob Unit" && show && (<g>{[[0.3,0.3],[0.7,0.3],[0.3,0.65],[0.7,0.65]].map(([cx,cy],i) => (<g key={i}><circle cx={w*cx} cy={h*cy} r={Math.min(w,h)*0.1} fill="none" stroke="#64748b" strokeWidth="1.5" /><circle cx={w*cx} cy={h*cy} r={Math.min(w,h)*0.05} fill="none" stroke="#94a3b8" strokeWidth="0.8" /></g>))}</g>)}
+   407→
+   408→        {/* Cooker Hood — trapezoid shape */}
+   409→        {t === "Cooker Hood Space" && show && (<g><path d={`M ${w*0.1} ${h*0.9} L ${w*0.25} ${h*0.1} L ${w*0.75} ${h*0.1} L ${w*0.9} ${h*0.9} Z`} fill="none" stroke="#64748b" strokeWidth="1.5" /><line x1={w*0.2} y1={h*0.5} x2={w*0.8} y2={h*0.5} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2 2" /></g>)}
+   410→
+   411→        {/* Fridge — split line + handles */}
+   412→        {t === "Fridge Space" && show && (<g><line x1={4} y1={h*0.35} x2={w-4} y2={h*0.35} stroke="#64748b" strokeWidth="1.5" /><line x1={w-8} y1={h*0.1} x2={w-8} y2={h*0.3} stroke="#475569" strokeWidth="2" /><line x1={w-8} y1={h*0.4} x2={w-8} y2={h*0.75} stroke="#475569" strokeWidth="2" /></g>)}
+   413→
+   414→        {/* Oven Housing — oven cavity with door */}
+   415→        {t === "Oven Housing" && show && (<g><rect x={w*0.15} y={h*0.15} width={w*0.7} height={h*0.55} fill="none" stroke="#64748b" strokeWidth="1.5" rx="2" /><line x1={w*0.15} y1={h*0.7} x2={w*0.85} y2={h*0.7} stroke="#64748b" strokeWidth="1" /><circle cx={w/2} cy={h*0.67} r="2" fill="#64748b" /><rect x={w*0.2} y={h*0.78} width={w*0.6} height={h*0.15} fill="none" stroke="#94a3b8" strokeWidth="0.8" /></g>)}
+   416→
+   417→        {/* Microwave Housing — smaller cavity */}
+   418→        {t === "Microwave Housing" && show && (<g><rect x={w*0.15} y={h*0.25} width={w*0.7} height={h*0.35} fill="none" stroke="#64748b" strokeWidth="1.5" rx="2" /><line x1={w*0.2} y1={h*0.35} x2={w*0.65} y2={h*0.35} stroke="#94a3b8" strokeWidth="0.8" /><circle cx={w*0.72} cy={h*0.42} r="1.5" fill="#64748b" /></g>)}
+   419→
+   420→        {/* Dishwasher Space — control panel + cavity */}
+   421→        {t === "Dishwasher Space" && show && (<g><rect x={w*0.1} y={h*0.08} width={w*0.8} height={h*0.12} fill="none" stroke="#64748b" strokeWidth="1" rx="1" /><line x1={w*0.15} y1={h*0.14} x2={w*0.4} y2={h*0.14} stroke="#94a3b8" strokeWidth="0.8" /><circle cx={w*0.7} cy={h*0.14} r="1.5" fill="#64748b" /><rect x={w*0.1} y={h*0.22} width={w*0.8} height={h*0.68} fill="none" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2 2" /></g>)}
+   422→
+   423→        {/* Washing Machine Space — drum circle */}
+   424→        {t === "Washing Machine Space" && show && (<g><rect x={w*0.1} y={h*0.08} width={w*0.8} height={h*0.1} fill="none" stroke="#64748b" strokeWidth="1" rx="1" /><circle cx={w*0.72} cy={h*0.13} r="1.5" fill="#64748b" /><circle cx={w/2} cy={h*0.58} r={Math.min(w,h)*0.25} fill="none" stroke="#64748b" strokeWidth="1.5" /><circle cx={w/2} cy={h*0.58} r={Math.min(w,h)*0.15} fill="none" stroke="#94a3b8" strokeWidth="0.8" /></g>)}
+   425→
+   426→        {/* Appliance Garage — retractable door outline */}
+   427→        {t === "Appliance Garage" && show && (<g><line x1={3} y1={h*0.5} x2={w-3} y2={h*0.5} stroke="#64748b" strokeWidth="1.5" strokeDasharray="3 2" /><path d={`M ${w*0.3} ${h*0.3} L ${w*0.5} ${h*0.1} L ${w*0.7} ${h*0.3}`} fill="none" stroke="#475569" strokeWidth="1" /></g>)}
+   428→
+   429→        {/* Appliance Tower — 3 sections with center appliance cavity */}
+   430→        {t === "Appliance Tower" && show && (<g><line x1={4} y1={h*0.33} x2={w-4} y2={h*0.33} stroke="#94a3b8" strokeWidth="0.8" /><line x1={4} y1={h*0.66} x2={w-4} y2={h*0.66} stroke="#94a3b8" strokeWidth="0.8" /><rect x={w*0.2} y={h*0.4} width={w*0.6} height={h*0.22} fill="none" stroke="#64748b" strokeWidth="1" rx="2" /></g>)}
+   431→
+   432→        {/* Pantry Tall Unit — multiple horizontal shelf lines */}
+   433→        {t === "Pantry Tall Unit" && show && (<g>{[0.15,0.3,0.45,0.6,0.75,0.9].map((f,i) => (<line key={i} x1={4} y1={h*f} x2={w-4} y2={h*f} stroke="#94a3b8" strokeWidth="0.8" />))}</g>)}
+   434→
+   435→        {/* Wine Rack Unit — diagonal cross-hatch bottles */}
+   436→        {t === "Wine Rack Unit" && show && (<g>{Array.from({length: Math.floor(h/40)}, (_, i) => (<g key={i}><circle cx={w*0.5} cy={20+i*40} r={Math.min(w*0.3, 12)} fill="none" stroke="#64748b" strokeWidth="0.8" /></g>))}</g>)}
+   437→
+   438→        {/* Spice Rack Pull-out — vertical dividers */}
+   439→        {t === "Spice Rack Pull-out" && show && (<g>{Array.from({length: Math.floor(w/25)}, (_, i) => (<line key={i} x1={15+i*25} y1={5} x2={15+i*25} y2={h-5} stroke="#94a3b8" strokeWidth="0.5" />))}</g>)}
+   440→
+   441→        {/* Bin Pull-out Unit — 2 bin circles */}
+   442→        {t === "Bin Pull-out Unit" && show && (<g><circle cx={w*0.3} cy={h*0.5} r={Math.min(w*0.25, h*0.3)} fill="none" stroke="#64748b" strokeWidth="1" /><circle cx={w*0.7} cy={h*0.5} r={Math.min(w*0.25, h*0.3)} fill="none" stroke="#64748b" strokeWidth="1" /></g>)}
+   443→
+   444→        {/* Plate Rack Unit — vertical plate slots */}
+   445→        {t === "Plate Rack Unit" && show && (<g>{Array.from({length: Math.floor(w/50)}, (_, i) => (<line key={i} x1={25+i*50} y1={h*0.2} x2={25+i*50} y2={h*0.8} stroke="#94a3b8" strokeWidth="0.8" />))}<line x1={3} y1={h*0.2} x2={w-3} y2={h*0.2} stroke="#64748b" strokeWidth="1" /><line x1={3} y1={h*0.8} x2={w-3} y2={h*0.8} stroke="#64748b" strokeWidth="1" /></g>)}
+   446→
+   447→        {/* Tray Divider Unit — horizontal slots */}
+   448→        {t === "Tray Divider Unit" && show && (<g>{[0.25,0.45,0.65,0.85].map((f,i) => (<line key={i} x1={5} y1={h*f} x2={w-5} y2={h*f} stroke="#94a3b8" strokeWidth="0.8" />))}</g>)}
+   449→
+   450→        {/* Corner Base/Wall Unit — diagonal cut */}
+   451→        {(t === "Corner Base Unit" || t === "Corner Wall Unit") && show && (<g><line x1={0} y1={0} x2={w} y2={h} stroke="#64748b" strokeWidth="1.5" strokeDasharray="4 2" /><line x1={w*0.5} y1={3} x2={w*0.5} y2={h-3} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="2 2" /></g>)}
+   452→
+   453→        {/* Open Shelving Unit — shelves only (no doors), already handled by showShelves */}
+   454→        {t === "Open Shelving Unit" && show && (<line x1={3} y1={3} x2={w-3} y2={3} stroke="#64748b" strokeWidth="0.8" strokeDasharray="2 1" />)}
+   455→
+   456→        {/* Glass Display Cabinet — glass pattern */}
+   457→        {t === "Glass Display Cabinet" && show && (<g><rect x={2} y={2} width={w-4} height={h-4} fill="none" stroke="#64748b" strokeWidth="0.8" strokeDasharray="1 1" /><line x1={2} y1={2} x2={w-4} y2={h-4} stroke="#94a3b8" strokeWidth="0.3" /><line x1={w-4} y1={2} x2={2} y2={h-4} stroke="#94a3b8" strokeWidth="0.3" /></g>)}
+   458→
+   459→        {/* Plinth / Kickboard — thin horizontal strip */}
+   460→        {t === "Plinth / Kickboard" && show && (<g><line x1={3} y1={h*0.3} x2={w-3} y2={h*0.3} stroke="#64748b" strokeWidth="1" /><line x1={3} y1={h*0.7} x2={w-3} y2={h*0.7} stroke="#94a3b8" strokeWidth="0.5" /></g>)}
+   461→
+   462→        {/* Cornice / Crown Moulding — thin decorative top */}
+   463→        {t === "Cornice / Crown Moulding" && show && (<g><path d={`M 0 ${h*0.5} L ${w*0.15} ${h*0.1} L ${w*0.85} ${h*0.1} L ${w} ${h*0.5}`} fill="none" stroke="#64748b" strokeWidth="1" /></g>)}
+   464→
+   465→        {/* End Panel / Bullnose — thin vertical strip */}
+   466→        {t === "End Panel / Bullnose" && show && (<g><line x1={w*0.3} y1={3} x2={w*0.3} y2={h-3} stroke="#64748b" strokeWidth="0.5" /><line x1={w*0.7} y1={3} x2={w*0.7} y2={h-3} stroke="#94a3b8" strokeWidth="0.3" /></g>)}
+   467→
+   468→        {/* Window Clearance — cross lines */}
+   469→        {t === "Window Clearance" && show && (<g><line x1={3} y1={h/2} x2={w-3} y2={h/2} stroke="#64748b" strokeWidth="1" /><line x1={w/2} y1={3} x2={w/2} y2={h-3} stroke="#64748b" strokeWidth="1" /></g>)}
+   470→
+   471→        {/* Dimension labels */}
+   472→        {w > 40 && <text x={w/2} y={h-3} textAnchor="middle" fill="#b45309" fontSize="7" fontWeight="bold" fontFamily="monospace">{mod.width}</text>}
+   473→        {h > 50 && <text x={5} y={h/2} fill="#b45309" fontSize="7" fontWeight="bold" fontFamily="monospace">{mod.height}</text>}
+   474→      </svg>
+   475→    );
+   476→  }
+   477→
+   478→  function renderResizeNodes(mod: CabinetModule, w: number, h: number) {
+   479→    if (!selectedId || selectedId !== mod.id || !onUpdateModules) return null;
+   480→    if (lockedIds.has(mod.id)) return null;
+   481→    const s = 10;
+   482→    const nodes = [
+   483→      { id: "tl", x: -s/2, y: -s/2, cursor: "nwse-resize" },
+   484→      { id: "t", x: w/2 - s/2, y: -s/2, cursor: "ns-resize" },
+   485→      { id: "tr", x: w - s/2, y: -s/2, cursor: "nesw-resize" },
+   486→      { id: "r", x: w - s/2, y: h/2 - s/2, cursor: "ew-resize" },
+   487→      { id: "br", x: w - s/2, y: h - s/2, cursor: "nwse-resize" },
+   488→      { id: "b", x: w/2 - s/2, y: h - s/2, cursor: "ns-resize" },
+   489→      { id: "bl", x: -s/2, y: h - s/2, cursor: "nesw-resize" },
+   490→      { id: "l", x: -s/2, y: h/2 - s/2, cursor: "ew-resize" },
+   491→    ];
+   492→    return nodes.map((n) => (
+   493→      <div key={n.id}
+   494→        className="absolute z-40 rounded-sm border-2 border-white bg-amber-600 shadow-sm"
+   495→        style={{ left: n.x, top: n.y, width: s, height: s, cursor: n.cursor }}
+   496→        onPointerDown={(e) => onResizeDown(e, mod, n.id)}
+   497→      />
+   498→    ));
+   499→  }
+   500→
+   501→  const selectedMod = selectedId ? modules.find((m) => m.id === selectedId) : null;
+   502→
+   503→  // Shared wall content — rendered both inline and in fullscreen.
+   504→  // innerRef attaches to whichever instance is currently mounted (only one at a time).
+   505→  function renderWallContent() {
+   506→    return (
+   507→      <div ref={innerRef} className="relative shrink-0"
+   508→        style={{ width: innerW, height: innerH,
+   509→          backgroundImage: "linear-gradient(#f1f5f9 1px, transparent 1px), linear-gradient(90deg, #f1f5f9 1px, transparent 1px)",
+   510→          backgroundSize: "20px 20px",
+   511→        }}
+   512→      >
+   513→        {/* Wall outline */}
+   514→        <div className="absolute border-2 border-dashed border-slate-300"
+   515→          style={{ left: PAD, top: PAD, width: wallPxW, height: wallPxH }}>
+   516→          <div className="absolute left-0 right-0 flex justify-center" style={{ top: wallPxH + 4 }}>
+   517→            <span className="rounded border border-slate-700 bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-700 font-mono">{totalW}mm</span>
+   518→          </div>
+   519→          <div className="absolute top-0 bottom-0 flex items-center" style={{ left: -26 }}>
+   520→            <span className="rounded border border-slate-700 bg-white px-1 py-0.5 text-[8px] font-bold text-slate-700 font-mono" style={{ writingMode: "vertical-rl" }}>{totalH}mm</span>
+   521→          </div>
+   522→        </div>
+   523→
+   524→        {/* Modules */}
+   525→        {modules.map((mod) => {
+   526→          const left = PAD + mm(mod.x);
+   527→          const top = PAD + mm(mod.y);
+   528→          const w = Math.max(mm(mod.width), 15);
+   529→          const h = Math.max(mm(mod.height), 15);
+   530→          const isWindow = mod.type === "Window Clearance";
+   531→          const isAppliance = mod.type === "Appliance Tower" || mod.type === "Fridge Space";
+   532→          const isSelected = selectedId === mod.id;
+   533→          const isLocked = lockedIds.has(mod.id);
+   534→          return (
+   535→            <div key={mod.id}
+   536→              className={`absolute select-none border-2 ${isSelected ? "border-amber-600 z-20" : "border-slate-700 z-10"} ${isWindow ? "bg-amber-50" : isAppliance ? "bg-slate-100" : "bg-white"} ${isLocked ? "cursor-default" : onUpdateModules ? "cursor-grab active:cursor-grabbing" : ""}`}
+   537→              style={{ left, top, width: w, height: h }}
+   538→              onPointerDown={(e) => onModuleDown(e, mod)}
+   539→              onContextMenu={(e) => onModuleContextMenu(e, mod)}
+   540→            >
+   541→              {/* Code badge */}
+   542→              <div className="absolute left-0.5 top-0.5 z-10 rounded bg-amber-700 px-1 text-[7px] font-bold text-white font-mono">{mod.code}</div>
+   543→
+   544→              {/* Lock indicator */}
+   545→              {isLocked && (
+   546→                <div className="absolute right-0.5 top-0.5 z-10 text-[10px]">🔒</div>
+   547→              )}
+   548→
+   549→              {/* 8 resize nodes (CorelDRAW-style) */}
+   550→              {renderResizeNodes(mod, w, h)}
+   551→
+   552→              {/* Shape */}
+   553→              {renderShape(mod, w, h)}
+   554→            </div>
+   555→          );
+   556→        })}
+   557→
+   558→        {modules.length === 0 && (
+   559→          <div className="absolute inset-0 flex items-center justify-center">
+   560→            <span className="text-sm text-slate-400">Drag cabinet elements here →</span>
+   561→          </div>
+   562→        )}
+   563→      </div>
+   564→    );
+   565→  }
+   566→
+   567→  return (
+   568→    <div className="flex flex-col gap-2">
+   569→      {/* Toolbar — two tidy rows, no scrolling */}
+   570→      <div className="rounded-lg border border-border bg-muted/30 p-2 space-y-2">
+   571→        {/* Row 1: Drag palette (left) + Zoom controls (right) */}
+   572→        <div className="flex items-center gap-2">
+   573→          {/* Drag palette group */}
+   574→          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+   575→            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0 mr-0.5 hidden sm:inline">Drag</span>
+   576→            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+   577→              {PALETTE.map((item) => {
+   578→                const Icon = item.icon;
+   579→                return (
+   580→                  <button key={item.type} draggable
+   581→                    onDragStart={(e) => { e.dataTransfer.setData("text/cabinet-type", item.type); e.dataTransfer.effectAllowed = "copy"; }}
+   582→                    title={`${item.label} — ${item.hint}`}
+   583→                    aria-label={item.label}
+   584→                    className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-amber-500 hover:bg-amber-500/5 hover:text-amber-700 active:cursor-grabbing">
+   585→                    <Icon className="h-3.5 w-3.5" />
+   586→                  </button>
+   587→                );
+   588→              })}
+   589→            </div>
+   590→          </div>
+   591→
+   592→          {/* Zoom controls group */}
+   593→          <div className="flex items-center gap-1 shrink-0">
+   594→            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hidden sm:inline mr-0.5">Zoom</span>
+   595→            <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out" className="flex h-7 w-7 items-center justify-center rounded border border-border bg-card hover:bg-muted hover:border-amber-500/50"><ZoomOut className="h-3 w-3" /></button>
+   596→            <input type="range" min="0.25" max="4" step="0.25" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-20 accent-amber-600" title={`Zoom: ${Math.round(zoom*100)}%`} />
+   597→            <button onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Zoom in" className="flex h-7 w-7 items-center justify-center rounded border border-border bg-card hover:bg-muted hover:border-amber-500/50"><ZoomIn className="h-3 w-3" /></button>
+   598→            <span className="text-[10px] font-mono text-muted-foreground tabular-nums w-10 text-center rounded bg-card border border-border py-1">{Math.round(zoom*100)}%</span>
+   599→            <button onClick={() => setZoom(1)} title="Reset zoom to 100%" className="flex h-7 w-7 items-center justify-center rounded border border-border bg-card hover:bg-muted hover:border-amber-500/50"><Maximize className="h-3 w-3" /></button>
+   600→          </div>
+   601→        </div>
+   602→
+   603→        {/* Row 2: separator + secondary actions (right-aligned) */}
+   604→        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/60">
+   605→          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+   606→            <span className="inline-flex items-center gap-1 rounded bg-card border border-border px-1.5 py-0.5">
+   607→              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   608→              {data.modules.length} modules
+   609→            </span>
+   610→            <span className="inline-flex items-center gap-1 rounded bg-card border border-border px-1.5 py-0.5">
+   611→              {data.modules.reduce((s, m) => s + m.width, 0)}mm total
+   612→            </span>
+   613→          </div>
+   614→          <div className="flex items-center gap-1">
+   615→            <button onClick={() => setShowHelp(s => !s)} title="How to use this canvas"
+   616→              className={`flex h-7 items-center gap-1 px-2 rounded border text-[11px] font-medium transition-colors ${showHelp ? "bg-amber-500/10 text-amber-700 border-amber-500" : "bg-card text-muted-foreground border-border hover:bg-muted hover:border-amber-500/50"}`}>
+   617→              <HelpCircle className="h-3 w-3" />
+   618→              <span className="hidden sm:inline">Help</span>
+   619→            </button>
+   620→            <button onClick={() => setIsFullscreen(f => !f)} title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen mode"}
+   621→              className={`flex h-7 items-center gap-1 px-2 rounded border text-[11px] font-medium transition-colors ${isFullscreen ? "bg-amber-500/10 text-amber-700 border-amber-500" : "bg-card text-muted-foreground border-border hover:bg-muted hover:border-amber-500/50"}`}>
+   622→              {isFullscreen ? <Minimize className="h-3 w-3" /> : <Expand className="h-3 w-3" />}
+   623→              <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Fullscreen"}</span>
+   624→            </button>
+   625→          </div>
+   626→        </div>
+   627→      </div>
+   628→
+   629→      {/* How-to-use help panel */}
+   630→      {showHelp && (
+   631→        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs space-y-1.5">
+   632→          <div className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-400">
+   633→            <HelpCircle className="h-3.5 w-3.5" /> How to use the Elevation Builder
+   634→          </div>
+   635→          <ul className="ml-5 list-disc space-y-1 text-muted-foreground">
+   636→            <li><b>Add cabinets:</b> Drag any icon from the palette above onto the wall outline, then drop where you want it.</li>
+   637→            <li><b>Move:</b> Click a cabinet and drag it. Edges snap to nearby cabinets and the wall (within 50mm).</li>
+   638→            <li><b>Resize:</b> Click a cabinet to select it, then drag any of the 8 amber handles (corners + edge midpoints, CorelDRAW-style).</li>
+   639→            <li><b>Right-click:</b> A cabinet for Duplicate · Lock/Unlock position · Delete.</li>
+   640→            <li><b>Properties panel:</b> Edit exact W/H/X/Y, type, opening style, and — when &quot;Drawers&quot; is selected — set the <b>number of drawers</b> and each <b>drawer height individually</b>. For shelved cabinets, set the <b>number of shelves</b> and each <b>shelf height individually</b>.</li>
+   641→            <li><b>Zoom:</b> Use the slider or +/− buttons (25%–400%). Reset returns to 100%.</li>
+   642→            <li><b>Fullscreen:</b> Click the expand icon for a distraction-free workspace. Press <b>Esc</b> to exit.</li>
+   643→            <li><b>Auto-save:</b> Your work auto-saves to this browser. The browser will warn you before closing the tab if you have unsaved cabinets.</li>
+   644→          </ul>
+   645→        </div>
+   646→      )}
+   647→
+   648→      {/* Canvas — inline (when not fullscreen) */}
+   649→      {!isFullscreen && (
+   650→      <div className="relative w-full overflow-auto scrollbar-warm rounded-lg border border-border bg-white"
+   651→        style={{ minHeight: 300, maxHeight: height }}
+   652→        onDragOver={(e) => e.preventDefault()}
+   653→        onDrop={handleDrop}
+   654→        onPointerMove={onCanvasMove}
+   655→        onPointerUp={onCanvasUp}
+   656→      >
+   657→        {renderWallContent()}
+   658→      </div>
+   659→      )}
+   660→
+   661→      {/* Canvas — fullscreen overlay */}
+   662→      {isFullscreen && (
+   663→        <div className="fixed inset-0 z-[100] flex flex-col bg-white">
+   664→          {/* Fullscreen mini-toolbar */}
+   665→          <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-muted/30 px-2 py-1.5">
+   666→            <span className="text-xs font-semibold text-muted-foreground mr-1">Elevation — Fullscreen</span>
+   667→            <span className="text-[10px] text-muted-foreground hidden md:inline">Drag cabinets · 8-node resize · right-click menu</span>
+   668→            <div className="ml-auto flex items-center gap-1.5">
+   669→              <span className="text-[11px] text-muted-foreground hidden sm:inline">Zoom:</span>
+   670→              <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out" className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-muted"><ZoomOut className="h-3 w-3" /></button>
+   671→              <input type="range" min="0.25" max="4" step="0.25" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-24 accent-amber-600" title={`Zoom: ${Math.round(zoom*100)}%`} />
+   672→              <button onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Zoom in" className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-muted"><ZoomIn className="h-3 w-3" /></button>
+   673→              <span className="text-[10px] font-mono text-muted-foreground w-9 text-center">{Math.round(zoom*100)}%</span>
+   674→              <button onClick={() => setZoom(1)} title="Reset zoom to 100%" className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-muted"><Maximize className="h-3 w-3" /></button>
+   675→              <div className="mx-0.5 h-5 w-px bg-border" />
+   676→              <button onClick={() => setShowHelp(s => !s)} title="How to use"
+   677→                className={`flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-muted ${showHelp ? "bg-amber-500/10 text-amber-700 border-amber-500" : "text-muted-foreground"}`}>
+   678→                <HelpCircle className="h-3.5 w-3.5" />
+   679→              </button>
+   680→              <button onClick={() => setIsFullscreen(false)} title="Exit fullscreen (Esc)"
+   681→                className="flex h-7 w-7 items-center justify-center rounded border border-amber-500 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20">
+   682→                <Minimize className="h-3.5 w-3.5" />
+   683→              </button>
+   684→            </div>
+   685→          </div>
+   686→
+   687→          {/* Fullscreen help (collapsible) */}
+   688→          {showHelp && (
+   689→            <div className="border-b border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-muted-foreground">
+   690→              <b className="text-amber-800 dark:text-amber-400">Tips:</b> Drag palette icons onto the wall · click a cabinet then drag the 8 amber handles to resize · right-click for Duplicate/Lock/Delete · set drawer &amp; shelf heights individually in the properties panel below. Press <b>Esc</b> to exit.
+   691→            </div>
+   692→          )}
+   693→
+   694→          {/* Fullscreen canvas area */}
+   695→          <div className="relative flex-1 overflow-auto scrollbar-warm bg-white"
+   696→            onDragOver={(e) => e.preventDefault()}
+   697→            onDrop={handleDrop}
+   698→            onPointerMove={onCanvasMove}
+   699→            onPointerUp={onCanvasUp}
+   700→          >
+   701→            {renderWallContent()}
+   702→          </div>
+   703→        </div>
+   704→      )}
+   705→
+   706→      {/* Context menu (right-click) */}
+   707→      {contextMenu && (
+   708→        <div
+   709→          className="fixed z-50 min-w-[160px] rounded-lg border border-border bg-card py-1 shadow-xl"
+   710→          style={{ left: contextMenu.x, top: contextMenu.y }}
+   711→          onClick={(e) => e.stopPropagation()}
+   712→          onPointerDown={(e) => e.stopPropagation()}
+   713→        >
+   714→          <button className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted"
+   715→            onClick={() => { duplicateModule(contextMenu.id); setContextMenu(null); }}>
+   716→            <Copy className="h-3.5 w-3.5" /> Duplicate
+   717→          </button>
+   718→          <button className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted"
+   719→            onClick={() => { toggleLock(contextMenu.id); setContextMenu(null); }}>
+   720→            {lockedIds.has(contextMenu.id) ? <><Unlock className="h-3.5 w-3.5" /> Unlock Position</> : <><Lock className="h-3.5 w-3.5" /> Lock Position</>}
+   721→          </button>
+   722→          <div className="my-1 border-t border-border" />
+   723→          <button className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+   724→            onClick={() => { deleteModule(contextMenu.id); setContextMenu(null); }}>
+   725→            <Trash2 className="h-3.5 w-3.5" /> Delete
+   726→          </button>
+   727→        </div>
+   728→      )}
+   729→
+   730→      {/* Properties panel — stays visible while module is selected */}
+   731→      {selectedMod && onUpdateModules && (
+   732→        <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-3">
+   733→          <div className="mb-2 flex items-center gap-2">
+   734→            <span className="rounded bg-amber-700 px-2 py-0.5 text-xs font-bold text-white font-mono">Module {selectedMod.code}</span>
+   735→            <span className="text-xs text-muted-foreground">{CABINET_TYPES.find(t => t.value === selectedMod.type)?.label}</span>
+   736→            {lockedIds.has(selectedMod.id) && <span className="text-xs text-amber-600">🔒 Locked</span>}
+   737→            <div className="ml-auto flex gap-1">
+   738→              <button onClick={() => duplicateModule(selectedMod.id)} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted" title="Duplicate">
+   739→                <Copy className="h-3 w-3" /> Duplicate
+   740→              </button>
+   741→              <button onClick={() => toggleLock(selectedMod.id)} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-muted" title="Lock/Unlock">
+   742→                {lockedIds.has(selectedMod.id) ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+   743→              </button>
+   744→              <button onClick={() => deleteModule(selectedMod.id)} className="flex items-center gap-1 rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600">
+   745→                <Trash2 className="h-3 w-3" /> Delete
+   746→              </button>
+   747→            </div>
+   748→          </div>
+   749→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+   750→            <div className="space-y-1">
+   751→              <Label className="text-[10px] text-muted-foreground">Width (mm)</Label>
+   752→              <Input type="number" min="100" step="50" value={selectedMod.width} disabled={lockedIds.has(selectedMod.id)}
+   753→                onChange={(e) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, width: Math.max(100, Number(e.target.value) || 100) } : m))}
+   754→                className="h-8 text-xs" />
+   755→            </div>
+   756→            <div className="space-y-1">
+   757→              <Label className="text-[10px] text-muted-foreground">Height (mm)</Label>
+   758→              <Input type="number" min="100" step="50" value={selectedMod.height} disabled={lockedIds.has(selectedMod.id)}
+   759→                onChange={(e) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, height: Math.max(100, Number(e.target.value) || 100) } : m))}
+   760→                className="h-8 text-xs" />
+   761→            </div>
+   762→            <div className="space-y-1">
+   763→              <Label className="text-[10px] text-muted-foreground">X Position</Label>
+   764→              <Input type="number" value={selectedMod.x} disabled={lockedIds.has(selectedMod.id)}
+   765→                onChange={(e) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, x: Math.max(0, Number(e.target.value) || 0) } : m))}
+   766→                className="h-8 text-xs" />
+   767→            </div>
+   768→            <div className="space-y-1">
+   769→              <Label className="text-[10px] text-muted-foreground">Y Position</Label>
+   770→              <Input type="number" value={selectedMod.y} disabled={lockedIds.has(selectedMod.id)}
+   771→                onChange={(e) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, y: Math.max(0, Number(e.target.value) || 0) } : m))}
+   772→                className="h-8 text-xs" />
+   773→            </div>
+   774→            <div className="space-y-1">
+   775→              <Label className="text-[10px] text-muted-foreground">Type</Label>
+   776→              <Select value={selectedMod.type} disabled={lockedIds.has(selectedMod.id)}
+   777→                onValueChange={(v) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, type: v as any } : m))}>
+   778→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   779→                <SelectContent>{CABINET_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+   780→              </Select>
+   781→            </div>
+   782→            <div className="space-y-1">
+   783→              <Label className="text-[10px] text-muted-foreground">Opening</Label>
+   784→              <Select value={selectedMod.openingStyle} disabled={lockedIds.has(selectedMod.id)}
+   785→                onValueChange={(v) => onUpdateModules(modules.map(m => m.id === selectedMod.id ? { ...m, openingStyle: v as any } : m))}>
+   786→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   787→                <SelectContent>{OPENING_STYLES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+   788→              </Select>
+   789→            </div>
+   790→          </div>
+   791→
+   792→          {/* Drawer / shelf individual-height editor */}
+   793→          {!lockedIds.has(selectedMod.id) && (
+   794→            <div className="mt-3 space-y-2 rounded-md border border-amber-500/30 bg-white/60 p-2">
+   795→              {selectedMod.openingStyle === "Drawers" ? (
+   796→                <>
+   797→                  <div className="flex items-center gap-2">
+   798→                    <GripVertical className="h-3.5 w-3.5 text-amber-700" />
+   799→                    <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-400">Drawers — set each height individually</span>
+   800→                    <div className="ml-auto flex items-center gap-1">
+   801→                      <button title="Fewer drawers" onClick={() => setDrawerCount(selectedMod.id, (selectedMod.drawerHeights?.length ?? 1) - 1)} className="flex h-6 w-6 items-center justify-center rounded border border-border hover:bg-muted"><Minus className="h-3 w-3" /></button>
+   802→                      <span className="w-16 text-center text-[11px] font-mono">{selectedMod.drawerHeights?.length ?? 0} drawer{(selectedMod.drawerHeights?.length ?? 0) === 1 ? "" : "s"}</span>
+   803→                      <button title="More drawers" onClick={() => setDrawerCount(selectedMod.id, (selectedMod.drawerHeights?.length ?? 0) + 1)} className="flex h-6 w-6 items-center justify-center rounded border border-border hover:bg-muted"><Plus className="h-3 w-3" /></button>
+   804→                      <button title="Distribute evenly across cabinet height" onClick={() => setDrawerCount(selectedMod.id, selectedMod.drawerHeights?.length ?? 3)} className="ml-1 rounded border border-border px-2 py-0.5 text-[10px] hover:bg-muted">Even</button>
+   805→                    </div>
+   806→                  </div>
+   807→                  <div className="flex flex-wrap gap-1.5">
+   808→                    {(selectedMod.drawerHeights ?? []).map((dh, i) => (
+   809→                      <div key={i} className="flex flex-col items-center gap-0.5">
+   810→                        <span className="text-[9px] text-muted-foreground">D{i + 1}</span>
+   811→                        <Input type="number" min="50" step="10" value={dh}
+   812→                          onChange={(e) => setDrawerHeight(selectedMod.id, i, Number(e.target.value) || 50)}
+   813→                          className="h-7 w-16 text-[11px] text-center" />
+   814→                      </div>
+   815→                    ))}
+   816→                    {(selectedMod.drawerHeights?.length ?? 0) === 0 && (
+   817→                      <span className="text-[10px] text-muted-foreground italic">No drawers — click + to add one.</span>
+   818→                    )}
+   819→                  </div>
+   820→                  {(() => {
+   821→                    const used = (selectedMod.drawerHeights ?? []).reduce((a, b) => a + safeNum(b, 0), 0);
+   822→                    const over = used > selectedMod.height;
+   823→                    const gap = selectedMod.height - used;
+   824→                    return (
+   825→                      <p className={`text-[10px] ${over ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+   826→                        Sum of drawer heights: {used}mm / cabinet {selectedMod.height}mm
+   827→                        {over ? " ⚠ exceeds cabinet height — drawers will overflow"
+   828→                          : gap > 0 ? ` · ${gap}mm gap at top`
+   829→                          : ""}
+   830→                      </p>
+   831→                    );
+   832→                  })()}
+   833→                </>
+   834→              ) : selectedMod.openingStyle !== "Up-Lift Flap" ? (
+   835→                <>
+   836→                  <div className="flex items-center gap-2">
+   837→                    <GripVertical className="h-3.5 w-3.5 text-amber-700" />
+   838→                    <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-400">Shelves — set each height from bottom</span>
+   839→                    <div className="ml-auto flex items-center gap-1">
+   840→                      <button title="Fewer shelves" onClick={() => setShelfCount(selectedMod.id, (selectedMod.shelfHeights?.length ?? 0) - 1)} className="flex h-6 w-6 items-center justify-center rounded border border-border hover:bg-muted"><Minus className="h-3 w-3" /></button>
+   841→                      <span className="w-16 text-center text-[11px] font-mono">{selectedMod.shelfHeights?.length ?? 0} shelf{(selectedMod.shelfHeights?.length ?? 0) === 1 ? "" : "s"}</span>
+   842→                      <button title="More shelves" onClick={() => setShelfCount(selectedMod.id, (selectedMod.shelfHeights?.length ?? 0) + 1)} className="flex h-6 w-6 items-center justify-center rounded border border-border hover:bg-muted"><Plus className="h-3 w-3" /></button>
+   843→                      <button title="Space shelves evenly" onClick={() => setShelfCount(selectedMod.id, selectedMod.shelfHeights?.length ?? 2)} className="ml-1 rounded border border-border px-2 py-0.5 text-[10px] hover:bg-muted">Even</button>
+   844→                    </div>
+   845→                  </div>
+   846→                  <div className="flex flex-wrap gap-1.5">
+   847→                    {(selectedMod.shelfHeights ?? []).map((sh, i) => (
+   848→                      <div key={i} className="flex flex-col items-center gap-0.5">
+   849→                        <span className="text-[9px] text-muted-foreground">S{i + 1}</span>
+   850→                        <Input type="number" min="20" step="10" value={sh}
+   851→                          onChange={(e) => setShelfHeight(selectedMod.id, i, Number(e.target.value) || 20)}
+   852→                          className="h-7 w-16 text-[11px] text-center" />
+   853→                      </div>
+   854→                    ))}
+   855→                    {(selectedMod.shelfHeights?.length ?? 0) === 0 && (
+   856→                      <span className="text-[10px] text-muted-foreground italic">No shelves — click + to add one.</span>
+   857→                    )}
+   858→                  </div>
+   859→                  <p className="text-[10px] text-muted-foreground">
+   860→                    Each value is the shelf position measured from the cabinet bottom (max {Math.max(0, selectedMod.height - 20)}mm).
+   861→                  </p>
+   862→                </>
+   863→              ) : null}
+   864→            </div>
+   865→          )}
+   866→
+   867→          <p className="mt-2 text-[10px] text-muted-foreground">
+   868→            Drag to move · 8 amber nodes to resize (corners + edges) · Right-click for menu · Edges snap to nearby modules
+   869→          </p>
+   870→        </div>
+   871→      )}
+   872→    </div>
+   873→  );
+   874→}
+   875→
