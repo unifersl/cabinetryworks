@@ -58,4 +58,15 @@ server.log
 # Skills directory
 /skills/
 /agent-ctx/
-/upload/
+/upload/*.png
+backups/
+download/
+examples/
+tests/
+tool-results/
+.zscripts/
+mini-services/
+worklog.md
+upload/
+agent-ctx/
+skills/
