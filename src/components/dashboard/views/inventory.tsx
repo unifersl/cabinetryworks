@@ -1914,13 +1914,14 @@ function CategoriesTab() {
               action={<Button variant="outline" onClick={() => { setEditing(null); setCreateOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Category</Button>}
             />
           ) : (
+            <div className="overflow-x-auto scrollbar-warm">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden sm:table-cell">Description</TableHead>
-                  <TableHead className="text-right">Items</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-[160px]">Name</TableHead>
+                  <TableHead className="hidden sm:table-cell min-w-[200px]">Description</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Items</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1948,6 +1949,7 @@ function CategoriesTab() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -2905,7 +2907,7 @@ function RequestDetailDialog({ request, onClose }: { request: StockRequest; onCl
           </div>
 
           {/* Items table — Item Name > Iss Qty > Rtn */}
-          <div className="rounded-lg border border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-x-auto scrollbar-warm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -3101,7 +3103,7 @@ function RequestDialog({
                   No items added. Click "Add Item" to add materials to request.
                 </div>
               ) : (
-                <div className="rounded-lg border border-border overflow-hidden">
+                <div className="rounded-lg border border-border overflow-x-auto scrollbar-warm">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -3188,7 +3190,7 @@ function RequestDialog({
             </div>
 
             {/* Preview table — Item Name > Iss Qty > Rtn */}
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-x-auto scrollbar-warm">
               <Table>
                 <TableHeader>
                   <TableRow>

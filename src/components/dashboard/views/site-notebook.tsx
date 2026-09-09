@@ -1492,15 +1492,15 @@ function StockCheckDialog({
               </Button>
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto scrollbar-warm">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Material</TableHead>
-                    <TableHead className="text-right">Needed</TableHead>
-                    <TableHead className="text-right">Available</TableHead>
-                    <TableHead className="text-right">Shortage</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="min-w-[140px]">Material</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Needed</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Available</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Shortage</TableHead>
+                    <TableHead className="text-center min-w-[90px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1662,13 +1662,13 @@ function SyncShortagesDialog({
           </div>
 
           {syncable.length > 0 && (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto scrollbar-warm">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Material</TableHead>
-                    <TableHead className="text-right">Shortage</TableHead>
-                    <TableHead>Matched Item</TableHead>
+                    <TableHead className="min-w-[140px]">Material</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Shortage</TableHead>
+                    <TableHead className="min-w-[160px]">Matched Item</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

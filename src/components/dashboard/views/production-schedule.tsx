@@ -454,15 +454,16 @@ export function ProductionScheduleView() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
+                <div className="overflow-x-auto scrollbar-warm">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="h-8 text-xs">Job</TableHead>
-                      <TableHead className="h-8 text-xs">Stage</TableHead>
-                      <TableHead className="h-8 text-xs">Workstation</TableHead>
-                      <TableHead className="h-8 text-xs">Assigned To</TableHead>
-                      <TableHead className="h-8 text-xs">Status</TableHead>
-                      <TableHead className="h-8 text-xs text-right">
+                      <TableHead className="h-8 text-xs min-w-[140px]">Job</TableHead>
+                      <TableHead className="h-8 text-xs min-w-[100px]">Stage</TableHead>
+                      <TableHead className="h-8 text-xs min-w-[110px]">Workstation</TableHead>
+                      <TableHead className="h-8 text-xs min-w-[120px]">Assigned To</TableHead>
+                      <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
+                      <TableHead className="h-8 text-xs text-right min-w-[80px]">
                         Actions
                       </TableHead>
                     </TableRow>
@@ -554,6 +555,7 @@ export function ProductionScheduleView() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           ))}

@@ -325,7 +325,7 @@ function QuoteDialog({
             </Button>
           </div>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto scrollbar-warm rounded-lg border border-border p-6">
+        <div className="max-h-[70vh] overflow-y-auto scrollbar-warm rounded-lg border border-border p-3 sm:p-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -373,7 +373,7 @@ function QuoteContent({ costData }: { costData: NonNullable<ReturnType<typeof us
       </div>
 
       {/* Job info */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="rounded-lg border border-border bg-muted/30 p-3">
           <p className="text-[10px] font-medium uppercase text-muted-foreground">Job</p>
           <p className="text-sm font-medium">{cd.job.title}</p>
@@ -398,15 +398,16 @@ function QuoteContent({ costData }: { costData: NonNullable<ReturnType<typeof us
           </p>
         </div>
       ) : (
+        <div className="overflow-x-auto scrollbar-warm">
         <Table>
           <TableHeader>
             <TableRow className="border-2 border-primary bg-primary/5">
-              <TableHead>Part</TableHead>
-              <TableHead className="text-center">Qty</TableHead>
-              <TableHead className="text-right">Area (m²)</TableHead>
-              <TableHead className="text-right">Material</TableHead>
-              <TableHead className="text-right">Edge</TableHead>
-              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="min-w-[120px]">Part</TableHead>
+              <TableHead className="text-center min-w-[60px]">Qty</TableHead>
+              <TableHead className="text-right min-w-[90px]">Area (m²)</TableHead>
+              <TableHead className="text-right min-w-[90px]">Material</TableHead>
+              <TableHead className="text-right min-w-[80px]">Edge</TableHead>
+              <TableHead className="text-right min-w-[90px]">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -431,6 +432,7 @@ function QuoteContent({ costData }: { costData: NonNullable<ReturnType<typeof us
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
 
       {/* Summary */}
@@ -594,7 +596,7 @@ function MaterialPriceDialog({
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Material Type</Label>
               <Select value={material} onValueChange={setMaterial}>
@@ -632,7 +634,7 @@ function MaterialPriceDialog({
               onChange={(e) => setPricePerSqm(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="mp-edge">Edge Banding /m</Label>
               <Input

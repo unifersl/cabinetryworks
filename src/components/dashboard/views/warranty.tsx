@@ -342,13 +342,13 @@ export function WarrantyView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Claim #</TableHead>
-                    <TableHead className="h-8 text-xs">Job</TableHead>
-                    <TableHead className="h-8 text-xs">Issue Type</TableHead>
-                    <TableHead className="h-8 text-xs">Description</TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
-                    <TableHead className="h-8 text-xs">Date</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[110px]">Claim #</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[110px]">Job</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Issue Type</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Description</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Date</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

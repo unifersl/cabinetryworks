@@ -316,16 +316,16 @@ export function UsersView() {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead>User</TableHead>
-                    <TableHead className="hidden md:table-cell">
+                    <TableHead className="min-w-[180px]">User</TableHead>
+                    <TableHead className="hidden md:table-cell min-w-[160px]">
                       Contact
                     </TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">
+                    <TableHead className="min-w-[100px]">Role</TableHead>
+                    <TableHead className="min-w-[90px]">Status</TableHead>
+                    <TableHead className="hidden sm:table-cell min-w-[100px]">
                       Joined
                     </TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

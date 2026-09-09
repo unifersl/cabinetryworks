@@ -273,12 +273,12 @@ export function MaterialPlanningView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Material</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Required</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Available</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Shortage</TableHead>
-                    <TableHead className="h-8 text-xs">Unit</TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Material</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[90px]">Required</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[90px]">Available</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[90px]">Shortage</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[80px]">Unit</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

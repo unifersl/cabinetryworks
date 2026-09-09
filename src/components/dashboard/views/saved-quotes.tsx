@@ -205,16 +205,16 @@ export function SavedQuotesView() {
               </div>
             </div>
           ) : (
-            <div className="max-h-[60vh] overflow-y-auto scrollbar-warm">
+            <div className="max-h-[60vh] overflow-auto scrollbar-warm">
               <Table>
                 <TableHeader className="sticky top-0 bg-card">
                   <TableRow>
-                    <TableHead>Quote</TableHead>
-                    <TableHead className="hidden sm:table-cell">Job</TableHead>
-                    <TableHead className="hidden md:table-cell">Customer</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="min-w-[120px]">Quote</TableHead>
+                    <TableHead className="hidden sm:table-cell min-w-[120px]">Job</TableHead>
+                    <TableHead className="hidden md:table-cell min-w-[140px]">Customer</TableHead>
+                    <TableHead className="text-right min-w-[100px]">Total</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

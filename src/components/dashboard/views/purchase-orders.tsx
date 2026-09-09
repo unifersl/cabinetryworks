@@ -223,16 +223,16 @@ export function PurchaseOrdersView() {
               </div>
             </div>
           ) : (
-            <div className="max-h-[60vh] overflow-y-auto scrollbar-warm">
+            <div className="max-h-[60vh] overflow-auto scrollbar-warm">
               <Table>
                 <TableHeader className="sticky top-0 bg-card">
                   <TableRow>
-                    <TableHead>PO #</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead className="hidden sm:table-cell">Items</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="min-w-[110px]">PO #</TableHead>
+                    <TableHead className="min-w-[140px]">Supplier</TableHead>
+                    <TableHead className="hidden sm:table-cell min-w-[80px]">Items</TableHead>
+                    <TableHead className="text-right min-w-[100px]">Total</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -463,7 +463,7 @@ function CreatePODialog({
           }}
           className="space-y-4"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="po-supplier">
                 Supplier <span className="text-destructive">*</span>

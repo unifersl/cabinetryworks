@@ -369,12 +369,12 @@ export function CommunicationsView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Type</TableHead>
-                    <TableHead className="h-8 text-xs">Subject</TableHead>
-                    <TableHead className="h-8 text-xs">Customer / Job</TableHead>
-                    <TableHead className="h-8 text-xs">By</TableHead>
-                    <TableHead className="h-8 text-xs">Date</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Type</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Subject</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Customer / Job</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">By</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Date</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -444,7 +444,7 @@ export function CommunicationsView() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Customer</Label>
                 <Select

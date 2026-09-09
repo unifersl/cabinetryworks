@@ -313,14 +313,14 @@ export function ChangeOrdersView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Change #</TableHead>
-                    <TableHead className="h-8 text-xs">Job #</TableHead>
-                    <TableHead className="h-8 text-xs">Title</TableHead>
-                    <TableHead className="h-8 text-xs">Type</TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
-                    <TableHead className="h-8 text-xs">Requested By</TableHead>
-                    <TableHead className="h-8 text-xs">Date</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Change #</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Job #</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Title</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Type</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Requested By</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Date</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

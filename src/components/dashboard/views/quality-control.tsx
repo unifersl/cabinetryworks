@@ -378,12 +378,12 @@ export function QualityControlView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Job</TableHead>
-                    <TableHead className="h-8 text-xs">Stage</TableHead>
-                    <TableHead className="h-8 text-xs">Inspector</TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
-                    <TableHead className="h-8 text-xs">Inspected At</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Job</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Stage</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Inspector</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Inspected At</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

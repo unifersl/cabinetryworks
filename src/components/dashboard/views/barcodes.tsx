@@ -521,12 +521,12 @@ export function BarcodesView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Preview</TableHead>
-                    <TableHead className="h-8 text-xs">Code</TableHead>
-                    <TableHead className="h-8 text-xs">Linked To</TableHead>
-                    <TableHead className="h-8 text-xs">Type</TableHead>
-                    <TableHead className="h-8 text-xs">Printed</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Preview</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Code</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[160px]">Linked To</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Type</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Printed</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

@@ -373,13 +373,13 @@ export function DeliveriesView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Job</TableHead>
-                    <TableHead className="h-8 text-xs">Type</TableHead>
-                    <TableHead className="h-8 text-xs">Scheduled</TableHead>
-                    <TableHead className="h-8 text-xs">Driver / Vehicle</TableHead>
-                    <TableHead className="h-8 text-xs">Install Team</TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Actions</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[110px]">Job</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Type</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[120px]">Scheduled</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[140px]">Driver / Vehicle</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[140px]">Install Team</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -524,7 +524,7 @@ export function DeliveriesView() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Type</Label>
                 <Select
@@ -555,7 +555,7 @@ export function DeliveriesView() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Driver Name</Label>
                 <Input

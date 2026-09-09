@@ -146,7 +146,7 @@ export function SuppliersView() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <div className="rounded-lg bg-primary/10 p-2">
@@ -470,7 +470,7 @@ function SupplierDialog({
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="sup-contact" className="flex items-center gap-1.5">
                 <UserIcon className="h-3.5 w-3.5" /> Contact Name
@@ -494,7 +494,7 @@ function SupplierDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="sup-email" className="flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" /> Email

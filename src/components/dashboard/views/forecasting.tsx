@@ -312,21 +312,21 @@ export function ForecastingView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 text-xs">Item</TableHead>
-                    <TableHead className="h-8 text-xs text-right">Stock</TableHead>
-                    <TableHead className="h-8 text-xs text-right">
+                    <TableHead className="h-8 text-xs min-w-[160px]">Item</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[80px]">Stock</TableHead>
+                    <TableHead className="h-8 text-xs text-right min-w-[100px]">
                       Used (30d)
                     </TableHead>
-                    <TableHead className="h-8 text-xs text-right">
+                    <TableHead className="h-8 text-xs text-right min-w-[90px]">
                       Avg / day
                     </TableHead>
-                    <TableHead className="h-8 text-xs text-right">
+                    <TableHead className="h-8 text-xs text-right min-w-[120px]">
                       Days to stock-out
                     </TableHead>
-                    <TableHead className="h-8 text-xs text-right">
+                    <TableHead className="h-8 text-xs text-right min-w-[120px]">
                       Suggested Reorder
                     </TableHead>
-                    <TableHead className="h-8 text-xs">Status</TableHead>
+                    <TableHead className="h-8 text-xs min-w-[100px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

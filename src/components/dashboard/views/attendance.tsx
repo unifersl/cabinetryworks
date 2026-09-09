@@ -674,7 +674,7 @@ function WorkerDialog({ worker, onClose, onSubmit, loading }: {
         <DialogHeader>
           <DialogTitle>{worker ? "Edit Worker" : "Add Worker"}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 py-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
           <div className="space-y-1">
             <Label className="text-xs">Name *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm" autoFocus />
