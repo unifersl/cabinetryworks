@@ -73,7 +73,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     if (!fullName) errors.push("Full name is required");
     if (!password || password.length < 6)
       errors.push("Password must be at least 6 characters");
-    if (!["Admin", "SuperAdmin", "Technician"].includes(role))
+    if (!["Admin", "SuperAdmin", "Manager", "Storekeeper", "Auditor", "Technician"].includes(role))
       errors.push("Invalid role");
     if (errors.length) {
       return NextResponse.json({ error: errors.join("; ") }, { status: 400 });

@@ -47,7 +47,7 @@ export async function PUT(
   const data: Record<string, unknown> = {};
   if (body.fullName !== undefined) data.fullName = String(body.fullName).trim();
   if (body.role !== undefined) {
-    if (!["Admin", "SuperAdmin", "Technician"].includes(body.role))
+    if (!["Admin", "SuperAdmin", "Manager", "Storekeeper", "Auditor", "Technician"].includes(body.role))
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     data.role = body.role;
   }

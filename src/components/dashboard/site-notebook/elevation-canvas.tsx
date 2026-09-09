@@ -504,6 +504,28 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
     selectOnly(newMod.id);
   }
 
+  // --- Tap-to-add for mobile/touch devices ---
+  // HTML5 drag-drop doesn't work on touch devices. Tapping a palette item
+  // adds the cabinet to the canvas at the next available position.
+  function tapToAdd(type: string) {
+    if (!onUpdateModules) return;
+    const item = PALETTE.find((p) => p.type === type);
+    if (!item) return;
+    const newCode = String(modules.length + 1).padStart(2, "0");
+    const newMod = createEmptyModule(newCode);
+    newMod.type = type as any;
+    newMod.width = item.w;
+    newMod.height = item.h;
+    // Place at next available position (cascade)
+    const lastMod = modules[modules.length - 1];
+    const offsetX = lastMod ? Math.min(totalW - item.w, lastMod.x + lastMod.width + 20) : 100;
+    newMod.x = Math.round(offsetX);
+    newMod.y = Math.round(Math.min(totalH - item.h, 100));
+    commitModules([...modules, newMod]);
+    selectOnly(newMod.id);
+    toast.success(`${item.label} added — tap and hold to move`);
+  }
+
   // --- Pointer handlers ---
   function onModuleDown(e: React.PointerEvent, mod: CabinetModule) {
     if (!onUpdateModules) return;
@@ -1528,6 +1550,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
                 return (
                   <button key={item.type} draggable
                     onDragStart={(e) => { e.dataTransfer.setData("text/cabinet-type", item.type); e.dataTransfer.effectAllowed = "copy"; }}
+                    onClick={() => isTouch && tapToAdd(item.type)}
                     title={`${item.label} — ${item.hint}`}
                     aria-label={item.label}
                     className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-amber-500 hover:bg-amber-500/5 hover:text-amber-700 active:cursor-grabbing">
@@ -1551,6 +1574,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
                       return (
                         <div key={item.type} draggable
                           onDragStart={(e) => { e.dataTransfer.setData("text/cabinet-type", item.type); e.dataTransfer.effectAllowed = "copy"; }}
+                          onClick={() => tapToAdd(item.type)}
                           title={item.hint}
                           className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-grab hover:bg-muted rounded-sm">
                           <Icon className="h-3.5 w-3.5 shrink-0" />
