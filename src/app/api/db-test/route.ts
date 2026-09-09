@@ -7,68 +7,38 @@ export const maxDuration = 60;
 const PASSWORD = encodeURIComponent("ciCJU2AnYRN6vH*7");
 const PROJECT_REF = "bxcelvhzzfqkcmmekaek";
 
-const REGIONS = [
-  "ap-southeast-1", "ap-northeast-1", "ap-south-1", 
-  "eu-west-1", "eu-central-1", "us-east-1", "us-west-1",
-  "sa-east-1", "ca-central-1", "af-south-1",
-  "eu-west-2", "us-west-2", "ap-east-1",
+const URLS_TO_TRY = [
+  // New format: no region in hostname
+  `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@${PROJECT_REF}.pooler.supabase.com:6543/postgres`,
+  `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@${PROJECT_REF}.pooler.supabase.com:5432/postgres`,
+  // Direct connection
+  `postgresql://postgres:${PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres`,
+  // Old format with common regions
+  `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`,
+  `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`,
+  `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`,
 ];
 
 export async function GET() {
   const results: any[] = [];
 
-  for (const region of REGIONS) {
-    for (const port of [6543, 5432]) {
-      const url = `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@aws-0-${region}.pooler.supabase.com:${port}/postgres`;
-      try {
-        const client = new PrismaClient({ datasourceUrl: url });
-        // Try raw SQL first — don't assume tables exist
-        const tables: any[] = await client.$queryRaw`
-          SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LIMIT 5
-        `;
-        await client.$disconnect();
-        return NextResponse.json({ 
-          found: true, 
-          region, 
-          port, 
-          url,
-          tables: tables.map((t: any) => t.table_name),
-          message: "Connection works!"
-        });
-      } catch (e) {
-        const fullError = e instanceof Error ? e.message : String(e);
-        results.push({ 
-          region, 
-          port, 
-          error: fullError.substring(0, 150) 
-        });
-      }
+  for (let i = 0; i < URLS_TO_TRY.length; i++) {
+    const url = URLS_TO_TRY[i];
+    try {
+      const client = new PrismaClient({ datasourceUrl: url });
+      const tables: any[] = await client.$queryRaw`SELECT count(*) as cnt FROM information_schema.tables WHERE table_schema = 'public'`;
+      await client.$disconnect();
+      return NextResponse.json({ 
+        found: true, 
+        urlIndex: i,
+        url: url.replace(PASSWORD, '***'),
+        tableCount: tables[0]?.cnt,
+        message: "Connection works!"
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.substring(0, 100) : String(e).substring(0, 100);
+      results.push({ index: i, error: msg });
     }
-  }
-
-  // Also try direct connection
-  const directUrl = `postgresql://postgres:${PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres`;
-  try {
-    const client = new PrismaClient({ datasourceUrl: directUrl });
-    const tables: any[] = await client.$queryRaw`
-      SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LIMIT 5
-    `;
-    await client.$disconnect();
-    return NextResponse.json({ 
-      found: true, 
-      region: "direct", 
-      port: 5432, 
-      url: directUrl,
-      tables: tables.map((t: any) => t.table_name),
-      message: "Direct connection works!"
-    });
-  } catch (e) {
-    const fullError = e instanceof Error ? e.message : String(e);
-    results.push({ 
-      region: "direct", 
-      port: 5432, 
-      error: fullError.substring(0, 150) 
-    });
   }
 
   return NextResponse.json({ found: false, results });
