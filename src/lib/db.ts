@@ -6,11 +6,19 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-const SUPABASE_URL = "postgresql://postgres.bxcelvhzzfqkcmmekaek:%2AnDwopXdNXu3Ykcw@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres"
-
 if (!globalForPrisma.prisma) {
-  // Use the pg adapter which handles serverless connections better than Prisma's Rust engine
-  const pool = new Pool({ connectionString: SUPABASE_URL, max: 1, idleTimeoutMillis: 30000 })
+  // Use explicit connection params instead of URL string
+  // This avoids URL parsing issues with special chars in password
+  const pool = new Pool({
+    host: 'aws-0-ap-southeast-2.pooler.supabase.com',
+    port: 6543,
+    database: 'postgres',
+    user: 'postgres.bxcelvhzzfqkcmmekaek',
+    password: '*nDwopXdNXu3Ykcw',  // raw password, no URL encoding needed
+    max: 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 15000,
+  })
   const adapter = new PrismaPg(pool)
   globalForPrisma.prisma = new PrismaClient({ adapter, log: ['error'] })
 
