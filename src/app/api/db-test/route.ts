@@ -1,61 +1,41 @@
 import { NextResponse } from "next/server";
-import net from "net";
-import dns from "dns/promises";
-import { PrismaClient } from "@prisma/client";
+import { Pool } from 'pg';
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 export async function GET() {
-  const host = "aws-0-ap-southeast-2.pooler.supabase.com";
-  const port = 6543;
-  const results: any = { host, port };
+  const passwords = ['*nDwopXdNXu3Ykcw', 'ciCJU2AnYRN6vH*7'];
+  const results: any[] = [];
 
-  // Test 1: DNS resolution
-  try {
-    const addresses = await dns.resolve4(host);
-    results.dnsIPv4 = addresses;
-  } catch (e) {
-    results.dnsIPv4Error = e instanceof Error ? e.message : String(e);
+  for (const pwd of passwords) {
+    try {
+      const pool = new Pool({
+        host: 'aws-0-ap-southeast-2.pooler.supabase.com',
+        port: 6543,
+        database: 'postgres',
+        user: 'postgres.bxcelvhzzfqkcmmekaek',
+        password: pwd,
+        max: 1,
+        connectionTimeoutMillis: 10000,
+      });
+      const client = await pool.connect();
+      const res = await client.query('SELECT count(*) FROM information_schema.tables WHERE table_schema = $1', ['public']);
+      client.release();
+      await pool.end();
+      return NextResponse.json({
+        found: true,
+        password: pwd[0] + '***' + pwd.slice(-3),
+        tableCount: res.rows[0].count,
+        message: "Connection works!"
+      });
+    } catch (e) {
+      results.push({
+        password: pwd[0] + '***' + pwd.slice(-3),
+        error: e instanceof Error ? e.message.substring(0, 100) : String(e)
+      });
+    }
   }
 
-  try {
-    const addresses6 = await dns.resolve6(host);
-    results.dnsIPv6 = addresses6;
-  } catch (e) {
-    results.dnsIPv6Error = e instanceof Error ? e.message : String(e);
-  }
-
-  // Test 2: TCP connection
-  results.tcp = await new Promise((resolve) => {
-    const socket = new net.Socket();
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      resolve({ status: "timeout", message: "Connection timed out after 5s" });
-    }, 5000);
-
-    socket.connect(port, host, () => {
-      clearTimeout(timeout);
-      socket.destroy();
-      resolve({ status: "connected", message: "TCP connection succeeded!" });
-    });
-
-    socket.on("error", (err) => {
-      clearTimeout(timeout);
-      resolve({ status: "error", message: err.message });
-    });
-  });
-
-  // Test 3: Prisma connection with the pooler URL
-  const url = "postgresql://postgres.bxcelvhzzfqkcmmekaek:%2AnDwopXdNXu3Ykcw@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres";
-  try {
-    const client = new PrismaClient({ datasourceUrl: url });
-    const count = await client.user.count();
-    await client.$disconnect();
-    results.prisma = { status: "ok", userCount: count };
-  } catch (e) {
-    results.prisma = { status: "error", message: e instanceof Error ? e.message.substring(0, 150) : String(e) };
-  }
-
-  return NextResponse.json(results);
+  return NextResponse.json({ found: false, results });
 }
