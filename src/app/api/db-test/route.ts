@@ -7,8 +7,12 @@ export const maxDuration = 60;
 const PASSWORD = encodeURIComponent("ciCJU2AnYRN6vH*7");
 const PROJECT_REF = "bxcelvhzzfqkcmmekaek";
 
-// Most likely regions for Sri Lanka users
-const REGIONS = ["ap-southeast-1", "ap-northeast-1", "ap-south-1", "eu-west-1", "us-east-1"];
+const REGIONS = [
+  "ap-southeast-1", "ap-northeast-1", "ap-south-1", 
+  "eu-west-1", "eu-central-1", "us-east-1", "us-west-1",
+  "sa-east-1", "ca-central-1", "af-south-1",
+  "eu-west-2", "us-west-2", "ap-east-1",
+];
 
 export async function GET() {
   const results: any[] = [];
@@ -18,21 +22,53 @@ export async function GET() {
       const url = `postgresql://postgres.${PROJECT_REF}:${PASSWORD}@aws-0-${region}.pooler.supabase.com:${port}/postgres`;
       try {
         const client = new PrismaClient({ datasourceUrl: url });
-        const count = await client.user.count();
+        // Try raw SQL first — don't assume tables exist
+        const tables: any[] = await client.$queryRaw`
+          SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LIMIT 5
+        `;
         await client.$disconnect();
         return NextResponse.json({ 
           found: true, 
           region, 
           port, 
           url,
-          userCount: count,
-          results: [...results, { region, port, status: "WORKS" }]
+          tables: tables.map((t: any) => t.table_name),
+          message: "Connection works!"
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message.substring(0, 60) : String(e).substring(0, 60);
-        results.push({ region, port, status: "FAIL", error: msg });
+        const fullError = e instanceof Error ? e.message : String(e);
+        results.push({ 
+          region, 
+          port, 
+          error: fullError.substring(0, 150) 
+        });
       }
     }
+  }
+
+  // Also try direct connection
+  const directUrl = `postgresql://postgres:${PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres`;
+  try {
+    const client = new PrismaClient({ datasourceUrl: directUrl });
+    const tables: any[] = await client.$queryRaw`
+      SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LIMIT 5
+    `;
+    await client.$disconnect();
+    return NextResponse.json({ 
+      found: true, 
+      region: "direct", 
+      port: 5432, 
+      url: directUrl,
+      tables: tables.map((t: any) => t.table_name),
+      message: "Direct connection works!"
+    });
+  } catch (e) {
+    const fullError = e instanceof Error ? e.message : String(e);
+    results.push({ 
+      region: "direct", 
+      port: 5432, 
+      error: fullError.substring(0, 150) 
+    });
   }
 
   return NextResponse.json({ found: false, results });
