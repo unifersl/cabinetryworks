@@ -7,7 +7,8 @@ export async function GET() {
   try {
     const userCount = await db.user.count();
     return NextResponse.json({ status: "ok", database: "connected", users: userCount });
-  } catch {
-    return NextResponse.json({ status: "error", database: "failed" }, { status: 500 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ status: "error", database: "failed", error: msg.substring(0, 300) }, { status: 500 });
   }
 }
