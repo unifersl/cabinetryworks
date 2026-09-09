@@ -61,9 +61,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[auth/login] error", err);
+    // Provide a more helpful error so we can debug on Vercel
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/login] error:", message);
     return NextResponse.json(
-      { error: "Login failed. Please try again." },
+      { error: `Login failed: ${message}` },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 // Prisma schema — Custom Kitchen & Cabinetry Manufacturing System
 // Supports BOTH SQLite (local dev) and PostgreSQL (production/Supabase).
-// For local dev: set DATABASE_URL="file:./db/custom.db" and use provider = "sqlite"
+// For local dev: set DATABASE_URL="file:./db/custom.db" and use provider = "postgresql"
 // For production: set DATABASE_URL to your Supabase PostgreSQL URL and use provider = "postgresql"
 // See DEPLOY.md for migration instructions.
 
@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

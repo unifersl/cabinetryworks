@@ -5,22 +5,20 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 /**
- * Singleton PrismaClient with connection resilience.
- * No query logging to minimize memory and I/O overhead.
- *
- * If the PrismaClient instance is lost (e.g., after a hot reload in dev),
- * a new one is created automatically.
+ * Singleton PrismaClient.
+ * On Vercel serverless, the DATABASE_URL env var is used automatically.
+ * Connection pooling is handled by Prisma + Supabase pgBouncer.
  */
 if (!globalForPrisma.prisma) {
-  globalForPrisma.prisma = new PrismaClient()
+  globalForPrisma.prisma = new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  })
 
-  // Graceful shutdown — disconnect on process exit to prevent
-  // dangling connections that cause "database is locked" errors.
   process.on('beforeExit', async () => {
     try {
       await globalForPrisma.prisma?.$disconnect()
     } catch {
-      // ignore disconnect errors during shutdown
+      // ignore
     }
   })
 }
