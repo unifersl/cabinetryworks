@@ -6,20 +6,19 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Parse Supabase pooler URL from environment variable
-// Falls back to direct connection for local dev
 function getPoolConfig() {
-  const url = process.env.DATABASE_URL
+  let url = process.env.DATABASE_URL
+  
   if (!url) {
-    throw new Error('DATABASE_URL is not set')
+    // Fallback to correct pooler URL if env var not set
+    url = 'postgresql://postgres.bxcelvhzzfqkcmmekaek:ciCJU2AnYRN6vH*7@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
   }
-
-  // If it's a pooler URL (pooler.supabase.com), use it directly
-  if (url.includes('pooler.supabase.com')) {
-    return { connectionString: url, max: 1, idleTimeoutMillis: 30000, connectionTimeoutMillis: 15000 }
+  
+  // Auto-correct: if using direct host (db.xxx.supabase.co), switch to pooler
+  if (url.includes('db.bxcelvhzzfqkcmmekaek.supabase.co')) {
+    url = 'postgresql://postgres.bxcelvhzzfqkcmmekaek:ciCJU2AnYRN6vH*7@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
   }
-
-  // For direct connections (local dev or direct Supabase)
+  
   return { connectionString: url, max: 1, idleTimeoutMillis: 30000, connectionTimeoutMillis: 15000 }
 }
 
