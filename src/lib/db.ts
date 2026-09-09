@@ -2,34 +2,28 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
-const globalForPrisma = globalThis as unknown as {
+const globalForPrima = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-function getPoolConfig() {
-  let url = process.env.DATABASE_URL
-  
-  if (!url) {
-    // Fallback to correct pooler URL if env var not set
-    url = 'postgresql://postgres.bxcelvhzzfqkcmmekaek:ciCJU2AnYRN6vH*7@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
-  }
-  
-  // Auto-correct: if using direct host (db.xxx.supabase.co), switch to pooler
-  if (url.includes('db.bxcelvhzzfqkcmmekaek.supabase.co')) {
-    url = 'postgresql://postgres.bxcelvhzzfqkcmmekaek:ciCJU2AnYRN6vH*7@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres'
-  }
-  
-  return { connectionString: url, max: 1, idleTimeoutMillis: 30000, connectionTimeoutMillis: 15000 }
-}
-
-if (!globalForPrisma.prisma) {
-  const pool = new Pool(getPoolConfig())
+if (!globalForPrima.prisma) {
+  // Use explicit params — pg Pool URL parsing is unreliable with special chars
+  const pool = new Pool({
+    host: 'aws-0-ap-southeast-2.pooler.supabase.com',
+    port: 6543,
+    database: 'postgres',
+    user: 'postgres.bxcelvhzzfqkcmmekaek',
+    password: 'ciCJU2AnYRN6vH*7',
+    max: 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 15000,
+  })
   const adapter = new PrismaPg(pool)
-  globalForPrisma.prisma = new PrismaClient({ adapter, log: ['error'] })
+  globalForPrima.prisma = new PrismaClient({ adapter, log: ['error'] })
 
   process.on('beforeExit', async () => {
-    try { await globalForPrisma.prisma?.$disconnect() } catch {}
+    try { await globalForPrima.prisma?.$disconnect() } catch {}
   })
 }
 
-export const db = globalForPrisma.prisma
+export const db = globalForPrima.prisma
