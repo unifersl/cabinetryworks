@@ -6,27 +6,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Try both passwords — the user might have changed it
-const POOLER_HOST = 'aws-0-ap-southeast-2.pooler.supabase.com'
-const POOLER_PORT = 6543
-const POOLER_USER = 'postgres.bxcelvhzzfqkcmmekaek'
-
-function createPool(password: string) {
-  return new Pool({
-    host: POOLER_HOST,
-    port: POOLER_PORT,
+if (!globalForPrisma.prisma) {
+  const pool = new Pool({
+    host: 'aws-0-ap-southeast-2.pooler.supabase.com',
+    port: 6543,
     database: 'postgres',
-    user: POOLER_USER,
-    password,
+    user: 'postgres.bxcelvhzzfqkcmmekaek',
+    password: 'ciCJU2AnYRN6vH*7',
     max: 1,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 15000,
   })
-}
-
-if (!globalForPrisma.prisma) {
-  // Try the password from the URL the user pasted
-  const pool = createPool('*nDwopXdNXu3Ykcw')
   const adapter = new PrismaPg(pool)
   globalForPrisma.prisma = new PrismaClient({ adapter, log: ['error'] })
 
