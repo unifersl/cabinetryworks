@@ -34,7 +34,21 @@ export type AuditEntityType =
   | "equipment"
   | "equipment_assignment"
   | "milestone"
-  | "material_requirement";
+  | "material_requirement"
+  | "job_expense"
+  | "user_permission"
+  | "stock_request"
+  | "goods_issue"
+  | "goods_return"
+  | "stock_transfer"
+  | "stock_adjustment"
+  | "stock_take"
+  | "outside_purchase"
+  | "inventory_item"
+  | "warehouse"
+  | "supplier"
+  | "quote"
+  | "material_price";
 
 export interface AuditInput {
   action: AuditAction;

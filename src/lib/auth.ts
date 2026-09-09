@@ -1,3 +1,4 @@
+import type { Role } from "@/lib/types";
 import "server-only";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";

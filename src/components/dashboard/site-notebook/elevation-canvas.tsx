@@ -674,14 +674,14 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
     } else if (dd.type === "resize") {
       const min = 100;
       let nw = dd.origW, nh = dd.origH, nx = dd.origX, ny = dd.origY;
-      if (dd.edge === "right") nw = Math.max(min, Math.round(dd.origW + dxMm));
-      if (dd.edge === "left") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); }
-      if (dd.edge === "bottom") nh = Math.max(min, Math.round(dd.origH + dyMm));
-      if (dd.edge === "top") { nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
-      if (dd.edge === "br") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
-      if (dd.edge === "bl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
-      if (dd.edge === "tr") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
-      if (dd.edge === "tl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+      if (dd.edge && dd.edge === "right") nw = Math.max(min, Math.round(dd.origW + dxMm));
+      if (dd.edge && dd.edge === "left") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); }
+      if (dd.edge && dd.edge === "bottom") nh = Math.max(min, Math.round(dd.origH + dyMm));
+      if (dd.edge && dd.edge === "top") { nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+      if (dd.edge && dd.edge === "br") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
+      if (dd.edge && dd.edge === "bl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH + dyMm)); }
+      if (dd.edge && dd.edge === "tr") { nw = Math.max(min, Math.round(dd.origW + dxMm)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
+      if (dd.edge && dd.edge === "tl") { nw = Math.max(min, Math.round(dd.origW - dxMm)); nx = Math.round(dd.origX + (dd.origW - nw)); nh = Math.max(min, Math.round(dd.origH - dyMm)); ny = Math.round(dd.origY + (dd.origH - nh)); }
       // When snap is ON, snap the resize edges to nearby cabinet edges + wall edges
       // When snap is OFF, NO wall-bound clamping — resize is completely free.
       if (snapEnabled) {
@@ -718,21 +718,21 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
           return best ? val + best.diff : val;
         };
         // Snap the edges being dragged
-        if (dd.edge.includes("r") || dd.edge === "right") {
+        if (dd.edge?.includes("r") || dd.edge === "right") {
           const snapped = snapVal(edges.right, "x");
           nw = Math.max(min, snapped - nx);
         }
-        if (dd.edge.includes("l") || dd.edge === "left") {
+        if (dd.edge?.includes("l") || dd.edge === "left") {
           const snapped = snapVal(edges.left, "x");
           const delta = snapped - edges.left;
           nx = Math.max(0, nx + delta);
           nw = Math.max(min, nw - delta);
         }
-        if (dd.edge.includes("b") || dd.edge === "bottom") {
+        if (dd.edge?.includes("b") || dd.edge === "bottom") {
           const snapped = snapVal(edges.bottom, "y");
           nh = Math.max(min, snapped - ny);
         }
-        if (dd.edge.includes("t") || dd.edge === "top") {
+        if (dd.edge?.includes("t") || dd.edge === "top") {
           const snapped = snapVal(edges.top, "y");
           const delta = snapped - edges.top;
           ny = Math.max(0, ny + delta);

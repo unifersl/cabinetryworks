@@ -47,7 +47,6 @@ export async function createBackup(userId: string | null, type: string = "manual
 
   for (const model of MODELS) {
     try {
-      // @ts-expect-error — dynamic model access
       const records = await db[model].findMany();
       data[model] = records.map(serializeRecord);
     } catch {
