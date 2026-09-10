@@ -3,10 +3,25 @@
  * Run: `bun run db:seed`
  */
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 
-const db = new PrismaClient();
+// Use the SAME adapter pattern as src/lib/db.ts so the seed connects to Supabase
+// reliably (plain PrismaClient can't parse the pooler URL / special-char passwords).
+const pool = new Pool({
+  host: "aws-0-ap-southeast-2.pooler.supabase.com",
+  port: 6543,
+  database: "postgres",
+  user: "postgres.bxcelvhzzfqkcmmekaek",
+  password: "ciCJU2AnYRN6vH*7",
+  max: 1,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000,
+});
+const adapter = new PrismaPg(pool);
+const db = new PrismaClient({ adapter, log: ["error"] });
 
 async function main() {
   const existing = await db.user.findUnique({ where: { username: "admin" } });
