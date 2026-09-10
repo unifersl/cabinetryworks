@@ -279,26 +279,28 @@ export function JobDetailSheet({
             {/* Tabs */}
             <div className="flex-1 overflow-y-auto scrollbar-warm">
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="sticky top-0 z-10 w-full justify-start rounded-none border-b border-border bg-card px-3">
-                  <TabsTrigger value="overview" className="gap-1.5">
-                    <ClipboardList className="h-3.5 w-3.5" />
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger value="measurements" className="gap-1.5">
-                    <Ruler className="h-3.5 w-3.5" />
-                    Measurements
-                    <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
-                      {job.measurements.length}
-                    </span>
-                  </TabsTrigger>
-                  <TabsTrigger value="cutting" className="gap-1.5">
-                    <Scissors className="h-3.5 w-3.5" />
-                    Cutting Lists
-                    <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
-                      {job.cuttingLists.length}
-                    </span>
-                  </TabsTrigger>
-                </TabsList>
+                <div className="sticky top-0 z-10 overflow-x-auto scrollbar-warm bg-card px-3">
+                  <TabsList className="flex h-auto w-max justify-start rounded-none border-b border-border bg-transparent p-0">
+                    <TabsTrigger value="overview" className="gap-1.5 whitespace-nowrap flex-shrink-0">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="measurements" className="gap-1.5 whitespace-nowrap flex-shrink-0">
+                      <Ruler className="h-3.5 w-3.5" />
+                      Measurements
+                      <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
+                        {job.measurements.length}
+                      </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="cutting" className="gap-1.5 whitespace-nowrap flex-shrink-0">
+                      <Scissors className="h-3.5 w-3.5" />
+                      Cutting Lists
+                      <span className="ml-0.5 rounded-full bg-muted px-1.5 text-[10px] font-medium">
+                        {job.cuttingLists.length}
+                      </span>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 {/* Overview tab */}
                 <TabsContent value="overview" className="space-y-4 p-5">

@@ -1542,9 +1542,9 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
       <div className="rounded-lg border border-border bg-muted/30 p-2 space-y-2">
         {/* Row 1: Drag palette (left) + Zoom controls (right) */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto scrollbar-warm pb-0.5">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0 mr-0.5 hidden sm:inline">Drag</span>
-            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+            <div className="flex items-center gap-1 min-w-0 flex-nowrap lg:flex-wrap shrink-0 lg:shrink">
               {(isMobile ? MOBILE_PALETTE : PALETTE).map((item) => {
                 const Icon = item.icon;
                 return (
@@ -1553,7 +1553,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
                     onClick={() => isTouch && tapToAdd(item.type)}
                     title={`${item.label} — ${item.hint}`}
                     aria-label={item.label}
-                    className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-amber-500 hover:bg-amber-500/5 hover:text-amber-700 active:cursor-grabbing">
+                    className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-amber-500 hover:bg-amber-500/5 hover:text-amber-700 active:cursor-grabbing shrink-0">
                     <Icon className="h-3.5 w-3.5" />
                   </button>
                 );
@@ -1638,9 +1638,9 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
           </div>
         </div>
 
-        {/* Row 2: toggles + status chips (left) + Align + undo/redo + help/fullscreen (right) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-border/60">
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+        {/* Row 2: toggles + status chips + align + undo/redo + help/fullscreen (single compact row on mobile) */}
+        <div className="flex items-center gap-2 pt-1.5 border-t border-border/60 overflow-x-auto scrollbar-warm">
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
             {/* Toggle pills */}
             <TogglePill active={snapEnabled} onClick={() => setSnapEnabled(s => !s)} icon={Magnet} label="Snap" title={snapEnabled ? "Snapping ON — click to turn OFF (free mode)" : "Snapping OFF — click to turn ON"} />
             {/* Snap mode: Edges / Grid */}
@@ -1705,7 +1705,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
           </div>
 
           {/* Right-side tools */}
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-nowrap items-center gap-1 shrink-0 ml-auto">
             {/* Undo / Redo */}
             <button onClick={undo} disabled={undoLen === 0} title="Undo (Ctrl+Z)"
               className="flex h-7 w-7 items-center justify-center rounded border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1828,7 +1828,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
         <div
           ref={scrollRef}
           tabIndex={0}
-          className="relative w-full overflow-auto scrollbar-warm rounded-lg border border-border bg-white outline-none focus:ring-2 focus:ring-amber-500/30 min-h-[250px] sm:min-h-[300px]"
+          className="relative w-full overflow-auto scrollbar-warm rounded-lg border border-border bg-white outline-none focus:ring-2 focus:ring-amber-500/30 min-h-[300px] sm:min-h-[400px] lg:min-h-[500px]"
           style={{ maxHeight: height, touchAction: "none" }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
@@ -2401,13 +2401,13 @@ function TogglePill({ active, onClick, icon: Icon, label, title }: {
 }) {
   return (
     <button onClick={onClick} title={title}
-      className={`flex h-7 items-center gap-1 px-2 rounded border text-[11px] font-medium transition-colors ${
+      className={`flex h-7 items-center gap-1 px-2 rounded border text-[11px] font-medium transition-colors shrink-0 ${
         active
           ? "bg-amber-500/15 text-amber-700 border-amber-500"
           : "bg-card text-muted-foreground border-border hover:bg-muted"
       }`}>
-      <Icon className="h-3 w-3" />
-      <span className="hidden sm:inline">{label}</span>
+      <Icon className="h-3 w-3 shrink-0" />
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }

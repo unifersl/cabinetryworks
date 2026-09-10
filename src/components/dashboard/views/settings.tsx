@@ -18,6 +18,16 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   Save,
@@ -291,6 +301,9 @@ export function SettingsView() {
       <WhatsNewSection />
 
       <BackupSection />
+
+      {/* Demo Data — SuperAdmin only */}
+      <DemoDataSection />
     </div>
   );
 }
@@ -316,7 +329,7 @@ function ModuleTogglesGrid() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {toggleableItems.map((item) => {
         const Icon = item.icon;
         // New modules (v2) default OFF, existing ones default ON
@@ -325,15 +338,15 @@ function ModuleTogglesGrid() {
         return (
           <div
             key={item.id}
-            className={`flex items-center justify-between rounded-lg border p-2.5 transition-colors relative ${
+            className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-colors relative ${
               isEnabled ? "border-border bg-card" : "border-border bg-muted/30 opacity-70"
             }`}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`rounded-md p-1 ${isEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className={`rounded-md p-1 shrink-0 ${isEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                 <Icon className="h-3.5 w-3.5" />
               </div>
-              <span className="text-xs font-medium truncate">{item.label}</span>
+              <span className="text-xs font-medium leading-tight">{item.label}</span>
               {item.isNew && (
                 <span className="rounded-full bg-emerald-500 px-1 py-0.5 text-[7px] font-bold leading-none text-white shrink-0">
                   NEW
@@ -629,6 +642,226 @@ function WhatsNewSection() {
             Show "What's New" banner again
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ============ Demo Data Section — SuperAdmin only ============ */
+function DemoDataSection() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isSuperAdminUser = user?.role === "SuperAdmin";
+
+  // Check if demo data exists
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ["demo-data-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/demo-data", { method: "GET" });
+      if (!res.ok) throw new Error("Failed to check demo data status");
+      return (await res.json()) as { hasDemoData: boolean; counts?: { customers: number; jobs: number; inventory: number } };
+    },
+    enabled: isSuperAdminUser,
+  });
+
+  const [seedOpen, setSeedOpen] = React.useState(false);
+  const [removeOpen, setRemoveOpen] = React.useState(false);
+  const [seeding, setSeeding] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
+
+  async function handleSeed() {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/demo-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "seed" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Seed failed");
+      toast.success(
+        `Demo data loaded — ${data.counts.customers} customers, ${data.counts.jobs} jobs, ${data.counts.inventory} inventory items`
+      );
+      setSeedOpen(false);
+      // Invalidate queries so lists refresh
+      queryClient.invalidateQueries({ queryKey: ["demo-data-status"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to seed demo data");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      const res = await fetch("/api/demo-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Remove failed");
+      const d = data.deleted;
+      toast.success(
+        `Demo data removed — ${d.customers} customers, ${d.jobs} jobs, ${d.inventory} inventory items`
+      );
+      setRemoveOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["demo-data-status"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove demo data");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  if (!isSuperAdminUser) return null;
+
+  const hasDemo = statusData?.hasDemoData === true;
+  const counts = statusData?.counts;
+
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/5">
+      <CardHeader className="pb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Sparkles className="h-4 w-4 text-amber-600" />
+              Demo Data
+            </CardTitle>
+            <CardDescription className="text-xs mt-1">
+              Load sample customers, jobs &amp; inventory for testing. Safe to remove anytime — users are kept.
+            </CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className={`text-xs shrink-0 ${
+              hasDemo
+                ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {statusLoading ? "Checking…" : hasDemo ? "Demo data loaded" : "No demo data"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-lg border border-border bg-card p-3 text-xs">
+          <p className="font-medium text-foreground">What gets created:</p>
+          <ul className="mt-1.5 space-y-0.5 text-muted-foreground list-disc ml-4">
+            <li>8 sample customers (prefixed with &quot;DEMO -&quot;)</li>
+            <li>21 sample job orders spread across all statuses</li>
+            <li>Site measurements &amp; cutting lists for production jobs</li>
+            <li>6 inventory items, 3 categories &amp; a demo warehouse (WH-DEMO)</li>
+          </ul>
+        </div>
+
+        {hasDemo && counts && (
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <Badge variant="secondary" className="bg-card border border-border">{counts.customers} customers</Badge>
+            <Badge variant="secondary" className="bg-card border border-border">{counts.jobs} jobs</Badge>
+            <Badge variant="secondary" className="bg-card border border-border">{counts.inventory} inventory items</Badge>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setSeedOpen(true)}
+            disabled={seeding || removing || hasDemo}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            {seeding ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            Load Demo Data
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRemoveOpen(true)}
+            disabled={seeding || removing || !hasDemo}
+            className="border-red-500/40 text-red-700 hover:bg-red-50 hover:text-red-800"
+          >
+            {removing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+            Remove Demo Data
+          </Button>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground">
+          Demo records are tagged with a &quot;DEMO -&quot; prefix on customer names and a &quot;DEMO-&quot; prefix on inventory codes, so they can be safely identified and removed without affecting real data.
+        </p>
+
+        {/* Seed confirmation */}
+        <AlertDialog open={seedOpen} onOpenChange={setSeedOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Load demo data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will create 8 sample customers, 21 job orders, measurements, cutting lists, and 6 inventory items in a demo warehouse. All demo data is clearly tagged and can be removed anytime.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={seeding}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleSeed();
+                }}
+                disabled={seeding}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {seeding ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Loading…
+                  </>
+                ) : (
+                  "Load Demo Data"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Remove confirmation */}
+        <AlertDialog open={removeOpen} onOpenChange={setRemoveOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove all demo data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all customers, jobs, measurements, cutting lists, inventory items, and the demo warehouse tagged with demo prefixes. <span className="font-semibold text-foreground">Real users and real data are kept.</span> This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleRemove();
+                }}
+                disabled={removing}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {removing ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Removing…
+                  </>
+                ) : (
+                  "Remove Demo Data"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

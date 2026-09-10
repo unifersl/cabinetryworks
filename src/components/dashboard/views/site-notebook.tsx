@@ -618,10 +618,10 @@ export function SiteNotebookView() {
             </CardContent>
           </Card>
 
-          {/* 2/3 + 1/3 split layout: Drawing canvas (2/3) + Module cutting lists (1/3) */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* 2/3 + 1/3 split layout: Drawing canvas (2/3) + Module cutting lists (1/3) — stacks below xl */}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             {/* LEFT 2/3: Elevation drawing canvas */}
-            <Card className="lg:col-span-2">
+            <Card className="xl:col-span-2">
               <CardHeader className="pb-2 px-4 pt-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -648,7 +648,7 @@ export function SiteNotebookView() {
             </Card>
 
             {/* RIGHT 1/3: Module cutting lists */}
-            <Card className="lg:col-span-1">
+            <Card className="xl:col-span-1">
               <CardHeader className="pb-2 px-4 pt-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -665,7 +665,7 @@ export function SiteNotebookView() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3 max-h-[600px] overflow-y-auto scrollbar-warm px-4 pb-4">
+              <CardContent className="space-y-3 max-h-[500px] xl:max-h-[600px] overflow-y-auto scrollbar-warm px-4 pb-4">
               {data.modules.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 py-12 text-center">
                   <div className="rounded-full bg-muted p-4">

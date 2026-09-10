@@ -556,49 +556,49 @@ export function JobManagementSheet({
             {/* Tabs */}
             <div className="flex-1 overflow-y-auto scrollbar-warm">
               <Tabs value={tab} onValueChange={setTab} className="w-full">
-                <div className="sticky top-0 z-10 overflow-x-auto bg-card px-3">
+                <div className="sticky top-0 z-10 overflow-x-auto scrollbar-warm bg-card px-3">
                   <TabsList className="flex h-auto w-max rounded-none border-b border-transparent bg-transparent p-0">
-                    <TabsTrigger value="overview" className="gap-1.5">
+                    <TabsTrigger value="overview" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <ClipboardList className="h-3.5 w-3.5" />
                       Overview
                     </TabsTrigger>
-                    <TabsTrigger value="time" className="gap-1.5">
+                    <TabsTrigger value="time" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Clock className="h-3.5 w-3.5" />
                       Time Logs
                     </TabsTrigger>
-                    <TabsTrigger value="transport" className="gap-1.5">
+                    <TabsTrigger value="transport" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Truck className="h-3.5 w-3.5" />
                       Transport
                     </TabsTrigger>
-                    <TabsTrigger value="fb" className="gap-1.5">
+                    <TabsTrigger value="fb" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Utensils className="h-3.5 w-3.5" />
                       F&B
                     </TabsTrigger>
-                    <TabsTrigger value="tools" className="gap-1.5">
+                    <TabsTrigger value="tools" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Wrench className="h-3.5 w-3.5" />
                       Tools
                     </TabsTrigger>
-                    <TabsTrigger value="issues" className="gap-1.5">
+                    <TabsTrigger value="issues" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <ArrowLeftRight className="h-3.5 w-3.5" />
                       Tool Issues
                     </TabsTrigger>
-                    <TabsTrigger value="returns" className="gap-1.5">
+                    <TabsTrigger value="returns" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <RotateCcw className="h-3.5 w-3.5" />
                       Tool Returns
                     </TabsTrigger>
-                    <TabsTrigger value="stock" className="gap-1.5">
+                    <TabsTrigger value="stock" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Package className="h-3.5 w-3.5" />
                       Stock
                     </TabsTrigger>
-                    <TabsTrigger value="expenses" className="gap-1.5">
+                    <TabsTrigger value="expenses" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <Wallet className="h-3.5 w-3.5" />
                       Expenses
                     </TabsTrigger>
-                    <TabsTrigger value="attendance" className="gap-1.5">
+                    <TabsTrigger value="attendance" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <CalendarCheck className="h-3.5 w-3.5" />
                       Attendance
                     </TabsTrigger>
-                    <TabsTrigger value="insights" className="gap-1.5">
+                    <TabsTrigger value="insights" className="gap-1.5 whitespace-nowrap flex-shrink-0">
                       <BarChart3 className="h-3.5 w-3.5" />
                       Insights
                     </TabsTrigger>
