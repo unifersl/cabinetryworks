@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, canManageUsers } from "@/lib/auth";
+import { getSession, canManageUsers, canManageStock } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { apiHandler } from "@/lib/api-handler";
 import { randomUUID } from "crypto";
@@ -50,6 +50,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Cutting lists involve stock deductions — require stock management permission
+  if (!canManageStock(session.role)) {
+    return NextResponse.json({ error: "Forbidden — cutting list creation requires stock management permission" }, { status: 403 });
+  }
 
   const isAdmin = canManageUsers(session.role);
   const body = await req.json();

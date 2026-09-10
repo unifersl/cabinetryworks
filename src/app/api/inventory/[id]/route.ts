@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, canManageUsers, canDeleteStock } from "@/lib/auth";
+import { getSession, canDeleteStock, canManageStock } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { apiHandler } from "@/lib/api-handler";
 
@@ -12,7 +12,7 @@ export const PUT = apiHandler(async (
 ) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canManageUsers(session.role))
+  if (!canManageStock(session.role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
