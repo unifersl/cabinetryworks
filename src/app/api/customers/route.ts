@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiHandler } from "@/lib/api-handler";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -35,6 +36,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
       email: body?.email ? String(body.email) : null,
       address: body?.address ? String(body.address) : null,
       notes: body?.notes ? String(body.notes) : null,
+    },
+  });
+  await recordAudit({
+    action: "create",
+    entityType: "customer",
+    entityId: customer.id,
+    actor: session,
+    summary: `Customer ${customer.name} created by ${session.fullName}`,
+    details: {
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
     },
   });
   return NextResponse.json({ customer }, { status: 201 });

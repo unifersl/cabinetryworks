@@ -109,19 +109,22 @@ export function CuttingListsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h1 className="text-lg font-bold tracking-tight">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            <Scissors className="h-5 w-5 text-primary" />
             Factory Cutting Lists
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Generate factory-ready cut lists for the production line.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          New Cutting List
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" onClick={() => setOpen(true)} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            New Cutting List
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -257,7 +260,7 @@ export function CuttingListsView() {
                         </TableHeader>
                         <TableBody>
                           {items.map((it, i) => (
-                            <TableRow key={i} className={`hover:bg-muted/50 ${i % 2 === 1 ? "bg-muted/40" : ""}`}>
+                            <TableRow key={i} className={`hover:bg-muted/50 transition-colors ${i % 2 === 1 ? "bg-muted/40" : ""}`}>
                               <TableCell className="font-medium">
                                 {it.part}
                               </TableCell>

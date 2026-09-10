@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession, canManageUsers } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -31,5 +32,12 @@ export async function PUT(req: NextRequest) {
       create: { id: key, key, value: body[key] ?? "" },
     });
   }
+  await recordAudit({
+    action: "update",
+    entityType: "settings",
+    actor: session,
+    summary: `System settings updated by ${session.fullName} (${keys.length} key${keys.length === 1 ? "" : "s"})`,
+    details: { keys },
+  });
   return NextResponse.json({ ok: true });
 }

@@ -83,20 +83,22 @@ export function ReportsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             <BarChart3 className="h-5 w-5 text-primary" />
             Reports
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Material consumption analytics and production insights.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print">
-          <Printer className="mr-2 h-4 w-4" />
-          Print Report
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="no-print">
+            <Printer className="mr-2 h-4 w-4" />
+            Print Report
+          </Button>
+        </div>
       </div>
 
       {/* Date range filter */}
@@ -270,7 +272,7 @@ export function ReportsView() {
                 </TableHeader>
                 <TableBody>
                   {summary.map((row, i) => (
-                    <TableRow key={row.material} className={`hover:bg-muted/50 ${i % 2 === 1 ? "bg-muted/40" : ""}`}>
+                    <TableRow key={row.material} className={`hover:bg-muted/50 transition-colors ${i % 2 === 1 ? "bg-muted/40" : ""}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span
@@ -326,7 +328,7 @@ export function ReportsView() {
                 </TableHeader>
                 <TableBody>
                   {details.map((d, idx) => (
-                    <TableRow key={d.id} className={`hover:bg-muted/50 ${idx % 2 === 1 ? "bg-muted/40" : ""}`}>
+                    <TableRow key={d.id} className={`hover:bg-muted/50 transition-colors ${idx % 2 === 1 ? "bg-muted/40" : ""}`}>
                       <TableCell>
                         <p className="font-mono text-xs text-primary">{d.orderNumber}</p>
                         <p className="text-xs text-muted-foreground truncate max-w-[150px]">

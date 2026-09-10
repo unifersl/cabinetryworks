@@ -50,13 +50,13 @@ export function AttendanceView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             <Calendar className="h-5 w-5 text-primary shrink-0" />
             <span>Attendance Tracking</span>
           </h1>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Worker attendance — factory &amp; on-site — synced with Job Orders
           </p>
         </div>

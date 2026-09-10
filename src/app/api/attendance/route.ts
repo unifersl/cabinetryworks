@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiHandler } from "@/lib/api-handler";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -159,6 +160,22 @@ export const POST = apiHandler(async (req: NextRequest) => {
           job: { select: { id: true, orderNumber: true, title: true } },
         },
       });
+      await recordAudit({
+        action: "update",
+        entityType: "settings",
+        entityId: record.id,
+        actor: session,
+        summary: `Attendance ${clockOut ? "clock-out" : "update"} for ${record.worker?.name ?? "worker"} on ${dateStr} by ${session.fullName}`,
+        details: {
+          workerId,
+          workerName: record.worker?.name ?? null,
+          date: dateStr,
+          status,
+          clockIn,
+          clockOut,
+          hoursWorked,
+        },
+      });
       return NextResponse.json({
         record: {
           ...record,
@@ -196,6 +213,22 @@ export const POST = apiHandler(async (req: NextRequest) => {
         job: { select: { id: true, orderNumber: true, title: true } },
       },
     });
+    await recordAudit({
+      action: "update",
+      entityType: "settings",
+      entityId: record.id,
+      actor: session,
+      summary: `Attendance ${clockOut ? "clock-out" : "update"} for ${record.worker?.name ?? "worker"} on ${dateStr} by ${session.fullName}`,
+      details: {
+        workerId,
+        workerName: record.worker?.name ?? null,
+        date: dateStr,
+        status,
+        clockIn,
+        clockOut,
+        hoursWorked,
+      },
+    });
   } else {
     // Create new record — allows multiple per day if different jobs
     record = await db.attendanceRecord.create({
@@ -217,6 +250,22 @@ export const POST = apiHandler(async (req: NextRequest) => {
       include: {
         worker: { select: { id: true, name: true, code: true, role: true, type: true, hourlyRate: true } },
         job: { select: { id: true, orderNumber: true, title: true } },
+      },
+    });
+    await recordAudit({
+      action: "create",
+      entityType: "settings",
+      entityId: record.id,
+      actor: session,
+      summary: `Attendance ${clockOut ? "clock-out" : "clock-in"} for ${record.worker?.name ?? "worker"} on ${dateStr} by ${session.fullName}`,
+      details: {
+        workerId,
+        workerName: record.worker?.name ?? null,
+        date: dateStr,
+        status,
+        clockIn,
+        clockOut,
+        hoursWorked,
       },
     });
   }
@@ -242,6 +291,8 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   }
 
   const results: any[] = [];
+  let createdCount = 0;
+  let updatedCount = 0;
   for (const u of updates) {
     const workerId = String(u.workerId ?? "").trim();
     const dateStr = String(u.date ?? "").trim();
@@ -267,12 +318,33 @@ export const PUT = apiHandler(async (req: NextRequest) => {
         data: { status, clockIn, clockOut, breakStart, breakEnd, hoursWorked, jobId: u.jobId || null, workLocation: u.workLocation || null, notes: u.notes || null },
       });
       results.push(updated);
+      updatedCount += 1;
     } else {
       const created = await db.attendanceRecord.create({
         data: { id: randomUUID(), workerId, date, status, clockIn, clockOut, breakStart, breakEnd, hoursWorked, jobId: u.jobId || null, workLocation: u.workLocation || null, notes: u.notes || null, createdBy: session.id },
       });
       results.push(created);
+      createdCount += 1;
     }
+  }
+
+  if (createdCount > 0) {
+    await recordAudit({
+      action: "create",
+      entityType: "settings",
+      actor: session,
+      summary: `Bulk attendance create — ${createdCount} record${createdCount === 1 ? "" : "s"} by ${session.fullName}`,
+      details: { count: createdCount },
+    });
+  }
+  if (updatedCount > 0) {
+    await recordAudit({
+      action: "update",
+      entityType: "settings",
+      actor: session,
+      summary: `Bulk attendance update — ${updatedCount} record${updatedCount === 1 ? "" : "s"} by ${session.fullName}`,
+      details: { count: updatedCount },
+    });
   }
 
   return NextResponse.json({ updated: results.length, records: results });

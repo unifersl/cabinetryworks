@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -52,6 +53,19 @@ export async function POST(req: NextRequest) {
     include: {
       job: { select: { id: true, title: true, orderNumber: true } },
       takenBy: { select: { id: true, fullName: true } },
+    },
+  });
+  await recordAudit({
+    action: "create",
+    entityType: "measurement",
+    entityId: item.id,
+    actor: session,
+    summary: `Site measurement created${item.job?.orderNumber ? ` for job ${item.job.orderNumber}` : ""} by ${session.fullName}`,
+    details: {
+      jobId,
+      jobOrderNumber: item.job?.orderNumber ?? null,
+      roomType: item.roomType,
+      status: item.status,
     },
   });
   return NextResponse.json({ measurement: item }, { status: 201 });

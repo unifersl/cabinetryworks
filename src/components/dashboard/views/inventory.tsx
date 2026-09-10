@@ -384,6 +384,7 @@ const MOVEMENT_META: Record<string, { icon: typeof Activity; tint: string; tab: 
 };
 
 function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  const queryClient = useQueryClient();
   const { data: inv } = useQuery({ queryKey: ["inventory"], queryFn: inventoryApi.list });
   const { data: wh } = useQuery({ queryKey: ["warehouses"], queryFn: warehousesApi.list });
   const { data: reqs } = useQuery({
@@ -418,8 +419,93 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const lowStock = items.filter(
     (i) => num(i.reorderPoint) > 0 && num(i.stockLevel) <= num(i.reorderPoint) && i.status === "active"
   );
+  const outOfStock = items.filter(
+    (i) => i.status === "active" && num(i.stockLevel) === 0
+  );
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const pendingTransfers = transfers.filter((t) => t.status === "in_transit" || t.status === "draft");
+
+  // ---- Stock Health computation ----
+  const activeItems = items.filter((i) => i.status === "active");
+  const healthTotal = activeItems.length || 1;
+  const healthyCount = activeItems.filter((i) => {
+    const reorder = num(i.reorderPoint);
+    return num(i.stockLevel) > 0 && (reorder === 0 || num(i.stockLevel) > reorder);
+  }).length;
+  const reorderCount = activeItems.filter((i) => {
+    const reorder = num(i.reorderPoint);
+    return reorder > 0 && num(i.stockLevel) > 0 && num(i.stockLevel) <= reorder;
+  }).length;
+  const outCount = activeItems.filter((i) => num(i.stockLevel) === 0).length;
+  const healthyPct = Math.round((healthyCount / healthTotal) * 100);
+  const reorderPct = Math.round((reorderCount / healthTotal) * 100);
+  const outPct = Math.round((outCount / healthTotal) * 100);
+
+  // ---- Quick Restock dialog state ----
+  const [restockOpen, setRestockOpen] = React.useState(false);
+  const [restockItem, setRestockItem] = React.useState<InventoryItem | null>(null);
+  const [restockQty, setRestockQty] = React.useState<string>("10");
+  const [restockWarehouseId, setRestockWarehouseId] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (warehouses.length > 0 && !restockWarehouseId) {
+      // Prefer main warehouse, fall back to first
+      const main = warehouses.find((w) => w.type === "main") ?? warehouses[0];
+      setRestockWarehouseId(main?.id ?? "");
+    }
+  }, [warehouses, restockWarehouseId]);
+
+  const restockMutation = useMutation({
+    mutationFn: async (payload: {
+      itemId: string;
+      warehouseId: string;
+      quantity: number;
+    }) => {
+      const adjustment = await stockAdjustmentsApi.create({
+        itemId: payload.itemId,
+        warehouseId: payload.warehouseId,
+        type: "in",
+        quantity: payload.quantity,
+        reason: "Quick restock from dashboard",
+        notes: "Triggered via Quick Restock on low-stock item",
+      });
+      return adjustment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      toast.success("Stock restocked successfully");
+    },
+    onError: () => toast.error("Failed to restock item"),
+  });
+
+  function openRestock(item: InventoryItem) {
+    setRestockItem(item);
+    // Default to a sensible qty — at least the reorder point minus current stock
+    const stock = num(item.stockLevel);
+    const reorder = num(item.reorderPoint);
+    const suggested = reorder > 0 ? Math.max(reorder - stock, reorder) : 10;
+    setRestockQty(String(Math.max(1, Math.round(suggested))));
+    setRestockOpen(true);
+  }
+
+  function submitRestock() {
+    if (!restockItem) return;
+    const qty = Math.max(1, Math.round(Number(restockQty) || 0));
+    if (!restockWarehouseId) {
+      toast.error("Please select a warehouse");
+      return;
+    }
+    restockMutation.mutate({
+      itemId: restockItem.id,
+      warehouseId: restockWarehouseId,
+      quantity: qty,
+    });
+    setRestockOpen(false);
+    setRestockItem(null);
+  }
+
 
   // ---- Stock Value computation ----
   const stockValue = items.reduce(
@@ -534,6 +620,175 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
         </CardContent>
       </Card>
 
+      {/* ---- Stock Health bar ---- */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Activity className="h-4 w-4 text-primary" />
+                Stock Health
+              </CardTitle>
+              <CardDescription>
+                Distribution of {activeItems.length} active item{activeItems.length === 1 ? "" : "s"} by stock status
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {healthyPct}% healthy
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {activeItems.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="No active inventory"
+              description="Add inventory items to see stock health metrics here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {/* Horizontal stacked bar */}
+              <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="bg-emerald-500 transition-all"
+                  style={{ width: `${healthyPct}%` }}
+                  title={`${healthyCount} healthy (${healthyPct}%)`}
+                />
+                <div
+                  className="bg-amber-500 transition-all"
+                  style={{ width: `${reorderPct}%` }}
+                  title={`${reorderCount} at reorder (${reorderPct}%)`}
+                />
+                <div
+                  className="bg-rose-500 transition-all"
+                  style={{ width: `${outPct}%` }}
+                  title={`${outCount} out of stock (${outPct}%)`}
+                />
+              </div>
+              {/* Legend */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("items")}
+                  className="group rounded-lg border border-border bg-card/60 p-2 text-left transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Healthy</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-emerald-600">{healthyCount}</p>
+                  <p className="text-[10px] text-muted-foreground">{healthyPct}%</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("items")}
+                  className="group rounded-lg border border-border bg-card/60 p-2 text-left transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">At Reorder</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-amber-600">{reorderCount}</p>
+                  <p className="text-[10px] text-muted-foreground">{reorderPct}%</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("items")}
+                  className="group rounded-lg border border-border bg-card/60 p-2 text-left transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Out of Stock</span>
+                  </div>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-rose-600">{outCount}</p>
+                  <p className="text-[10px] text-muted-foreground">{outPct}%</p>
+                </button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ---- Pending Actions card ---- */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            Pending Actions
+          </CardTitle>
+          <CardDescription>Quick access to outstanding inventory tasks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => onNavigate?.("requests")}
+              className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card/60 p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-amber-500/15 p-2">
+                  <ClipboardList className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">{pendingRequests.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pending Request{pendingRequests.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigate?.("transfers")}
+              className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card/60 p-3 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-violet-500/15 p-2">
+                  <ArrowLeftRight className="h-4 w-4 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">{pendingTransfers.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    In-transit Transfer{pendingTransfers.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </button>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-rose-500/15 p-2">
+                  <TrendingDown className="h-4 w-4 text-rose-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums text-rose-600">{lowStock.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Low Stock Item{lowStock.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              {lowStock.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-8 shrink-0"
+                  onClick={handleReorderAll}
+                >
+                  <Zap className="mr-1.5 h-3.5 w-3.5" />
+                  Reorder All
+                </Button>
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* ---- Recent Activity (improved) ---- */}
         <Card>
@@ -625,7 +880,7 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                     ? "bg-rose-500"
                     : "bg-amber-500";
                   return (
-                    <div key={i.id} className="px-4 py-3">
+                    <div key={i.id} className="px-4 py-3 transition-colors hover:bg-muted/30">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{i.name}</p>
@@ -654,6 +909,18 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                         <span className="w-20 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
                           reorder @ {reorder}
                         </span>
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7"
+                          onClick={() => openRestock(i)}
+                          disabled={restockMutation.isPending}
+                        >
+                          <Plus className="mr-1.5 h-3.5 w-3.5" />
+                          Quick Restock
+                        </Button>
                       </div>
                     </div>
                   );
@@ -730,6 +997,93 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
           )}
         </CardContent>
       </Card>
+
+      {/* ---- Quick Restock dialog ---- */}
+      <Dialog open={restockOpen} onOpenChange={(open) => {
+        setRestockOpen(open);
+        if (!open) setRestockItem(null);
+      }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4 text-primary" />
+              Quick Restock
+            </DialogTitle>
+            <DialogDescription>
+              {restockItem
+                ? `Add stock for ${restockItem.name}${restockItem.code ? ` (${restockItem.code})` : ""}. A stock adjustment (type: in) will be created.`
+                : "Add stock to a low-stock item."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="restock-qty">Quantity</Label>
+              <Input
+                id="restock-qty"
+                type="number"
+                min="1"
+                value={restockQty}
+                onChange={(e) => setRestockQty(e.target.value)}
+                disabled={restockMutation.isPending}
+              />
+              {restockItem && (
+                <p className="text-xs text-muted-foreground">
+                  Current: <span className="font-medium tabular-nums">{num(restockItem.stockLevel)}</span>
+                  {" · "}Reorder point: <span className="font-medium tabular-nums">{num(restockItem.reorderPoint)}</span>
+                  {" · "}Unit: <span className="font-medium">{restockItem.unit}</span>
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="restock-wh">Warehouse</Label>
+              <Select
+                value={restockWarehouseId}
+                onValueChange={setRestockWarehouseId}
+                disabled={restockMutation.isPending}
+              >
+                <SelectTrigger id="restock-wh">
+                  <SelectValue placeholder="Select warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name} ({w.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRestockOpen(false);
+                setRestockItem(null);
+              }}
+              disabled={restockMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitRestock}
+              disabled={
+                restockMutation.isPending ||
+                !restockItem ||
+                !restockWarehouseId ||
+                Number(restockQty) <= 0
+              }
+            >
+              {restockMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Add Stock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1206,7 +1560,7 @@ function ItemsTab() {
                     const reorder = num(i.reorderPoint);
                     const low = isLowStock(i);
                     return (
-                      <TableRow key={i.id} className={`hover:bg-muted/40 ${low ? "bg-red-500/5" : ""}`}>
+                      <TableRow key={i.id} className={`hover:bg-muted/50 transition-colors ${low ? "bg-red-500/5" : ""}`}>
                         <TableCell className="text-xs text-muted-foreground tabular-nums">{idx + 1}</TableCell>
                         <TableCell>
                           <p className="text-sm font-medium">{i.name}</p>
@@ -1926,7 +2280,7 @@ function CategoriesTab() {
               </TableHeader>
               <TableBody>
                 {categories.map((c) => (
-                  <TableRow key={c.id} className="hover:bg-muted/40">
+                  <TableRow key={c.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <FolderTree className="h-4 w-4 text-primary" />
@@ -2121,7 +2475,7 @@ function TransfersTab() {
                 </TableHeader>
                 <TableBody>
                   {transfers.map((t) => (
-                    <TableRow key={t.id} className="hover:bg-muted/40">
+                    <TableRow key={t.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-mono text-xs">{t.transferNo}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-sm">
@@ -2404,7 +2758,7 @@ function StockTakeTab() {
                 </TableHeader>
                 <TableBody>
                   {stockTakes.map((t) => (
-                    <TableRow key={t.id} className="hover:bg-muted/40">
+                    <TableRow key={t.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-mono text-xs">{t.takeNo}</TableCell>
                       <TableCell className="text-sm">{t.warehouse?.name ?? "—"}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm">{t.period}</TableCell>
@@ -2722,7 +3076,7 @@ function RequestsTab() {
                 </TableHeader>
                 <TableBody>
                   {requests.map((r) => (
-                    <TableRow key={r.id} className="hover:bg-muted/40 cursor-pointer" onClick={() => setViewing(r)}>
+                    <TableRow key={r.id} className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setViewing(r)}>
                       <TableCell className="font-mono text-xs">{r.reqNo}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm">
                         {r.job ? (
@@ -3281,7 +3635,7 @@ function IssuesTab() {
                 </TableHeader>
                 <TableBody>
                   {issues.map((i) => (
-                    <TableRow key={i.id} className="hover:bg-muted/40">
+                    <TableRow key={i.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-mono text-xs">{i.issueNo}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm">{i.job?.orderNumber ?? "—"}</TableCell>
                       <TableCell className="text-sm">{i.warehouse?.code ?? "—"}</TableCell>
@@ -3593,7 +3947,7 @@ function ReturnsTab() {
                 </TableHeader>
                 <TableBody>
                   {returns.map((r) => (
-                    <TableRow key={r.id} className="hover:bg-muted/40">
+                    <TableRow key={r.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-mono text-xs">{r.returnNo}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm">{r.job?.orderNumber ?? "—"}</TableCell>
                       <TableCell className="text-sm">{r.warehouse?.code ?? "—"}</TableCell>
@@ -4076,7 +4430,7 @@ function OutsidePurchasesTab() {
                 </TableHeader>
                 <TableBody>
                   {purchases.map((p) => (
-                    <TableRow key={p.id} className="hover:bg-muted/40">
+                    <TableRow key={p.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-mono text-xs">{p.poNo}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm">{p.job?.orderNumber ?? "—"}</TableCell>
                       <TableCell className="hidden md:table-cell text-sm">{p.supplier ?? "—"}</TableCell>
@@ -4433,7 +4787,7 @@ function ReportsTab() {
                 </TableHeader>
                 <TableBody>
                   {report.rows.map((row, idx) => (
-                    <TableRow key={idx} className="hover:bg-muted/40">
+                    <TableRow key={idx} className="hover:bg-muted/50 transition-colors">
                       {report.headers.map((h) => {
                         const v = row[h];
                         const isNum = typeof v === "number";

@@ -98,17 +98,22 @@ export function MeasurementsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h1 className="text-lg font-bold tracking-tight">Site Measurements</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            <Ruler className="h-5 w-5 text-primary" />
+            Site Measurements
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Capture on-site measurements for cabinetry production.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          New Measurement
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" onClick={() => setOpen(true)} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            New Measurement
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

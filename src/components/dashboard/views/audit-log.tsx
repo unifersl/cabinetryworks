@@ -125,13 +125,13 @@ export function AuditLogView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             <ScrollText className="h-5 w-5 text-primary" />
             Audit Log
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Persistent record of all system changes for compliance &
             traceability.
           </p>
@@ -277,7 +277,7 @@ export function AuditLogView() {
                     return (
                       <TableRow
                         key={log.id}
-                        className={`hover:bg-muted/50 ${idx % 2 === 1 ? "bg-muted/40" : ""}`}
+                        className={`hover:bg-muted/50 transition-colors ${idx % 2 === 1 ? "bg-muted/40" : ""}`}
                       >
                         <TableCell>
                           <div
