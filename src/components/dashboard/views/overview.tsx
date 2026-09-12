@@ -306,6 +306,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
         activeJobs={(counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) >= 0 ? (counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) : (counts?.jobOrders ?? 0)}
         pendingJobs={counts?.pendingJobs ?? 0}
         overdueJobs={overdueJobs}
+        loading={isLoading}
         onNavigate={onNavigate}
       />
 
@@ -1106,11 +1107,13 @@ function TodaysSnapshot({
   activeJobs,
   pendingJobs,
   overdueJobs,
+  loading,
   onNavigate,
 }: {
   activeJobs: number;
   pendingJobs: number;
   overdueJobs: number;
+  loading?: boolean;
   onNavigate?: (view: string) => void;
 }) {
   const now = React.useMemo(() => new Date(), []);
@@ -1181,7 +1184,11 @@ function TodaysSnapshot({
                 title={p.label}
               >
                 <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                <span className="tabular-nums font-semibold">{p.value}</span>
+                {loading ? (
+                  <span className="inline-block h-3 w-5 animate-pulse rounded bg-current/30" />
+                ) : (
+                  <span className="tabular-nums font-semibold">{p.value}</span>
+                )}
                 <span className="hidden text-muted-foreground sm:inline">
                   {p.label}
                 </span>
