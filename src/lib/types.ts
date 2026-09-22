@@ -47,6 +47,15 @@ export interface Customer {
   _count?: { jobOrders: number };
 }
 
+export type JobType =
+  | "New"
+  | "Installation"
+  | "Repair"
+  | "Touch-Up"
+  | "Add-On"
+  | "Modification"
+  | "Warranty";
+
 export interface JobOrder {
   id: string;
   orderNumber: string;
@@ -54,6 +63,8 @@ export interface JobOrder {
   customerId: string;
   status: JobStatus;
   priority: Priority;
+  jobType?: JobType;
+  parentJobId?: string | null;
   assignedToId?: string | null;
   description?: string | null;
   deliveryDate?: string | null;
@@ -62,6 +73,7 @@ export interface JobOrder {
   updatedAt?: string;
   customer?: Pick<Customer, "id" | "name" | "phone">;
   assignedTo?: Pick<User, "id" | "fullName" | "role"> | null;
+  parentJob?: Pick<JobOrder, "id" | "orderNumber" | "title"> | null;
   _count?: { measurements: number; cuttingLists: number };
 }
 

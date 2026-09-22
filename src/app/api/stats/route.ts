@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const rangeDays = Math.min(Math.max(Number(searchParams.get("range") ?? "7") || 7, 1), 90);
 
-  const [users, activeUsers, jobOrders, pendingJobs, measurements, cuttingLists, customers] =
+  const [users, activeUsers, jobOrders, pendingJobs, measurements, cuttingLists, customers, overdueJobs] =
     await Promise.all([
       db.user.count(),
       db.user.count({ where: { status: "active" } }),
@@ -21,6 +21,14 @@ export async function GET(req: NextRequest) {
       db.siteMeasurement.count(),
       db.cuttingList.count(),
       db.customer.count(),
+      // Overdue = past delivery date AND not completed/cancelled AND not archived
+      db.jobOrder.count({
+        where: {
+          deliveryDate: { lt: new Date() },
+          status: { notIn: ["Completed", "Cancelled"] },
+          archived: false,
+        },
+      }),
     ]);
 
   // Job status distribution
@@ -120,6 +128,28 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.count - a.count);
 
+  // Real period-over-period trends: compare this range vs previous range
+  const rangeStart = new Date();
+  rangeStart.setDate(rangeStart.getDate() - rangeDays);
+  rangeStart.setHours(0, 0, 0, 0);
+  const prevRangeStart = new Date(rangeStart);
+  prevRangeStart.setDate(prevRangeStart.getDate() - rangeDays);
+
+  const [thisPeriodJobs, prevPeriodJobs, thisPeriodMeasurements, prevPeriodMeasurements, thisPeriodCuttingLists, prevPeriodCuttingLists] =
+    await Promise.all([
+      db.jobOrder.count({ where: { createdAt: { gte: rangeStart } } }),
+      db.jobOrder.count({ where: { createdAt: { gte: prevRangeStart, lt: rangeStart } } }),
+      db.siteMeasurement.count({ where: { createdAt: { gte: rangeStart } } }),
+      db.siteMeasurement.count({ where: { createdAt: { gte: prevRangeStart, lt: rangeStart } } }),
+      db.cuttingList.count({ where: { createdAt: { gte: rangeStart } } }),
+      db.cuttingList.count({ where: { createdAt: { gte: prevRangeStart, lt: rangeStart } } }),
+    ]);
+
+  function pctChange(curr: number, prev: number): number | null {
+    if (prev === 0) return curr > 0 ? 100 : 0;
+    return Math.round(((curr - prev) / prev) * 100);
+  }
+
   return NextResponse.json({
     counts: {
       users,
@@ -129,6 +159,13 @@ export async function GET(req: NextRequest) {
       measurements,
       cuttingLists,
       customers,
+      overdueJobs,
+    },
+    trends: {
+      jobOrders: pctChange(thisPeriodJobs, prevPeriodJobs),
+      measurements: pctChange(thisPeriodMeasurements, prevPeriodMeasurements),
+      cuttingLists: pctChange(thisPeriodCuttingLists, prevPeriodCuttingLists),
+      users: null, // users don't have a meaningful period trend
     },
     jobStatusBreakdown: statusBreakdown,
     priorityBreakdown,

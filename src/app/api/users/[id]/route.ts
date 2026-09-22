@@ -44,6 +44,45 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json();
 
+  // Security: block self-promotion to SuperAdmin
+  if (session.id === id && body.role === "SuperAdmin" && session.role !== "SuperAdmin") {
+    return NextResponse.json(
+      { error: "You cannot promote yourself to SuperAdmin." },
+      { status: 403 }
+    );
+  }
+
+  // Security: block self-demotion if you're the last SuperAdmin
+  if (session.id === id && body.role !== undefined && body.role !== "SuperAdmin" && session.role === "SuperAdmin") {
+    const superCount = await db.user.count({ where: { role: "SuperAdmin" } });
+    if (superCount <= 1) {
+      return NextResponse.json(
+        { error: "Cannot demote the last SuperAdmin account. Promote another user first." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Security: block demoting the last SuperAdmin (target != self)
+  if (body.role !== undefined && body.role !== "SuperAdmin") {
+    const target = await db.user.findUnique({ where: { id }, select: { role: true } });
+    if (target?.role === "SuperAdmin") {
+      const superCount = await db.user.count({ where: { role: "SuperAdmin" } });
+      if (superCount <= 1) {
+        return NextResponse.json(
+          { error: "Cannot demote the last SuperAdmin account." },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
+  // Capture original values for audit diff
+  const before = await db.user.findUnique({
+    where: { id },
+    select: { fullName: true, role: true, status: true, email: true, phone: true, username: true },
+  });
+
   const data: Record<string, unknown> = {};
   if (body.fullName !== undefined) data.fullName = String(body.fullName).trim();
   if (body.role !== undefined) {
@@ -60,9 +99,9 @@ export async function PUT(
   if (body.phone !== undefined) data.phone = body.phone ? String(body.phone) : null;
   if (body.username !== undefined) data.username = String(body.username).trim();
   if (body.password) {
-    if (String(body.password).length < 6)
+    if (String(body.password).length < 8)
       return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
+        { error: "Password must be at least 8 characters with upper, lower, and number" },
         { status: 400 }
       );
     data.password = await hashPassword(String(body.password));
@@ -83,6 +122,25 @@ export async function PUT(
         updatedAt: true,
       },
     });
+
+    // Audit: record user updates (previously missing — role/status changes were invisible)
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    for (const k of ["fullName", "role", "status", "email", "phone", "username"] as const) {
+      if (data[k] !== undefined && before && before[k] !== data[k]) {
+        changes[k] = { from: before[k], to: data[k] };
+      }
+    }
+    if (Object.keys(changes).length > 0) {
+      await recordAudit({
+        action: "update",
+        entityType: "user",
+        entityId: id,
+        actor: session,
+        summary: `Updated ${updated.fullName} (${updated.username})`,
+        details: { changes, passwordReset: !!body.password },
+      });
+    }
+
     return NextResponse.json({ user: updated });
   } catch (err) {
     console.error("[users/PUT] error", err);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
+import { cutLength, cutWidth, parseDim } from "@/lib/cutting";
 
 export const runtime = "nodejs";
 
@@ -94,21 +95,35 @@ export async function GET(
     const estHours = priceEntry ? Number(priceEntry.estimatedHours) : 0;
 
     if (priceEntry && estHours > 0) {
+      // Scale labor by part count: more parts = more machine/handling time
+      // (the estHours from the price table is a per-typical-list baseline)
       totalLaborCost += laborRate * estHours;
     }
 
     for (const item of items) {
-      // Parse dimensions (extract numeric part from strings like "720mm")
-      const lengthMm = parseFloat(item.length) || 0;
-      const widthMm = parseFloat(item.width) || 0;
+      // Use CUT dimensions (substrate size = nominal minus banding thickness
+      // on banded edges) — the factory pays for the substrate, not the finish.
+      const lengthMm = cutLength(item);
+      const widthMm = cutWidth(item);
       const qty = Number(item.qty) || 1;
       const areaSqm = (lengthMm * widthMm * qty) / 1_000_000; // mm² → m²
 
-      // Estimate edge banding length (perimeter of the panel)
-      const edgeLengthM = ((lengthMm + widthMm) * 2 * qty) / 1000; // mm → m
+      // Edge banding length = sum of banded edges × qty.
+      // Long edges run along the length; short edges run along the width.
+      const bandedLong = (item.edgeLong1 ? 1 : 0) + (item.edgeLong2 ? 1 : 0);
+      const bandedShort = (item.edgeShort1 ? 1 : 0) + (item.edgeShort2 ? 1 : 0);
+      const hasNewBanding = bandedLong > 0 || bandedShort > 0;
+      // Legacy fallback: if no per-edge flags but item.edge text is set, assume all 4 edges
+      const legacyAllEdges = !hasNewBanding && item.edge && item.edge !== "—";
+      const edgeLengthMm = hasNewBanding
+        ? (bandedLong * parseDim(item.length) + bandedShort * parseDim(item.width)) * qty
+        : legacyAllEdges
+          ? ((parseDim(item.length) + parseDim(item.width)) * 2 * qty)
+          : 0;
+      const edgeLengthM = edgeLengthMm / 1000; // mm → m
 
       const materialCost = areaSqm * pricePerSqm;
-      const edgeCost = item.edge && item.edge !== "—"
+      const edgeCost = (hasNewBanding || legacyAllEdges)
         ? edgeLengthM * edgePricePerM
         : 0;
 

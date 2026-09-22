@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { cutLength, cutWidth } from "@/lib/cutting";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,10 @@ export async function GET(req: NextRequest) {
   const toStr = searchParams.get("to");
 
   const from = fromStr ? new Date(fromStr) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const to = toStr ? new Date(toStr) : new Date();
+  // Fix off-by-one: include the ENTIRE "to" date by advancing to end-of-day
+  const toDate = toStr ? new Date(toStr) : new Date();
+  toDate.setHours(23, 59, 59, 999);
+  const to = toDate;
 
   if (reportType === "consumption") {
     // Get all cutting lists in date range with their items
@@ -44,11 +48,18 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Get configurable sheet size
+    // Get configurable sheet size (default 2440×1220 = 2.977 m², the industry standard 8×4 ft sheet)
     const sheetSizeSetting = await db.systemSetting.findUnique({
       where: { key: "sheet_size_sqm" },
     });
-    const sheetSizeSqm = sheetSizeSetting?.value ? Number(sheetSizeSetting.value) : 2.88;
+    const sheetSizeSqm = sheetSizeSetting?.value ? Number(sheetSizeSetting.value) : 2.977;
+
+    // Get wastage factor (default 15% — industry average for guillotine nesting of rectangular parts)
+    const wastageSetting = await db.systemSetting.findUnique({
+      where: { key: "sheet_wastage_pct" },
+    });
+    const wastagePct = wastageSetting?.value ? Number(wastageSetting.value) : 15;
+    const yieldFactor = 1 - wastagePct / 100; // effective usable area per sheet
 
     // Aggregate by material
     type MaterialAgg = {
@@ -74,7 +85,7 @@ export async function GET(req: NextRequest) {
     }> = [];
 
     for (const cl of cuttingLists) {
-      let items: Array<{ part: string; qty: number; length: string; width: string }> = [];
+      let items: Array<{ part: string; qty: number; length: string; width: string; edgeLong1?: boolean; edgeLong2?: boolean; edgeShort1?: boolean; edgeShort2?: boolean; edgeThk?: number }> = [];
       try {
         items = cl.items ? JSON.parse(cl.items) : [];
       } catch {
@@ -83,12 +94,15 @@ export async function GET(req: NextRequest) {
 
       let totalAreaSqm = 0;
       for (const item of items) {
-        const lengthMm = parseFloat(item.length) || 0;
-        const widthMm = parseFloat(item.width) || 0;
+        // Use CUT dimensions (substrate = nominal minus banding thickness on banded edges)
+        const lengthMm = cutLength(item as any);
+        const widthMm = cutWidth(item as any);
         const qty = Number(item.qty) || 1;
         totalAreaSqm += (lengthMm * widthMm * qty) / 1_000_000;
       }
-      const sheets = Math.ceil(totalAreaSqm / sheetSizeSqm);
+      // Sheets needed = area / (sheet area × yield factor)
+      // e.g. 15% wastage means only 85% of each sheet is usable → divide by 0.85
+      const sheets = Math.ceil(totalAreaSqm / (sheetSizeSqm * yieldFactor));
 
       const materialKey = cl.material ?? "Unspecified";
       const existing = materialMap.get(materialKey) ?? {

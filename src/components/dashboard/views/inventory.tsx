@@ -464,7 +464,7 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
       const adjustment = await stockAdjustmentsApi.create({
         itemId: payload.itemId,
         warehouseId: payload.warehouseId,
-        type: "in",
+        type: "add",  // FIX: was "in" which the API doesn't recognise (valid: set|add|remove|dispose)
         quantity: payload.quantity,
         reason: "Quick restock from dashboard",
         notes: "Triggered via Quick Restock on low-stock item",
@@ -1305,9 +1305,48 @@ function ItemsTab() {
     onError: () => toast.error("Failed to update stock"),
   });
 
+  // Quick-adjust via StockAdjustment (canonical pattern: creates StockLot, recalcs stockLevel)
+  const quickAdjustMutation = useMutation({
+    mutationFn: async ({ itemId, warehouseId, delta, itemName }: {
+      itemId: string;
+      warehouseId: string;
+      delta: number;
+      itemName: string;
+    }) => {
+      return stockAdjustmentsApi.create({
+        itemId,
+        warehouseId,
+        type: delta > 0 ? "add" : "remove",
+        quantity: Math.abs(delta),
+        reason: `Quick ${delta > 0 ? "+1" : "-1"} adjust: ${itemName}`,
+        notes: "Dashboard quick-adjust button",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-adjustments", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to adjust stock"),
+  });
+
   function quickAdjust(item: InventoryItem, delta: number) {
-    const newStock = Math.max(0, num(item.stockLevel) + delta);
-    adjustMutation.mutate({ id: item.id, newStock });
+    // FIX: Previously called inventoryApi.update which writes stockLevel directly,
+    // bypassing the canonical StockLot → recalc pattern. Now routes through
+    // stockAdjustmentsApi.create with type "add"/"remove" so a StockLot is
+    // created/updated and stockLevel stays in sync.
+    if (delta === 0) return;
+    const warehouseId = warehouses[0]?.id;
+    if (!warehouseId) {
+      toast.error("No warehouse configured — cannot adjust stock");
+      return;
+    }
+    quickAdjustMutation.mutate({
+      itemId: item.id,
+      warehouseId,
+      delta,
+      itemName: item.name,
+    });
   }
 
   // ===== Stock color helper =====

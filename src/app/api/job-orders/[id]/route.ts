@@ -49,6 +49,8 @@ export async function PUT(
     "priority",
     "description",
     "assignedToId",
+    "jobType",
+    "parentJobId",
   ]) {
     if (body[k] !== undefined) data[k] = body[k];
   }

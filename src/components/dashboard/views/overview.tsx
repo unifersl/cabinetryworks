@@ -192,24 +192,10 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
     queryFn: inventoryApi.list,
     enabled: !!data,
   });
-  // Fetch jobs only to compute the Overdue count for Needs Attention.
-  const { data: jobsForOverdue } = useQuery({
-    queryKey: ["jobs", "overview-overdue"],
-    queryFn: () => jobsApi.list(),
-    enabled: !!data,
-  });
-  const overdueJobs = React.useMemo(() => {
-    const now = new Date();
-    return (jobsForOverdue?.jobs ?? []).filter(
-      (j) =>
-        j.deliveryDate &&
-        new Date(j.deliveryDate) < now &&
-        j.status !== "Completed" &&
-        j.status !== "Cancelled"
-    ).length;
-  }, [jobsForOverdue]);
-
+  // Overdue count comes directly from the stats API now (no need to fetch all jobs)
   const counts = data?.counts;
+  const overdueJobs = counts?.overdueJobs ?? 0;
+
   const breakdown = data?.jobStatusBreakdown ?? {};
   const priority = data?.priorityBreakdown ?? {};
   const throughput = data?.throughput ?? [];
@@ -217,6 +203,15 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
   const workload = data?.technicianWorkload ?? [];
 
   const totalJobs = Object.values(breakdown).reduce((a, b) => a + b, 0) || 1;
+
+  // Active jobs = only in-progress statuses (not Pending, not Completed, not Cancelled)
+  const activeJobsCount =
+    (breakdown["In Production"] ?? 0) +
+    (breakdown["Cutting"] ?? 0) +
+    (breakdown["Assembly"] ?? 0) +
+    (breakdown["Installation"] ?? 0) +
+    (breakdown["Design"] ?? 0) +
+    (breakdown["Measured"] ?? 0);
   const totalMaterials = Object.values(materials).reduce((a, b) => a + b, 0) || 1;
 
   const statusPieData = Object.entries(breakdown).map(([name, value]) => ({
@@ -232,6 +227,12 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
     value,
   }));
 
+  const trends = data?.trends;
+  const fmtTrend = (n: number | null | undefined): { text: string; up: boolean } => {
+    if (n === null || n === undefined) return { text: "—", up: true };
+    return { text: `${n >= 0 ? "+" : ""}${n}%`, up: n >= 0 };
+  };
+
   const cards = [
     {
       label: "Total Users",
@@ -239,8 +240,8 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
       sub: `${counts?.activeUsers ?? 0} active`,
       icon: Users,
       tint: "text-amber-600 bg-amber-500/10",
-      trend: "+12%",
-      up: true,
+      trend: fmtTrend(trends?.users).text,
+      up: fmtTrend(trends?.users).up,
       view: "users",
     },
     {
@@ -249,8 +250,8 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
       sub: `${counts?.pendingJobs ?? 0} pending`,
       icon: ClipboardList,
       tint: "text-orange-600 bg-orange-500/10",
-      trend: "+8%",
-      up: true,
+      trend: fmtTrend(trends?.jobOrders).text,
+      up: fmtTrend(trends?.jobOrders).up,
       view: "job-orders",
     },
     {
@@ -259,8 +260,8 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
       sub: "captured",
       icon: Ruler,
       tint: "text-teal-600 bg-teal-500/10",
-      trend: "+15%",
-      up: true,
+      trend: fmtTrend(trends?.measurements).text,
+      up: fmtTrend(trends?.measurements).up,
       view: "measurements",
     },
     {
@@ -269,8 +270,8 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
       sub: "generated",
       icon: Scissors,
       tint: "text-rose-600 bg-rose-500/10",
-      trend: "-3%",
-      up: false,
+      trend: fmtTrend(trends?.cuttingLists).text,
+      up: fmtTrend(trends?.cuttingLists).up,
       view: "cutting-lists",
     },
   ];
@@ -303,7 +304,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
 
       {/* Today's Snapshot — compact summary bar */}
       <TodaysSnapshot
-        activeJobs={(counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) >= 0 ? (counts?.jobOrders ?? 0) - (counts?.pendingJobs ?? 0) : (counts?.jobOrders ?? 0)}
+        activeJobs={activeJobsCount}
         pendingJobs={counts?.pendingJobs ?? 0}
         overdueJobs={overdueJobs}
         loading={isLoading}

@@ -952,6 +952,11 @@ export function JobOrdersView({
                         >
                           {job.status}
                         </Badge>
+                        {job.jobType && job.jobType !== "New" && (
+                          <Badge variant="outline" className="ml-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px]">
+                            {job.jobType}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">
                         {job.deliveryDate ? (
@@ -1216,22 +1221,36 @@ function CreateJobDialog({
   const queryClient = useQueryClient();
   const [title, setTitle] = React.useState("");
   const [customerId, setCustomerId] = React.useState("");
+  const [jobType, setJobType] = React.useState<import("@/lib/types").JobType>("New");
+  const [parentJobId, setParentJobId] = React.useState("");
   const [assignedToId, setAssignedToId] = React.useState("");
   const [priority, setPriority] = React.useState<Priority>("Normal");
   const [deliveryDate, setDeliveryDate] = React.useState("");
   const [description, setDescription] = React.useState("");
+
+  // Existing jobs (for parent-job selector when jobType != New)
+  const { data: jobsData } = useQuery({
+    queryKey: ["jobs"],
+    queryFn: () => jobsApi.list(),
+    enabled: open && jobType !== "New",
+  });
+  const eligibleParentJobs = (jobsData?.jobs ?? []).filter(
+    (j) => j.customer?.id === customerId && j.id !== parentJobId,
+  );
 
   // Dirty state: true if any field has been changed from defaults
   const isDirty = React.useMemo(() => {
     return (
       title.trim() !== "" ||
       customerId !== "" ||
+      jobType !== "New" ||
+      parentJobId !== "" ||
       assignedToId !== "" ||
       priority !== "Normal" ||
       deliveryDate !== "" ||
       description.trim() !== ""
     );
-  }, [title, customerId, assignedToId, priority, deliveryDate, description]);
+  }, [title, customerId, jobType, parentJobId, assignedToId, priority, deliveryDate, description]);
 
   // beforeunload warning when there are unsaved changes
   React.useEffect(() => {
@@ -1264,6 +1283,8 @@ function CreateJobDialog({
       jobsApi.create({
         title: title.trim(),
         customerId,
+        jobType,
+        parentJobId: parentJobId || undefined,
         assignedToId: assignedToId || undefined,
         priority,
         deliveryDate: deliveryDate || undefined,
@@ -1275,6 +1296,8 @@ function CreateJobDialog({
       });
       setTitle("");
       setCustomerId("");
+      setJobType("New");
+      setParentJobId("");
       setAssignedToId("");
       setPriority("Normal");
       setDeliveryDate("");
@@ -1329,6 +1352,43 @@ function CreateJobDialog({
               onChange={(e) => setTitle(e.target.value)}
               required
             />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Job Type</Label>
+              <Select value={jobType} onValueChange={(v) => { setJobType(v as import("@/lib/types").JobType); if (v === "New") setParentJobId(""); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["New", "Installation", "Repair", "Touch-Up", "Add-On", "Modification", "Warranty"] as const).map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {jobType !== "New" && (
+              <div className="space-y-2">
+                <Label>
+                  Parent Job {customerId ? "" : <span className="text-muted-foreground">(select customer first)</span>}
+                </Label>
+                <Select value={parentJobId} onValueChange={setParentJobId} disabled={!customerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Link to original job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eligibleParentJobs.map((j) => (
+                      <SelectItem key={j.id} value={j.id}>
+                        {j.orderNumber} — {j.title}
+                      </SelectItem>
+                    ))}
+                    {eligibleParentJobs.length === 0 && customerId && (
+                      <SelectItem value="_none" disabled>No existing jobs for this customer</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">

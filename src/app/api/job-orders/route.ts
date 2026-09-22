@@ -53,9 +53,29 @@ export const POST = apiHandler(async (req: NextRequest) => {
     );
   }
 
-  // Generate a human-friendly order number
-  const count = await db.jobOrder.count();
-  const orderNumber = `KCM-${String(count + 1).padStart(5, "0")}`;
+  // Validate jobType if provided
+  const VALID_JOB_TYPES = ["New", "Installation", "Repair", "Touch-Up", "Add-On", "Modification", "Warranty"];
+  const jobType = body?.jobType ? String(body.jobType) : "New";
+  if (!VALID_JOB_TYPES.includes(jobType)) {
+    return NextResponse.json({ error: "Invalid job type" }, { status: 400 });
+  }
+
+  // For non-New job types, parentJobId is recommended (links to original job)
+  const parentJobId = body?.parentJobId ? String(body.parentJobId) : null;
+  if (parentJobId && jobType === "New") {
+    return NextResponse.json({ error: "Parent job is only for non-New job types" }, { status: 400 });
+  }
+
+  // Generate a human-friendly order number (retry on collision)
+  let orderNumber = "";
+  let attempts = 0;
+  while (attempts < 5) {
+    const count = await db.jobOrder.count();
+    orderNumber = `KCM-${String(count + 1 + attempts).padStart(5, "0")}`;
+    const exists = await db.jobOrder.findUnique({ where: { orderNumber }, select: { id: true } });
+    if (!exists) break;
+    attempts++;
+  }
 
   const job = await db.jobOrder.create({
     data: {
@@ -63,6 +83,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
       orderNumber,
       title,
       customerId,
+      jobType,
+      parentJobId,
       assignedToId: body?.assignedToId || null,
       description: body?.description ? String(body.description) : null,
       priority: body?.priority ? String(body.priority) : "Normal",

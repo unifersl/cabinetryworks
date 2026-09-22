@@ -25,12 +25,10 @@ export async function GET(req: NextRequest) {
   if (entityType) where.entityType = entityType;
   if (entityId) where.entityId = entityId;
 
-  // Auditors cannot see SuperAdmin's log entries
-  if (session.role === "Auditor") {
-    where.NOT = {
-      actor: { role: "SuperAdmin" },
-    };
-  }
+  // NOTE: Auditors MUST be able to see ALL audit entries including SuperAdmin
+  // actions — that is the entire purpose of a compliance auditor role.
+  // The previous filter (hiding SuperAdmin entries from Auditors) defeated
+  // compliance checks and has been removed.
 
   const logs = await db.auditLog.findMany({
     where,
