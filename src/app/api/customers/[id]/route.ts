@@ -13,13 +13,22 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+
+  // Allow callers to bypass the default `take: 10` job list truncation
+  // (used by the "Show all jobs" affordance in the customer detail sheet).
+  const allJobs = _req.nextUrl.searchParams.get("allJobs") === "true";
+
+  // NOTE: We keep `take` on the `jobOrders` relation for list rendering, but
+  // compute status counts server-side via separate count() queries. This
+  // fixes the bug where the top stat boxes (Total/Active/Completed) only
+  // counted the first 10 jobs and undercounted for customers with >10 jobs.
   const customer = await db.customer.findUnique({
     where: { id },
     include: {
       _count: { select: { jobOrders: true } },
       jobOrders: {
         orderBy: { createdAt: "desc" },
-        take: 10,
+        ...(allJobs ? {} : { take: 10 }),
         select: {
           id: true,
           orderNumber: true,
@@ -32,7 +41,28 @@ export async function GET(
     },
   });
   if (!customer) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ customer });
+
+  // Server-side status aggregations — these are the source of truth for the
+  // top stat boxes, so they always reflect the FULL job history regardless
+  // of the `take` cap on the `jobOrders` relation above.
+  const [completedJobs, cancelledJobs, totalJobsCount] = await Promise.all([
+    db.jobOrder.count({ where: { customerId: id, status: "Completed" } }),
+    db.jobOrder.count({ where: { customerId: id, status: "Cancelled" } }),
+    db.jobOrder.count({ where: { customerId: id } }),
+  ]);
+  // Active = any job that is neither Completed nor Cancelled.
+  const activeJobs = totalJobsCount - completedJobs - cancelledJobs;
+  const jobsTruncated = !allJobs && customer.jobOrders.length < totalJobsCount;
+
+  return NextResponse.json({
+    customer: {
+      ...customer,
+      completedJobs,
+      activeJobs,
+      cancelledJobs,
+      jobsTruncated,
+    },
+  });
 }
 
 export async function PUT(

@@ -360,10 +360,15 @@ export function UserGuideView() {
             <SubHeading>Account Access</SubHeading>
             <p className="text-sm">
               Your system administrator will provide your login credentials.
-              Two roles are available:
+              Six roles are available — pick the one that matches your
+              responsibility in the factory:
             </p>
-            <CodeBlock>{`Admin / Super Admin  →  Full access to all modules, stock override, user management
-Technician           →  Simplified mobile/tablet view (Site Measurement, Notebook, Cutting Lists)`}</CodeBlock>
+            <CodeBlock>{`SuperAdmin  →  Full control incl. user management, restore-from-backup, all modules
+Admin       →  Full module access + user management (cannot restore backups)
+Manager     →  Same module access as Admin (no user management)
+Storekeeper →  Inventory, stock operations, warehouse management
+Auditor     →  Read-only access to every module + audit log (compliance)
+Technician  →  Simplified mobile/tablet view (Measurements, Notebook, Cutting Lists)`}</CodeBlock>
             <Tip>
               Use the <strong>role selector</strong> on the login screen to
               pre-fill your role for a quicker sign-in.
@@ -372,14 +377,26 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
             <SubHeading>Role-based access</SubHeading>
             <Bullets>
                 <span>
-                  <strong>Admin / SuperAdmin</strong> — full access: Overview
-                  Job Orders, Customers, Inventory, Suppliers, Quotes, Reports
-                  User Management, Settings, Audit Log, and all add-on modules.
+                  <strong>SuperAdmin / Admin / Manager</strong> — full access:
+                  Overview, Job Orders, Customers, Inventory, Suppliers, Quotes,
+                  Reports, User Management, Settings, Audit Log, and all add-on
+                  modules. SuperAdmin additionally controls user roles and
+                  restores database backups.
                 </span>
                 <span>
-                  <strong>Technician</strong> — focused field set: Job Orders
+                  <strong>Storekeeper</strong> — warehouse & stock focus: Inventory,
+                  Stock Requests, Goods Issues / Returns, Transfers, Adjustments,
+                  Suppliers, Purchase Orders.
+                </span>
+                <span>
+                  <strong>Auditor</strong> — read-only across every module plus
+                  full Audit Log visibility (including SuperAdmin actions) for
+                  compliance verification.
+                </span>
+                <span>
+                  <strong>Technician</strong> — focused field set: Job Orders,
                   Site Measurements, Site Notebook Builder, Factory Cutting
-                  Lists, My Jobs, plus any enabled field add-ons (QC, Barcode
+                  Lists, My Jobs, plus any enabled field add-ons (QC, Barcode,
                   Site Visits, Punch List).
                 </span>
             </Bullets>
@@ -570,7 +587,14 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
               due date, and assignee. The system auto-generates a sequential job
               number (e.g. <code className="rounded bg-muted px-1">KCM-00021</code>).
             </Step>
-            <Step n={4} title="Save">
+            <Step n={4} title="Pick a job type">
+              Choose the <strong>Job Type</strong>: New (default), Installation,
+              Repair, Touch-Up, Add-On, Modification, or Warranty. For non-New
+              types, also pick a <strong>Parent Job</strong> — this links the
+              follow-up to the original job so the Job Tracking dashboard can
+              roll up the related work.
+            </Step>
+            <Step n={5} title="Save">
               Click <strong>Create Job</strong>. The new job appears in the
               table, the kanban board, and the Overview dashboard instantly.
             </Step>
@@ -1069,6 +1093,11 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
             <Step n={3} title="Add line items">
               For each part: length (mm), width (mm), thickness (mm), qty,
               material, edge banding, and a note (e.g. “Side Panel LH”).
+              Edge banding uses per-edge flags (Long 1 / Long 2 / Short 1 /
+              Short 2) — the system automatically subtracts the banding
+              thickness from the cut dimensions so the saw produces the
+              correct substrate size, and the quote calculator prices the
+              right linear metres of banding.
             </Step>
             <Step n={4} title="Save &amp; deduct stock">
               On save, the system automatically deducts the consumed material
@@ -1382,31 +1411,40 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
 
             <SubHeading>Job cost estimates</SubHeading>
             <p>
-              Open a job and click <strong>Estimate Cost</strong>. The system
+              Open a job and click <strong>View Quote</strong>. The system
               aggregates:
             </p>
             <Bullets>
-                <span>Material cost (from cutting lists × unit price).</span>
-                <span>Hardware cost.</span>
-                <span>Labour cost (estimated hours × rate).</span>
-                <span>Outside purchases (actual).</span>
-                <span>Overhead / margin (configurable in Settings).</span>
+                <span>Material cost (from cutting-list parts × price per m², using cut dimensions).</span>
+                <span>Edge banding cost (per-edge flags × edge length × price per metre).</span>
+                <span>Labour cost (estimated hours × rate, configured per material price).</span>
+                <span>Tax (configurable in System Settings).</span>
             </Bullets>
+            <Note>
+              Hardware cost, outside purchases, and overhead / margin are
+              intentionally <strong>not</strong> part of the automated quote —
+              these vary per job and are tracked separately via Job Expenses.
+              Add them as ad-hoc line items in your printed quote if needed.
+            </Note>
 
             <SubHeading>Quote generation</SubHeading>
             <Step n={1} title="Open the quote builder">
-              From a job, click <strong>Generate Quote</strong>.
+              From the Jobs with cost estimates table, click{" "}
+              <strong>View Quote</strong> on any job.
             </Step>
-            <Step n={2} title="Review line items">
-              Adjust prices, add discount line, set tax rate.
+            <Step n={2} title="Review the cost breakdown">
+              Material, edge banding, labour, subtotal, and tax (if non-zero)
+              are listed on a printable A4-style layout. Use the browser&rsquo;s
+              <strong>Print</strong> action to save a PDF.
             </Step>
-            <Step n={3} title="Save or send">
-              <strong>Save</strong> as draft, or <strong>Finalize</strong> to
-              lock the quote. Finalized quotes appear in the Saved Quotes list.
+            <Step n={3} title="Save the quote">
+              Click <strong>Save Quote</strong> to persist the line-item costs
+              against the job. Saved quotes are attached to the job record for
+              later reference; they do not appear in a separate list view.
             </Step>
             <Tip>
-              Compare quotes across jobs to spot margin drift — if material
-              cost % creeps up, it may be time to renegotiate supplier pricing.
+              The tax rate is read from System Settings — set it there once and
+              every quote picks it up automatically.
             </Tip>
             <RelatedLinks
               links={[
@@ -1530,16 +1568,18 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
             <Bullets>
                 <span>
                   <strong>Reset password</strong> from the user’s edit dialog —
-                  admins set a new temporary password; the user changes it on
-                  next login.
+                  admins set a new password directly; the user can sign in with
+                  it immediately. There is no forced-change-on-next-login flow.
                 </span>
                 <span>
                   Passwords are hashed with bcrypt; the plaintext is never
-                  stored or logged.
+                  stored or logged. Passwords must be at least 8 characters
+                  with at least one uppercase, one lowercase, and one digit.
                 </span>
                 <span>
-                  Users can self-change their password from the profile menu
-                  (coming soon).
+                  To change your own password, ask an admin to reset it for
+                  you — self-service password change is not currently exposed
+                  in the UI.
                 </span>
             </Bullets>
             <Warn>
@@ -1632,19 +1672,35 @@ Technician           →  Simplified mobile/tablet view (Site Measurement, Noteb
 
             <SubHeading>Filtering by action &amp; entity</SubHeading>
             <p>
-              Use the dropdowns above the table to filter by:
+              Use the controls above the table to filter by:
             </p>
             <Bullets>
-                <span><strong>Action</strong> — create, update, delete, login, status_change, assign.</span>
+                <span><strong>Action</strong> — create, update, delete, login, logout, status_change, assign.</span>
                 <span>
-                  <strong>Entity type</strong> — job, customer, user
-                  measurement, cutting_list, auth, settings.
+                  <strong>Entity type</strong> — the full enum from
+                  <code className="rounded bg-muted px-1">src/lib/audit.ts</code>{" "}
+                  (job, customer, user, measurement, cutting_list, settings,
+                  quote, supplier, inventory_item, warehouse, stock_request,
+                  goods_issue, goods_return, stock_transfer, stock_adjustment,
+                  stock_take, outside_purchase, material_price, auth, etc.).
+                </span>
+                <span>
+                  <strong>Date range</strong> — <em>from</em> / <em>to</em>{" "}
+                  pickers. The <em>to</em> date is inclusive (end-of-day), so a
+                  range of Mar&nbsp;1 → Mar&nbsp;31 returns the whole month.
                 </span>
                 <span>
                   <strong>Free-text search</strong> over the summary, actor
                   name, or entity type.
                 </span>
             </Bullets>
+            <Note>
+              The table is paginated 25 rows per page. Use the Prev / Next
+              controls at the bottom to walk through the full result set. Click
+              the <ChevronRight className="inline h-3 w-3" /> disclosure on any
+              row with details to reveal the before / after diff (e.g. field
+              changes for settings or user updates).
+            </Note>
 
             <SubHeading>Retention</SubHeading>
             <p>

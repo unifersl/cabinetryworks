@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, canManageUsers } from "@/lib/auth";
+import { getSession, canBackup } from "@/lib/auth";
 import { apiHandler } from "@/lib/api-handler";
 import { writeFile, mkdir, readdir } from "fs/promises";
 import { join } from "path";
-import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
@@ -27,7 +26,9 @@ const MODELS = [
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canManageUsers(session.role))
+  // Backup is SuperAdmin/Admin/Manager (see canBackup() in src/lib/auth.ts).
+  // Restore remains SuperAdmin-only — see /api/backup/import.
+  if (!canBackup(session.role))
     return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);

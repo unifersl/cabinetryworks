@@ -203,7 +203,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   await recordAudit({
     action: "create",
-    entityType: "settings",
+    entityType: "stock_transfer",
     entityId: transfer.id,
     actor: session,
     summary: `Created stock transfer ${transfer.transferNo} (${status})`,

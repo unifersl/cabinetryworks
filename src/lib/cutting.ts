@@ -156,6 +156,29 @@ export function estimateSheets(
   return Math.max(1, Math.ceil(areaNeeded / sheetArea));
 }
 
+/**
+ * Estimate sheets needed from a pre-computed total panel area (m²).
+ *
+ * This is the area-based variant of `estimateSheets` — used by the Site
+ * Notebook and stock-check features that don't carry per-item edge-banding
+ * detail, just the total sheet area. Wastage defaults to 15% (industry
+ * standard cutting loss). Sheet defaults to the standard 2440×1220 mm
+ * (≈ 2.977 m²).
+ *
+ * Example: areaSqm = 8.93, wastage = 15  → ceil((8.93 * 1.15) / 2.977) = 4 sheets
+ */
+export function estimateSheetsFromArea(
+  areaSqm: number,
+  sheetL = 2440,
+  sheetW = 1220,
+  wastagePct = 15,
+): number {
+  if (!Number.isFinite(areaSqm) || areaSqm <= 0) return 0;
+  const sheetAreaSqm = (sheetL * sheetW) / 1_000_000;
+  const withWastage = areaSqm * (1 + wastagePct / 100);
+  return Math.max(1, Math.ceil(withWastage / sheetAreaSqm));
+}
+
 export const STANDARD_SHEETS = [
   { label: "2440 × 1220 mm (8×4 ft)", length: 2440, width: 1220 },
   { label: "2440 × 1830 mm (8×6 ft)", length: 2440, width: 1830 },

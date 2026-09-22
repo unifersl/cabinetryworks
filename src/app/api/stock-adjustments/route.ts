@@ -55,7 +55,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = await req.json();
   const itemId = String(body?.itemId ?? "");
   const warehouseId = String(body?.warehouseId ?? "");
-  const type = String(body?.type ?? "set"); // set | add | remove | dispose
+
+  // Type validation: default to "set" only when `type` is undefined; reject
+  // any string that isn't part of the documented enum (prevents phantom
+  // StockAdjustment records with zero stock change — e.g. the old `type:"in"`
+  // from the Quick Restock dialog that silently fell through every branch).
+  const VALID_TYPES = ["set", "add", "remove", "dispose"];
+  const rawType = body?.type;
+  const type = rawType === undefined ? "set" : String(rawType);
+  if (!VALID_TYPES.includes(type)) {
+    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+  }
+
   const jobId = body?.jobId ? String(body.jobId) : null;
   const reasonText = body?.reason ? String(body.reason).trim() : "";
 
@@ -178,7 +189,13 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const newTotal = Number(totalAgg._sum.quantity ?? 0);
     await tx.inventoryItem.update({
       where: { id: itemId },
-      data: { stockLevel: newTotal, lastRestocked: diff > 0 ? new Date() : item.lastRestocked },
+      data: {
+        stockLevel: newTotal,
+        lastRestocked: diff > 0 ? new Date() : item.lastRestocked,
+        // Dispose flips the item status so further issues are blocked
+        // until the item is reactivated (e.g. via a "set" adjustment).
+        ...(type === "dispose" ? { status: "disposed" } : {}),
+      },
     });
 
     return adj;
@@ -186,7 +203,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   await recordAudit({
     action: "create",
-    entityType: "settings",
+    entityType: "stock_adjustment",
     entityId: adjustment.id,
     actor: session,
     summary: `Stock adjustment ${adjNo} — ${item.name} (${type}, ${diff >= 0 ? "+" : ""}${diff})`,

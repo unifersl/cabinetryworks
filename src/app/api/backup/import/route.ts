@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, canManageUsers } from "@/lib/auth";
+import { getSession, isSuperAdmin } from "@/lib/auth";
 import { apiHandler } from "@/lib/api-handler";
+import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -22,8 +23,14 @@ const MODELS = [
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canManageUsers(session.role))
-    return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
+  // Restore is SuperAdmin-only — see canRestore() in src/lib/auth.ts and the
+  // User Guide. Allowing Manager/Admin here would let a non-owner overwrite
+  // the entire database (users, audit log, financials) — a P0 escalation.
+  if (!isSuperAdmin(session.role))
+    return NextResponse.json(
+      { error: "Forbidden — SuperAdmin access required to restore a backup" },
+      { status: 403 }
+    );
 
   const body = await req.json();
   const backupData = body?.data;
@@ -74,6 +81,14 @@ export const POST = apiHandler(async (req: NextRequest) => {
     totalImported += imported;
     totalSkipped += skipped;
   }
+
+  await recordAudit({
+    action: "create",
+    entityType: "settings",
+    actor: session,
+    summary: `Restored database backup: ${totalImported} record(s) imported, ${totalSkipped} skipped`,
+    details: { totalImported, totalSkipped, timestamp: new Date().toISOString() },
+  });
 
   return NextResponse.json({
     ok: true,

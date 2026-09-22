@@ -182,7 +182,7 @@ export const PUT = apiHandler(async (
 
     await recordAudit({
       action: "update",
-      entityType: "settings",
+      entityType: "stock_transfer",
       entityId: id,
       actor: session,
       summary: `Transfer ${updated.transferNo}: ${oldStatus} → ${newStatus}`,
@@ -225,7 +225,7 @@ export const DELETE = apiHandler(async (
 
   await recordAudit({
     action: "delete",
-    entityType: "settings",
+    entityType: "stock_transfer",
     entityId: id,
     actor: session,
     summary: `Deleted transfer ${transfer.transferNo}`,

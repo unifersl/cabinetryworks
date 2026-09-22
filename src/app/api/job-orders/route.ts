@@ -17,6 +17,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const includeArchived = searchParams.get("includeArchived") === "true";
   const archivedOnly = searchParams.get("archived") === "true";
 
+  // Pagination params — backward compatible:
+  //   • If NEITHER `q` NOR `page` is provided, return ALL jobs (existing behavior).
+  //     This protects Overview stats queries and any other caller that expects the full list.
+  //   • If `page` is provided, enable paginated mode (default page size 50, max 200).
+  //   • If `q` is provided (server-side search), filter at DB level by title/orderNumber.
+  const q = searchParams.get("q")?.trim() ?? "";
+  const pageProvided = searchParams.has("page");
+  const takeRaw = Number(searchParams.get("take") ?? "50");
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const take = Number.isFinite(takeRaw) ? Math.min(Math.max(takeRaw, 1), 200) : 50;
+  const skip = (page - 1) * take;
+
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
   if (assignedToId) where.assignedToId = assignedToId;
@@ -25,7 +37,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
   } else if (!includeArchived) {
     where.archived = false;
   }
+  if (q) {
+    where.OR = [
+      { title: { contains: q } },
+      { orderNumber: { contains: q } },
+    ];
+  }
 
+  const paginate = pageProvided || q.length > 0;
   const jobs = await db.jobOrder.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -34,8 +53,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
       assignedTo: { select: { id: true, fullName: true, role: true } },
       _count: { select: { measurements: true, cuttingLists: true } },
     },
+    ...(paginate ? { take, skip } : {}),
   });
-  return NextResponse.json({ jobs });
+  return NextResponse.json({
+    jobs,
+    ...(paginate ? { page, take, total: await db.jobOrder.count({ where }) } : {}),
+  });
 });
 
 export const POST = apiHandler(async (req: NextRequest) => {

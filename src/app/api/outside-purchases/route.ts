@@ -161,7 +161,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   await recordAudit({
     action: "create",
-    entityType: "settings",
+    entityType: "outside_purchase",
     entityId: purchase.id,
     actor: session,
     summary: `Created outside purchase ${poNo}`,

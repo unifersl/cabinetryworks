@@ -1777,13 +1777,15 @@ function ItemDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Base payload — does NOT include stockLevel (PUT rejects it; see
+      // /api/inventory/[id]/route.ts: stockLevel must go through the
+      // /api/stock-adjustments canonical StockLot → recalc pipeline).
       const payload = {
         name: form.name.trim(),
         code: form.code.trim() || null,
         material: form.material,
         thickness: form.thickness || null,
         unit: form.unit,
-        stockLevel: Number(form.stockLevel) || 0,
         minStock: Number(form.minStock) || 0,
         reorderPoint: Number(form.reorderPoint) || 0,
         supplier: form.supplier.trim() || null,
@@ -1791,8 +1793,12 @@ function ItemDialog({
         status: form.status,
         notes: form.notes.trim() || null,
       };
-      if (item) return inventoryApi.update(item.id, payload);
-      return inventoryApi.create(payload);
+      if (item) {
+        // Editing existing item — send stockLevel only on CREATE.
+        return inventoryApi.update(item.id, payload);
+      }
+      // Creating new item — include initial stockLevel (POST allows it).
+      return inventoryApi.create({ ...payload, stockLevel: Number(form.stockLevel) || 0 });
     },
     onSuccess: () => {
       toast.success(item ? "Item updated" : "Item added");
@@ -1889,8 +1895,13 @@ function ItemDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="it-stock">Stock Level</Label>
-              <Input id="it-stock" type="number" min="0" step="0.5" placeholder="0" value={form.stockLevel} onChange={(e) => setForm((s) => ({ ...s, stockLevel: e.target.value }))} disabled={mutation.isPending || isDispose} />
+              <Label htmlFor="it-stock">Stock Level{item ? " (read-only)" : ""}</Label>
+              <Input id="it-stock" type="number" min="0" step="0.5" placeholder="0" value={form.stockLevel} onChange={(e) => setForm((s) => ({ ...s, stockLevel: e.target.value }))} disabled={mutation.isPending || isDispose || !!item} />
+              {item && (
+                <p className="text-xs text-muted-foreground">
+                  Stock is managed via the Adjust column or Quick Restock to preserve the StockLot audit trail.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="it-min">Min Stock</Label>

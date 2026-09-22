@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/dashboard/ui-helpers";
 import {
   Search, Loader2, Package, Wrench, Brush, Plus, Edit3, ShieldCheck, ClipboardList,
   ChevronDown, ChevronRight, Calendar, User, TrendingUp, Building2, Filter,
+  Ruler, Scissors, Boxes,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -105,13 +106,25 @@ export function JobTrackingView({ onNavigate }: { onNavigate?: (view: string, en
   const totalJobs = data?.totalJobs ?? 0;
   const totalCustomers = data?.totalCustomers ?? 0;
 
-  // Client-side search filter on customer name
+  // Client-side search filter — matches customer name/phone (existing) PLUS
+  // job-level fields: job.title, job.orderNumber, job.assignedTo.fullName.
+  // A group is included if ANY job in it (or the customer record) matches the
+  // query, so a search for an order number surfaces the right customer group.
   const filteredGroups = React.useMemo(() => {
     if (!search) return groups;
     const q = search.toLowerCase();
-    return groups.filter(
-      (g) => g.customer.name.toLowerCase().includes(q) || g.customer.phone?.toLowerCase().includes(q),
-    );
+    return groups.filter((g) => {
+      const customerMatch =
+        g.customer.name.toLowerCase().includes(q) ||
+        (g.customer.phone ?? "").toLowerCase().includes(q);
+      if (customerMatch) return true;
+      return g.jobs.some(
+        (job) =>
+          job.title.toLowerCase().includes(q) ||
+          job.orderNumber.toLowerCase().includes(q) ||
+          (job.assignedTo?.fullName ?? "").toLowerCase().includes(q),
+      );
+    });
   }, [groups, search]);
 
   function toggleCustomer(id: string) {
@@ -134,7 +147,8 @@ export function JobTrackingView({ onNavigate }: { onNavigate?: (view: string, en
     return counts;
   }, [groups]);
 
-  const hasActiveFilters = filterJobType !== "all" || filterStatus !== "all" || dateFrom || dateTo;
+  const hasActiveFilters =
+    !!search || filterJobType !== "all" || filterStatus !== "all" || !!dateFrom || !!dateTo;
 
   return (
     <div className="space-y-4">
@@ -177,11 +191,11 @@ export function JobTrackingView({ onNavigate }: { onNavigate?: (view: string, en
         <CardContent className="p-3">
           <div className="flex flex-wrap items-end gap-2">
             <div className="relative flex-1 min-w-[200px]">
-              <Label className="text-[10px] text-muted-foreground">Search Customer</Label>
+              <Label className="text-[10px] text-muted-foreground">Search</Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name or phone…"
+                  placeholder="Search by customer, order #, title, or assignee…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-9 pl-8"
@@ -219,7 +233,7 @@ export function JobTrackingView({ onNavigate }: { onNavigate?: (view: string, en
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-[140px]" />
             </div>
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" className="h-9" onClick={() => { setFilterJobType("all"); setFilterStatus("all"); setDateFrom(""); setDateTo(""); }}>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => { setSearch(""); setFilterJobType("all"); setFilterStatus("all"); setDateFrom(""); setDateTo(""); }}>
                 <Filter className="mr-1 h-3 w-3" /> Clear
               </Button>
             )}
@@ -325,12 +339,27 @@ export function JobTrackingView({ onNavigate }: { onNavigate?: (view: string, en
                                     {job.assignedTo.fullName}
                                   </span>
                                 )}
-                                {/* Counts */}
+                                {/* Counts — lucide icons instead of emoji glyphs */}
                                 {(job._count.measurements > 0 || job._count.cuttingLists > 0 || job._count.goodsIssues > 0) && (
                                   <span className="flex items-center gap-2">
-                                    {job._count.measurements > 0 && <span>📏 {job._count.measurements}</span>}
-                                    {job._count.cuttingLists > 0 && <span>✂️ {job._count.cuttingLists}</span>}
-                                    {job._count.goodsIssues > 0 && <span>📦 {job._count.goodsIssues}</span>}
+                                    {job._count.measurements > 0 && (
+                                      <span className="flex items-center gap-0.5" title={`${job._count.measurements} measurement(s)`}>
+                                        <Ruler className="h-3 w-3 text-sky-600" />
+                                        {job._count.measurements}
+                                      </span>
+                                    )}
+                                    {job._count.cuttingLists > 0 && (
+                                      <span className="flex items-center gap-0.5" title={`${job._count.cuttingLists} cutting list(s)`}>
+                                        <Scissors className="h-3 w-3 text-rose-600" />
+                                        {job._count.cuttingLists}
+                                      </span>
+                                    )}
+                                    {job._count.goodsIssues > 0 && (
+                                      <span className="flex items-center gap-0.5" title={`${job._count.goodsIssues} goods issue(s)`}>
+                                        <Boxes className="h-3 w-3 text-amber-600" />
+                                        {job._count.goodsIssues}
+                                      </span>
+                                    )}
                                   </span>
                                 )}
                               </div>

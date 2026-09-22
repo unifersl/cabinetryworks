@@ -48,6 +48,23 @@ export async function DELETE(
   const supplier = await db.supplier.findUnique({ where: { id } });
   if (!supplier) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Integrity guard: both InventoryItem.supplier and PurchaseOrder.supplier are
+  // free-text columns referencing the supplier by name. Deleting the supplier
+  // would orphan those references. Refuse delete if any rows still point at it.
+  const [invRefs, poRefs] = await Promise.all([
+    db.inventoryItem.findMany({ where: { supplier: supplier.name }, select: { id: true } }),
+    db.purchaseOrder.findMany({ where: { supplier: supplier.name }, select: { id: true } }),
+  ]);
+
+  if (invRefs.length > 0 || poRefs.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete: supplier is referenced by ${invRefs.length} inventory items and ${poRefs.length} purchase orders`,
+      },
+      { status: 400 }
+    );
+  }
+
   await recordAudit({
     action: "delete",
     entityType: "settings",

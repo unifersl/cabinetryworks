@@ -65,9 +65,20 @@ export function CustomerDetailSheet({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
+  // Show-all-jobs toggle: when enabled, re-fetches the customer with
+  // `?allJobs=true` to bypass the default `take: 10` cap on the jobOrders
+  // relation. Resets when the customer changes or the sheet closes.
+  const [showAllJobs, setShowAllJobs] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) setShowAllJobs(false);
+  }, [open]);
+  React.useEffect(() => {
+    setShowAllJobs(false);
+  }, [customerId]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["customer-detail", customerId],
-    queryFn: () => customersApi.get(customerId!),
+    queryKey: ["customer-detail", customerId, showAllJobs],
+    queryFn: () => customersApi.get(customerId!, { allJobs: showAllJobs }),
     enabled: !!customerId && open,
   });
 
@@ -81,11 +92,14 @@ export function CustomerDetailSheet({
     .toUpperCase();
 
   const jobs = customer?.jobOrders ?? [];
+  // Use server-provided aggregations instead of filtering the local (truncated) `jobs` array.
+  // The API returns these as the source of truth so the stat boxes always match the financial
+  // statement section below — fixing the P0 mismatch where the top showed "X of 10" while the
+  // statement correctly summed across the full history.
   const totalJobs = customer?._count?.jobOrders ?? 0;
-  const completedJobs = jobs.filter((j) => j.status === "Completed").length;
-  const activeJobs = jobs.filter(
-    (j) => j.status !== "Completed" && j.status !== "Cancelled"
-  ).length;
+  const completedJobs = customer?.completedJobs ?? 0;
+  const activeJobs = customer?.activeJobs ?? 0;
+  const jobsTruncated = customer?.jobsTruncated ?? false;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -214,14 +228,27 @@ export function CustomerDetailSheet({
 
               {/* Job history */}
               <div className="p-5 pt-3">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="flex items-center gap-2 text-sm font-medium">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     Job History
                   </h3>
-                  <Badge variant="outline" className="text-xs">
-                    {jobs.length} of {totalJobs} shown
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {jobs.length} of {totalJobs} shown
+                    </Badge>
+                    {jobsTruncated && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => setShowAllJobs(true)}
+                      >
+                        <ClipboardList className="h-3.5 w-3.5" />
+                        Show all jobs
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {jobs.length === 0 ? (

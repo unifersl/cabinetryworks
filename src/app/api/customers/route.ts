@@ -7,15 +7,48 @@ import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
-export const GET = apiHandler(async () => {
+export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+
+  // Pagination params — backward compatible:
+  //   • If NEITHER `q` NOR `page` is provided, return ALL customers (existing behavior).
+  //     This protects Overview stats queries and any other caller that expects the full list.
+  //   • If `page` is provided, enable paginated mode (default page size 50, max 200).
+  //   • If `q` is provided (server-side search), filter at DB level by name/phone/email.
+  const q = searchParams.get("q")?.trim() ?? "";
+  const pageProvided = searchParams.has("page");
+  const takeRaw = Number(searchParams.get("take") ?? "50");
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const take = Number.isFinite(takeRaw) ? Math.min(Math.max(takeRaw, 1), 200) : 50;
+  const skip = (page - 1) * take;
+
+  const where: Record<string, unknown> = {};
+  if (q) {
+    where.OR = [
+      { name: { contains: q } },
+      { phone: { contains: q } },
+      { email: { contains: q } },
+    ];
+  }
+
+  const paginate = pageProvided || q.length > 0;
   const customers = await db.customer.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { jobOrders: true } } },
+    ...(paginate ? { take, skip } : {}),
   });
-  return NextResponse.json({ customers });
+
+  // Only compute total when paginated (avoid an extra count query for the
+  // unpaginated backward-compat path that already returns everything).
+  const total = paginate
+    ? await db.customer.count({ where })
+    : customers.length;
+
+  return NextResponse.json({ customers, total, ...(paginate ? { page, take } : {}) });
 });
 
 export const POST = apiHandler(async (req: NextRequest) => {

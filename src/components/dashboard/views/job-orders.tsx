@@ -133,6 +133,89 @@ const PRIORITY_BADGE: Record<string, string> = {
   Urgent: "bg-rose-500/10 text-rose-600",
 };
 
+/**
+ * Minimal RFC 4180 CSV line parser. Handles quoted cells that contain
+ * commas, escaped quotes (`""` → `"`), and surrounding whitespace.
+ *
+ * Behavior:
+ *  • Unquoted cell ends at the next comma or end-of-line.
+ *  • A quoted cell starts after `"` (ignoring leading whitespace) and ends at
+ *    the closing `"`; any `,` inside is treated as literal content.
+ *  • Inside a quoted cell, two consecutive double-quotes (`""`) are decoded
+ *    to a single `"`.
+ *  • Trailing whitespace after an unquoted cell is preserved per RFC, but
+ *    callers usually `.trim()` afterwards (we trim unquoted cells here).
+ *
+ * Single-pass O(n), no regex backtracking — handles malformed input gracefully
+ * by returning whatever was parsed so far.
+ */
+function parseCSVLine(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        // Escaped quote?
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i += 2;
+          continue;
+        }
+        // End of quoted section.
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      cur += ch;
+      i++;
+      continue;
+    }
+    // Not in quotes
+    if (ch === '"') {
+      inQuotes = true;
+      i++;
+      continue;
+    }
+    if (ch === ",") {
+      cells.push(cur.trim());
+      cur = "";
+      i++;
+      continue;
+    }
+    cur += ch;
+    i++;
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+/**
+ * Allowed status transitions for a JobOrder. Terminal states (Completed) only
+ * allow no further transitions; Cancelled jobs may be reactivated back to
+ * Pending. Used both by the UI (to disable invalid dropdown items) AND by
+ * the PUT /api/job-orders/[id] route (server-side enforcement).
+ *
+ * The flow mirrors a typical cabinetry production pipeline:
+ *   Pending → Measured → Design → In Production → Cutting → Assembly →
+ *   Installation → Completed
+ * with Cancelled available from any non-terminal state and Pending reachable
+ * from Cancelled (to allow re-opening).
+ */
+export const ALLOWED_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
+  Pending: ["Measured", "Cancelled"] as const,
+  Measured: ["Design", "Cancelled"] as const,
+  Design: ["In Production", "Cancelled"] as const,
+  "In Production": ["Cutting", "Cancelled"] as const,
+  Cutting: ["Assembly"] as const,
+  Assembly: ["Installation"] as const,
+  Installation: ["Completed"] as const,
+  Completed: [] as const,
+  Cancelled: ["Pending"] as const,
+};
+
 export function JobOrdersView({
   focusJobId,
   onFocusConsumed,
@@ -342,7 +425,11 @@ export function JobOrdersView({
         toast.error("CSV must have a header and at least one row");
         return;
       }
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+      // Use RFC 4180 CSV parser for both the header row and data rows.
+      // This correctly handles quoted cells containing commas, e.g.
+      //   `Kitchen, pantry, full refit` becomes ONE cell when quoted:
+      //   `"Kitchen, pantry, full refit"`.
+      const headers = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/"/g, ""));
       let imported = 0;
       let failed = 0;
       let customers = customersData?.customers ?? [];
@@ -356,7 +443,7 @@ export function JobOrdersView({
       const techMap = new Map(technicians.map((t) => [t.fullName.toLowerCase(), t.id]));
 
       for (const line of lines.slice(1)) {
-        const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, "").replace(/""/g, '"'));
+        const cells = parseCSVLine(line);
         const get = (key: string) => {
           const idx = headers.indexOf(key);
           return idx >= 0 ? cells[idx] : "";
@@ -1025,38 +1112,54 @@ export function JobOrdersView({
                                   Edit status
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="w-44">
-                                  {STATUSES.map((s) => (
-                                    <DropdownMenuItem
-                                      key={s}
-                                      onClick={() =>
-                                        updateStatus.mutate({
-                                          id: job.id,
-                                          status: s as JobStatus,
-                                        })
-                                      }
-                                      disabled={
-                                        s === job.status ||
-                                        updateStatus.isPending
-                                      }
-                                      className="gap-2 text-xs"
-                                    >
-                                      <span
-                                        className="h-2 w-2 rounded-full"
-                                        style={{
-                                          backgroundColor:
-                                            s === job.status
+                                  {STATUSES.map((s) => {
+                                    const allowed = (
+                                      ALLOWED_TRANSITIONS[job.status] ?? []
+                                    ).includes(s);
+                                    const isCurrent = s === job.status;
+                                    return (
+                                      <DropdownMenuItem
+                                        key={s}
+                                        onClick={() =>
+                                          updateStatus.mutate({
+                                            id: job.id,
+                                            status: s as JobStatus,
+                                          })
+                                        }
+                                        disabled={
+                                          isCurrent ||
+                                          !allowed ||
+                                          updateStatus.isPending
+                                        }
+                                        title={
+                                          !allowed && !isCurrent
+                                            ? `Not allowed from ${job.status}`
+                                            : undefined
+                                        }
+                                        className="gap-2 text-xs"
+                                      >
+                                        <span
+                                          className="h-2 w-2 rounded-full"
+                                          style={{
+                                            backgroundColor: isCurrent
                                               ? "var(--primary)"
                                               : "transparent",
-                                        }}
-                                      />
-                                      {s}
-                                      {s === job.status && (
-                                        <DropdownMenuShortcut>
-                                          current
-                                        </DropdownMenuShortcut>
-                                      )}
-                                    </DropdownMenuItem>
-                                  ))}
+                                          }}
+                                        />
+                                        {s}
+                                        {isCurrent && (
+                                          <DropdownMenuShortcut>
+                                            current
+                                          </DropdownMenuShortcut>
+                                        )}
+                                        {!allowed && !isCurrent && (
+                                          <span className="ml-auto text-[10px] text-muted-foreground/60">
+                                            blocked
+                                          </span>
+                                        )}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
                                 </DropdownMenuSubContent>
                               </DropdownMenuSub>
                               {isAdmin && (

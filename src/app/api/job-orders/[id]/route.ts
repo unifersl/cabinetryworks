@@ -5,6 +5,31 @@ import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
+/**
+ * Server-side status-transition guard. Mirrors the `ALLOWED_TRANSITIONS` map
+ * exported from `src/components/dashboard/views/job-orders.tsx` so client and
+ * server enforce the same rules. Centralised here (rather than imported from
+ * the client component, which can't run in an API route) for safety — even if
+ * a malicious client bypasses the disabled dropdown, the server still rejects.
+ *
+ * The flow mirrors a typical cabinetry production pipeline:
+ *   Pending → Measured → Design → In Production → Cutting → Assembly →
+ *   Installation → Completed
+ * with Cancelled available from any non-terminal state and Pending reachable
+ * from Cancelled (to allow re-opening).
+ */
+const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
+  Pending: ["Measured", "Cancelled"],
+  Measured: ["Design", "Cancelled"],
+  Design: ["In Production", "Cancelled"],
+  "In Production": ["Cutting", "Cancelled"],
+  Cutting: ["Assembly"],
+  Assembly: ["Installation"],
+  Installation: ["Completed"],
+  Completed: [],
+  Cancelled: ["Pending"],
+};
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,6 +66,32 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
+
+  // Server-side status-transition validation. We must read the CURRENT status
+  // from the DB (not from the body) so we evaluate against the actual state,
+  // not the user's claimed state. If `body.status` is provided and is not in
+  // the allowed transitions from the current status, reject with 400.
+  if (body.status !== undefined) {
+    const current = await db.jobOrder.findUnique({
+      where: { id },
+      select: { status: true, orderNumber: true },
+    });
+    if (!current) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const newStatus = String(body.status);
+    const allowed = ALLOWED_TRANSITIONS[current.status] ?? [];
+    if (newStatus !== current.status && !allowed.includes(newStatus)) {
+      return NextResponse.json(
+        {
+          error: `Status transition not allowed: ${current.status} → ${newStatus}. Allowed from ${current.status}: ${
+            allowed.length ? allowed.join(", ") : "(none — terminal state)"
+          }.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
 
   const data: Record<string, unknown> = {};
   for (const k of [

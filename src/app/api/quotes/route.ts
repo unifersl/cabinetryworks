@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   await recordAudit({
     action: "create",
-    entityType: "settings",
+    entityType: "quote",
     entityId: quote.id,
     actor: session,
     summary: `Created quote ${quote.quoteNumber} for ${quote.job.orderNumber}`,

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { jobsApi, inventoryApi, warehousesApi, stockRequestsApi } from "@/lib/api";
+import { jobsApi, inventoryApi, warehousesApi, stockRequestsApi, measurementsApi } from "@/lib/api";
+import { estimateSheetsFromArea } from "@/lib/cutting";
 import { useAuth } from "@/components/providers";
 import {
   type SiteJobData,
@@ -81,15 +82,15 @@ import {
   CheckCircle2,
   RefreshCw,
   Loader2,
+  CloudUpload,
+  CloudDownload,
 } from "lucide-react";
 
-// Sheet area = 2440mm × 1220mm = 2.977 m² (matches the Site Notebook estimator)
-const STANDARD_SHEET_AREA_SQM = (2440 * 1220) / 1_000_000;
-
-/** Compute the sheets required for a given total area in m² (with 15% wastage). */
-function sheetsNeededFor(areaSqm: number): number {
-  return Math.ceil((areaSqm * 1.15) / STANDARD_SHEET_AREA_SQM);
-}
+// Sheet-count math lives in `estimateSheetsFromArea` from `@/lib/cutting`
+// (shared with Reports — Task 3 Cutting List rebuild). The previous local
+// `sheetsNeededFor` helper duplicated that logic and could drift out of sync.
+// The standard 2440×1220 mm sheet (≈ 2.977 m²) is the default inside
+// `estimateSheetsFromArea`; pass explicit args if you need a non-standard sheet.
 
 /** Fuzzy-match a Site Notebook MaterialTag to inventory items. */
 function matchInventoryItems(
@@ -131,6 +132,14 @@ export function SiteNotebookView() {
   const [syncWarehouseId, setSyncWarehouseId] = React.useState("");
   const [syncJobId, setSyncJobId] = React.useState("");
   const [syncSubmitting, setSyncSubmitting] = React.useState(false);
+
+  // ---- Server persistence (Save to / Load from Server) ----
+  // The notebook data is localStorage-only by default. These two dialogs let
+  // the user attach it to a job via /api/measurements (notes field carries the
+  // serialized SiteJobData JSON) so it survives a browser wipe, can be shared
+  // with the back office, and shows up on the Job Detail sheet.
+  const [saveServerOpen, setSaveServerOpen] = React.useState(false);
+  const [loadServerOpen, setLoadServerOpen] = React.useState(false);
 
   // Load saved data from localStorage on mount
   React.useEffect(() => {
@@ -328,7 +337,7 @@ export function SiteNotebookView() {
       }
 
       const rows: StockCheckRow[] = Array.from(areaByMaterial.entries()).map(([tag, area]) => {
-        const needed = sheetsNeededFor(area);
+        const needed = estimateSheetsFromArea(area);
         const matches = matchInventoryItems(tag, invItems);
         const available = matches.reduce(
           (sum, it) => sum + Number(it.stockLevel ?? 0),
@@ -449,6 +458,26 @@ export function SiteNotebookView() {
           >
             <PackageCheck className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Check Stock</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSaveServerOpen(true)}
+            className="h-8 px-2.5"
+            title="Save this notebook to the server, linked to a job"
+          >
+            <CloudUpload className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Save to Server</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLoadServerOpen(true)}
+            className="h-8 px-2.5"
+            title="Load a notebook previously saved to the server"
+          >
+            <CloudDownload className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Load from Server</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()} className="h-8 px-2.5">
             <Upload className="h-4 w-4 sm:mr-1.5" />
@@ -947,8 +976,7 @@ export function SiteNotebookView() {
                                     0,
                                   );
                                   const totalQty = mod.cuttingList.reduce((s, e) => s + e.qty, 0);
-                                  const sheetArea = 2.97; // standard 2440×1220mm sheet ≈ 2.97 m²
-                                  const sheetsNeeded = Math.ceil(totalArea / sheetArea);
+                                  const sheetsNeeded = estimateSheetsFromArea(totalArea);
                                   return (
                                     <div className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-[10px] text-muted-foreground">
                                       <span>
@@ -1144,9 +1172,8 @@ export function SiteNotebookView() {
                     ),
                   0
                 );
-                const sheetAreaSqm = (2440 * 1220) / 1_000_000; // ~2.977 m²
                 const withWastage = totalAreaSqm * 1.15; // 15% wastage
-                const sheetsNeeded = Math.ceil(withWastage / sheetAreaSqm);
+                const sheetsNeeded = estimateSheetsFromArea(totalAreaSqm);
                 const totalPieces = data.modules.reduce(
                   (s, m) => s + m.cuttingList.reduce((ms, e) => ms + e.qty, 0),
                   0
@@ -1403,6 +1430,21 @@ export function SiteNotebookView() {
         onJobChange={setSyncJobId}
         submitting={syncSubmitting}
         onSubmit={syncShortagesToInventory}
+      />
+
+      {/* Save / Load to Server dialogs — persist SiteJobData via /api/measurements */}
+      <SaveToServerDialog
+        open={saveServerOpen}
+        onOpenChange={setSaveServerOpen}
+        notebookData={data}
+      />
+      <LoadFromServerDialog
+        open={loadServerOpen}
+        onOpenChange={setLoadServerOpen}
+        onLoad={(loaded) => {
+          setData(loaded);
+          toast.success("Notebook loaded from server");
+        }}
       />
     </div>
   );
@@ -1719,6 +1761,338 @@ function SyncShortagesDialog({
             Create Stock Request
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Save / Load to Server dialogs                                                */
+/*                                                                              */
+/* The notebook is localStorage-only by default. These dialogs let the user    */
+/* persist the notebook to the server via /api/measurements — the entire        */
+/* SiteJobData is JSON-serialised into the `notes` field, and `roomType` carries */
+/* the site name so the measurement shows up correctly on the Job Detail sheet. */
+/* The `blueprint` field carries photos so they round-trip too.                 */
+/*                                                                              */
+/* Using /api/measurements (rather than a brand-new /api/site-notebooks route)  */
+/* matches the audit fix instructions and reuses existing audit logging, RBAC,  */
+/* and the Job Detail "Measurements" tab.                                        */
+/* -------------------------------------------------------------------------- */
+
+function SaveToServerDialog({
+  open,
+  onOpenChange,
+  notebookData,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  notebookData: SiteJobData;
+}) {
+  const { data: jobsData } = useQuery({
+    queryKey: ["jobs"],
+    queryFn: () => jobsApi.list(),
+    enabled: open,
+  });
+  const [jobId, setJobId] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const jobs = (jobsData?.jobs ?? []).filter((j) => !j.archived);
+
+  // Try to pre-select the job whose orderNumber matches the notebook's
+  // hand-typed jobNumber — common workflow (technician types "KCM-0001"
+  // then immediately saves to that job).
+  React.useEffect(() => {
+    if (!open) return;
+    if (jobId) return; // user already picked one
+    if (!notebookData.jobNumber.trim()) return;
+    const match = jobs.find((j) => j.orderNumber === notebookData.jobNumber.trim());
+    if (match) setJobId(match.id);
+  }, [open, jobId, jobs, notebookData.jobNumber]);
+
+  async function handleSave() {
+    if (!jobId) {
+      toast.error("Please select a job to attach the notebook to");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Serialise the full notebook into the `notes` field, photos into
+      // `photoUrls` (the API expects an array of URLs/base64 strings), and
+      // keep `roomType` + `status` for the Job Detail sheet's UI.
+      const status: "Draft" | "Submitted" | "Approved" =
+        notebookData.signature.signedAt ? "Approved" : "Draft";
+      const payload = {
+        jobId,
+        roomType: notebookData.siteName || "Site Notebook",
+        wallLength: notebookData.overallDimensions
+          ? `${notebookData.overallDimensions.width}×${notebookData.overallDimensions.height}×${notebookData.overallDimensions.depth}mm`
+          : null,
+        notes: JSON.stringify(notebookData),
+        // The SiteMeasurement schema stores photoUrls as a JSON-serialised
+        // string (see /api/measurements POST). Photos live inside `notes`
+        // already (the entire SiteJobData is JSON-serialised there, including
+        // any embedded data URLs), so we leave photoUrls empty here.
+        photoUrls: null,
+        status,
+      };
+      await measurementsApi.create(payload);
+      toast.success("Notebook saved to server");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save notebook");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="sm:max-w-[520px] max-h-[calc(100vh-2rem)] overflow-y-auto scrollbar-warm">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <CloudUpload className="h-5 w-5 text-primary" />
+                Save Notebook to Server
+              </DialogTitle>
+              <DialogDescription>
+                Persists this Site Notebook to the selected job via the Site
+                Measurements endpoint. The notebook survives a browser reset
+                and is visible to the back office on the Job Detail sheet.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>
+              Job <span className="text-destructive">*</span>
+            </Label>
+            <Select value={jobId} onValueChange={setJobId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a job to attach the notebook to" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {jobs.map((j) => (
+                  <SelectItem key={j.id} value={j.id}>
+                    {j.orderNumber} — {j.title}
+                    {j.customer?.name ? ` · ${j.customer.name}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {notebookData.jobNumber.trim()
+                ? `Notebook job number is “${notebookData.jobNumber}”. ${jobs.find((j) => j.orderNumber === notebookData.jobNumber.trim()) ? "Matching job pre-selected." : "No matching job — pick one above."}`
+                : "Tip: set the Job No. in the Site Information card first to auto-pick the right job."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-xs space-y-1">
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Site / Client</span>
+              <span className="font-medium">{notebookData.siteName || "—"}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Modules</span>
+              <span className="font-medium tabular-nums">{notebookData.modules.length}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Cutting entries</span>
+              <span className="font-medium tabular-nums">
+                {notebookData.modules.reduce((s, m) => s + m.cuttingList.length, 0)}
+              </span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Signature</span>
+              <span className="font-medium">
+                {notebookData.signature.signedAt ? "✓ Signed" : "Pending"}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !jobId}>
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <CloudUpload className="mr-2 h-4 w-4" />
+            )}
+            Save to Server
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LoadFromServerDialog({
+  open,
+  onOpenChange,
+  onLoad,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onLoad: (data: SiteJobData) => void;
+}) {
+  const { data: measurementsData, isLoading } = useQuery({
+    queryKey: ["measurements", "site-notebook"],
+    queryFn: () => measurementsApi.list(),
+    enabled: open,
+  });
+
+  // Only show measurements whose `notes` payload looks like a Site Notebook
+  // (must have a `modules` array — every SiteJobData has one).
+  const candidates = React.useMemo(() => {
+    const all = measurementsData?.measurements ?? [];
+    return all.filter((m) => {
+      if (!m.notes) return false;
+      try {
+        const parsed = JSON.parse(m.notes);
+        return parsed && Array.isArray(parsed.modules);
+      } catch {
+        return false;
+      }
+    });
+  }, [measurementsData]);
+
+  function handleLoad(notes: string | null | undefined, fallbackId: string) {
+    if (!notes) {
+      toast.error("This entry has no notebook payload");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(notes) as SiteJobData;
+      if (!parsed.modules || !Array.isArray(parsed.modules)) {
+        throw new Error("Invalid notebook format");
+      }
+      onLoad(parsed);
+      onOpenChange(false);
+    } catch (err) {
+      console.error("[site-notebook] load failed for", fallbackId, err);
+      toast.error("Failed to parse notebook data — file may be corrupted");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="sm:max-w-[640px] max-h-[calc(100vh-2rem)] overflow-y-auto scrollbar-warm">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <CloudDownload className="h-5 w-5 text-primary" />
+                Load Notebook from Server
+              </DialogTitle>
+              <DialogDescription>
+                Lists every Site Measurement whose <code className="rounded bg-muted px-1">notes</code> payload is a
+                Site Notebook. Click <strong>Load</strong> to replace your local notebook with the server copy.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading saved notebooks…
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="rounded-full bg-muted p-4">
+              <CloudDownload className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium">No saved notebooks on the server</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Use <strong>Save to Server</strong> after capturing site data to make it appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border overflow-x-auto scrollbar-warm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[140px]">Job</TableHead>
+                  <TableHead className="min-w-[140px]">Site / Client</TableHead>
+                  <TableHead className="hidden sm:table-cell min-w-[80px]">Modules</TableHead>
+                  <TableHead className="hidden md:table-cell min-w-[120px]">Saved</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {candidates.map((m) => {
+                  let modulesCount = 0;
+                  let siteName = m.roomType ?? "—";
+                  try {
+                    const parsed = JSON.parse(m.notes ?? "") as SiteJobData;
+                    modulesCount = parsed.modules?.length ?? 0;
+                    siteName = parsed.siteName || siteName;
+                  } catch {
+                    /* ignore — show raw */
+                  }
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-mono text-xs">
+                        {m.job?.orderNumber ?? "—"}
+                        {m.job?.title ? (
+                          <span className="block font-sans text-[11px] text-muted-foreground">
+                            {m.job.title}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-sm">{siteName}</TableCell>
+                      <TableCell className="hidden sm:table-cell tabular-nums text-xs">
+                        {modulesCount}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {m.createdAt
+                          ? new Date(m.createdAt).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleLoad(m.notes, m.id)}
+                        >
+                          <CloudDownload className="mr-1.5 h-3.5 w-3.5" />
+                          Load
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

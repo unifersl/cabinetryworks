@@ -1,10 +1,9 @@
-// @ts-nocheck
 "use client";
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jobsApi, costApi, materialPricesApi, quotesApi } from "@/lib/api";
-import type { MaterialPrice } from "@/lib/api";
+import type { MaterialPrice, JobCost } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -270,6 +269,7 @@ export function QuotesView() {
       <QuoteDialog
         open={quoteOpen}
         onOpenChange={setQuoteOpen}
+        jobId={selectedJobId}
         costData={costData}
         isLoading={costLoading}
       />
@@ -287,14 +287,14 @@ export function QuotesView() {
 function QuoteDialog({
   open,
   onOpenChange,
+  jobId,
   costData,
   isLoading,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  costData: ReturnType<typeof useQuery>["data"] extends infer T
-    ? T
-    : never;
+  jobId: string;
+  costData: JobCost | undefined;
   isLoading: boolean;
 }) {
   if (!open) return null;
@@ -308,7 +308,7 @@ function QuoteDialog({
           <div className="flex gap-2">
             {costData && (
               <>
-                <SaveQuoteButton jobId={selectedJobId} costData={costData} onSaved={() => onOpenChange(false)} />
+                <SaveQuoteButton jobId={jobId} costData={costData} onSaved={() => onOpenChange(false)} />
                 <Button variant="outline" size="sm" onClick={() => window.print()}>
                   <Printer className="mr-2 h-4 w-4" />
                   Print
@@ -343,8 +343,8 @@ function QuoteDialog({
   );
 }
 
-function QuoteContent({ costData }: { costData: NonNullable<ReturnType<typeof useQuery>["data"]> }) {
-  const cd = costData as any;
+function QuoteContent({ costData }: { costData: JobCost }) {
+  const cd = costData;
   return (
     <div className="print-page mx-auto max-w-2xl space-y-4 p-4">
       {/* Header */}
@@ -411,7 +411,7 @@ function QuoteContent({ costData }: { costData: NonNullable<ReturnType<typeof us
             </TableRow>
           </TableHeader>
           <TableBody>
-            {cd.lines.map((line: any, i: number) => (
+            {cd.lines.map((line, i) => (
               <TableRow key={i} className="border-border">
                 <TableCell className="text-xs">
                   <p className="font-medium">{line.partName}</p>
@@ -696,7 +696,7 @@ function SaveQuoteButton({
   onSaved,
 }: {
   jobId: string;
-  costData: any;
+  costData: JobCost;
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -716,7 +716,7 @@ function SaveQuoteButton({
         total: costData.summary.total,
         currency: costData.currency,
       });
-      toast.success("Quote saved! View it in Saved Quotes.");
+      toast.success("Quote saved.");
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       onSaved();
     } catch (e) {

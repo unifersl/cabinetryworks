@@ -145,10 +145,23 @@ export const usersApi = {
 /* ---------------- Customers ---------------- */
 export const customersApi = {
   list: () => request<{ customers: Customer[] }>("/api/customers"),
-  get: (id: string) =>
-    request<{ customer: Customer & { jobOrders: Array<{ id: string; orderNumber: string; title: string; status: string; priority: string; createdAt: string }> } }>(
-      `/api/customers/${id}`
-    ),
+  get: (id: string, opts?: { allJobs?: boolean }) =>
+    request<{
+      customer: Customer & {
+        jobOrders: Array<{
+          id: string;
+          orderNumber: string;
+          title: string;
+          status: string;
+          priority: string;
+          createdAt: string;
+        }>;
+        completedJobs: number;
+        activeJobs: number;
+        cancelledJobs: number;
+        jobsTruncated: boolean;
+      };
+    }>(`/api/customers/${id}${opts?.allJobs ? "?allJobs=true" : ""}`),
   create: (payload: Partial<Customer>) =>
     request<{ customer: Customer }>("/api/customers", {
       method: "POST",
@@ -338,16 +351,28 @@ export const auditApi = {
     entityType?: string;
     entityId?: string;
     limit?: number;
+    page?: number;
+    pageSize?: number;
+    from?: string;
+    to?: string;
   }) => {
     const qs = new URLSearchParams();
     if (params?.action) qs.set("action", params.action);
     if (params?.entityType) qs.set("entityType", params.entityType);
     if (params?.entityId) qs.set("entityId", params.entityId);
     if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
-    return request<{ logs: AuditLogEntry[]; stats: { total: number; todayCount: number } }>(
-      `/api/audit${suffix}`
-    );
+    return request<{
+      logs: AuditLogEntry[];
+      total: number;
+      page: number;
+      pageSize: number;
+      stats: { total: number; todayCount: number };
+    }>(`/api/audit${suffix}`);
   },
   retention: (days: number) =>
     request<{ deleted: number; days: number }>(`/api/audit/retention`, {

@@ -414,7 +414,10 @@ function AuditRetention() {
 /* ============ Backup & Restore Section ============ */
 function BackupSection() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "Admin" || user?.role === "SuperAdmin";
+  // Backup is Admin/Manager/SuperAdmin. Restore is SuperAdmin-only (matches
+  // the API at /api/backup/import which uses isSuperAdmin).
+  const isAdmin = user?.role === "Admin" || user?.role === "SuperAdmin" || user?.role === "Manager";
+  const canRestore = user?.role === "SuperAdmin";
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [importing, setImporting] = React.useState(false);
 
@@ -491,7 +494,7 @@ function BackupSection() {
               Backup
             </Button>
             <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing || !canRestore} title={canRestore ? "" : "SuperAdmin only"}>
               {importing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
               Restore
             </Button>
