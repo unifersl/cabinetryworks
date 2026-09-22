@@ -85,10 +85,20 @@ export interface SiteMeasurement {
 export interface CuttingListItem {
   part: string;
   qty: number;
-  length: string;
-  width: string;
-  thickness: string;
-  edge?: string;
+  length: string;      // nominal length (mm) — finished size after banding
+  width: string;       // nominal width (mm) — finished size after banding
+  thickness: string;   // panel thickness (e.g., "18mm")
+  edge?: string;        // legacy free-text (backward compat for old rows)
+  // Per-edge banding flags. Long edges run along the length; short edges run
+  // along the width. Banding on a LONG edge reduces the CUT WIDTH; banding on
+  // a SHORT edge reduces the CUT LENGTH.
+  edgeLong1?: boolean;
+  edgeLong2?: boolean;
+  edgeShort1?: boolean;
+  edgeShort2?: boolean;
+  edgeThk?: number;     // edge banding thickness (mm), default 1
+  grain?: boolean;      // grain direction matters — do not rotate in nesting
+  note?: string;        // per-part note (e.g. " hinge holes 32mm pitch")
 }
 
 export interface CuttingList {

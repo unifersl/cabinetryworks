@@ -136,51 +136,54 @@ export const POST = apiHandler(async (req: NextRequest) => {
         }
 
         if (warehouseId && sheetsNeeded > 0) {
-          await db.$transaction(async (tx) => {
-            for (const inv of invItems) {
-              // Deduct FIFO from this warehouse's StockLots
-              let remaining = sheetsNeeded;
-              const lots = await tx.stockLot.findMany({
-                where: { itemId: inv.id, warehouseId, quantity: { gt: 0 } },
-                orderBy: { receivedDate: "asc" },
-              });
-              for (const lot of lots) {
-                if (remaining <= 0) break;
-                const take = Math.min(Number(lot.quantity), remaining);
-                await tx.stockLot.update({
-                  where: { id: lot.id },
-                  data: { quantity: Number(lot.quantity) - take },
+          await db.$transaction(
+            async (tx) => {
+              for (const inv of invItems) {
+                // Deduct FIFO from this warehouse's StockLots
+                let remaining = sheetsNeeded;
+                const lots = await tx.stockLot.findMany({
+                  where: { itemId: inv.id, warehouseId, quantity: { gt: 0 } },
+                  orderBy: { receivedDate: "asc" },
                 });
-                remaining -= take;
+                for (const lot of lots) {
+                  if (remaining <= 0) break;
+                  const take = Math.min(Number(lot.quantity), remaining);
+                  await tx.stockLot.update({
+                    where: { id: lot.id },
+                    data: { quantity: Number(lot.quantity) - take },
+                  });
+                  remaining -= take;
+                }
+
+                // Recalculate InventoryItem.stockLevel from the new StockLot totals
+                const totalAgg = await tx.stockLot.aggregate({
+                  where: { itemId: inv.id },
+                  _sum: { quantity: true },
+                });
+                await tx.inventoryItem.update({
+                  where: { id: inv.id },
+                  data: { stockLevel: Number(totalAgg._sum.quantity ?? 0) },
+                });
+
+                await recordAudit({
+                  action: "update",
+                  entityType: "settings",
+                  entityId: inv.id,
+                  actor: session,
+                  summary: `Auto-deducted ${sheetsNeeded} ${inv.unit} from ${inv.name} (cutting list for ${item.job?.orderNumber})`,
+                  details: {
+                    inventoryItem: inv.name,
+                    deducted: sheetsNeeded,
+                    previousStock: Number(inv.stockLevel).toString(),
+                    newStock: Number(totalAgg._sum.quantity ?? 0).toString(),
+                    cuttingListId: item.id,
+                    warehouseId,
+                  },
+                });
               }
-
-              // Recalculate InventoryItem.stockLevel from the new StockLot totals
-              const totalAgg = await tx.stockLot.aggregate({
-                where: { itemId: inv.id },
-                _sum: { quantity: true },
-              });
-              await tx.inventoryItem.update({
-                where: { id: inv.id },
-                data: { stockLevel: Number(totalAgg._sum.quantity ?? 0) },
-              });
-
-              await recordAudit({
-                action: "update",
-                entityType: "settings",
-                entityId: inv.id,
-                actor: session,
-                summary: `Auto-deducted ${sheetsNeeded} ${inv.unit} from ${inv.name} (cutting list for ${item.job?.orderNumber})`,
-                details: {
-                  inventoryItem: inv.name,
-                  deducted: sheetsNeeded,
-                  previousStock: Number(inv.stockLevel).toString(),
-                  newStock: Number(totalAgg._sum.quantity ?? 0).toString(),
-                  cuttingListId: item.id,
-                  warehouseId,
-                },
-              });
-            }
-          });
+            },
+            { timeout: 15000, maxWait: 20000 },
+          );
         }
       }
     } catch (err) {
