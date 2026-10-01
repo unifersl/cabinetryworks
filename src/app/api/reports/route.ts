@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, canManageUsers } from "@/lib/auth";
 import { cutLength, cutWidth } from "@/lib/cutting";
 
 export const runtime = "nodejs";
@@ -13,6 +13,15 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Reports expose business-wide consumption / cost data — restrict to
+  // Admin / SuperAdmin / Manager only. Technicians and Storekeepers can do
+  // their work without seeing aggregate material consumption across all jobs.
+  if (!canManageUsers(session.role)) {
+    return NextResponse.json(
+      { error: "Forbidden — reports are admin/manager only" },
+      { status: 403 }
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const reportType = searchParams.get("type") ?? "consumption";

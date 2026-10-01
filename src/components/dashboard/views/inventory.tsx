@@ -125,6 +125,7 @@ import {
   ArrowRightCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/providers";
+import { escapeHtml } from "@/lib/utils";
 
 const MATERIALS = ["MDF", "Plywood", "Particle Board", "Solid Wood", "Acrylic", "Hardware", "Edge Banding", "Other"];
 const UNITS = ["sheet", "m²", "m", "liter", "piece", "box", "pcs", "set"];
@@ -2851,7 +2852,9 @@ function StockTakeCreateDialog({
   const warehouses = whData?.warehouses ?? [];
 
   const [warehouseId, setWarehouseId] = React.useState("");
-  const [period, setPeriod] = React.useState(new Date().toISOString().slice(0, 7));
+  // Initialize period as empty — populate via useEffect after mount to avoid
+  // SSR/CSR hydration mismatch across month boundaries.
+  const [period, setPeriod] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
   React.useEffect(() => {
@@ -3205,16 +3208,22 @@ function RequestDetailDialog({ request, onClose }: { request: StockRequest; onCl
   function printRequest() {
     const w = window.open("", "_blank");
     if (!w) return;
+    // Escape ALL user-controlled strings before interpolating into HTML —
+    // the print window inherits the opener's origin, so an unescaped item
+    // name / notes / etc. would execute injected scripts in the same origin.
     const rows = request.lines.map((l, i) => `<tr>
       <td style="text-align:center">${i + 1}</td>
-      <td>${l.item?.name ?? "—"}</td>
-      <td>${l.item?.code ?? "—"}</td>
-      <td style="text-align:right">${l.quantity}</td>
-      <td>${l.item?.unit ?? "—"}</td>
+      <td>${escapeHtml(l.item?.name)}</td>
+      <td>${escapeHtml(l.item?.code)}</td>
+      <td style="text-align:right">${escapeHtml(l.quantity)}</td>
+      <td>${escapeHtml(l.item?.unit)}</td>
       <td style="text-align:right">0</td>
-      <td style="text-align:right">${l.quantity}</td>
+      <td style="text-align:right">${escapeHtml(l.quantity)}</td>
     </tr>`).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>Stock Request ${request.reqNo}</title>
+    const jobLabel = request.job
+      ? `${escapeHtml(request.job.orderNumber)} — ${escapeHtml(request.job.title)}`
+      : "No job";
+    w.document.write(`<!DOCTYPE html><html><head><title>Stock Request ${escapeHtml(request.reqNo)}</title>
       <style>
         @page { size: A4 portrait; margin: 12mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3233,18 +3242,18 @@ function RequestDetailDialog({ request, onClose }: { request: StockRequest; onCl
       </style></head><body>
       <div class="header">
         <div class="title">Stock Request</div>
-        <div class="subtitle">${request.reqNo}</div>
+        <div class="subtitle">${escapeHtml(request.reqNo)}</div>
       </div>
       <div class="info-grid">
         <div>
-          <div class="info-row"><span class="info-label">Request #:</span> ${request.reqNo}</div>
-          <div class="info-row"><span class="info-label">Project:</span> ${request.job ? request.job.orderNumber + " — " + request.job.title : "No job"}</div>
-          <div class="info-row"><span class="info-label">Warehouse:</span> ${request.warehouse?.code ?? "—"} — ${request.warehouse?.name ?? ""}</div>
+          <div class="info-row"><span class="info-label">Request #:</span> ${escapeHtml(request.reqNo)}</div>
+          <div class="info-row"><span class="info-label">Project:</span> ${jobLabel}</div>
+          <div class="info-row"><span class="info-label">Warehouse:</span> ${escapeHtml(request.warehouse?.code)} — ${escapeHtml(request.warehouse?.name)}</div>
         </div>
         <div>
-          <div class="info-row"><span class="info-label">Date:</span> ${new Date(request.createdAt).toLocaleDateString("en-GB")}</div>
-          <div class="info-row"><span class="info-label">Status:</span> ${request.status.toUpperCase()}</div>
-          <div class="info-row"><span class="info-label">Requested By:</span> ${request.requestedBy ?? "—"}</div>
+          <div class="info-row"><span class="info-label">Date:</span> ${escapeHtml(new Date(request.createdAt).toLocaleDateString("en-GB"))}</div>
+          <div class="info-row"><span class="info-label">Status:</span> ${escapeHtml(request.status.toUpperCase())}</div>
+          <div class="info-row"><span class="info-label">Requested By:</span> ${escapeHtml(request.requestedBy)}</div>
         </div>
       </div>
       <table>
@@ -3259,8 +3268,8 @@ function RequestDetailDialog({ request, onClose }: { request: StockRequest; onCl
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      ${request.notes ? `<div class="notes"><b>Notes:</b> ${request.notes}</div>` : ""}
-      <div class="footer">Generated: ${new Date().toLocaleString()} — CabinetryWorks</div>
+      ${request.notes ? `<div class="notes"><b>Notes:</b> ${escapeHtml(request.notes)}</div>` : ""}
+      <div class="footer">Generated: ${escapeHtml(new Date().toLocaleString())} — CabinetryWorks</div>
       </body></html>`);
     w.document.close();
     setTimeout(() => w.print(), 500);

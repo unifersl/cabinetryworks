@@ -1745,10 +1745,31 @@ function CalendarView({
   onJobClick: (id: string) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
 }) {
-  const [cursor, setCursor] = React.useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  // Initialize cursor as null to avoid SSR-vs-client hydration mismatch (server
+  // time may differ from client time across midnight, producing a different
+  // initial month). Set the real cursor in useEffect after mount.
+  const [cursor, setCursor] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    if (cursor) return;
+    const realNow = new Date();
+    setCursor(new Date(realNow.getFullYear(), realNow.getMonth(), 1));
+  }, [cursor]);
+
+  // Stable "today" reference, also deferred to client-only.
+  const [today, setToday] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    setToday(new Date());
+  }, []);
+
+  if (!cursor) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Loading calendar…
+      </div>
+    );
+  }
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -1780,8 +1801,8 @@ function CalendarView({
     });
   }
 
-  const today = new Date();
   const isToday = (d: Date) =>
+    !!today &&
     d.getFullYear() === today.getFullYear() &&
     d.getMonth() === today.getMonth() &&
     d.getDate() === today.getDate();

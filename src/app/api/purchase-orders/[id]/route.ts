@@ -38,18 +38,18 @@ export async function PUT(
   const body = await req.json();
 
   // Look up the existing order (with line items) so we can:
-  //  1. Guard against double-receive
+  //  1. Guard against double-receive (BELOW the optimistic check — see tx)
   //  2. Iterate line items inside the receive transaction
+  // Note: this read is OUTSIDE the tx, so the status we read here is a
+  // best-effort optimistic check only. The authoritative guard is the
+  // conditional `updateMany({ where: { id, status: { not: "received" } } })`
+  // INSIDE the transaction — that's what prevents two concurrent PUTs from
+  // both passing the optimistic check and both adding stock.
   const existing = await db.purchaseOrder.findUnique({
     where: { id },
     include: { items: true },
   });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  // Double-receive guard: refuse to re-receive an already-received PO
-  if (body.status === "received" && existing.status === "received") {
-    return NextResponse.json({ error: "Already received" }, { status: 400 });
-  }
 
   const data: Record<string, unknown> = {};
   if (body.status !== undefined) data.status = String(body.status);
@@ -72,75 +72,100 @@ export async function PUT(
       );
     }
 
-    const order = await db.$transaction(
-      async (tx) => {
-        // 1. For each linked line item, find-or-create a StockLot in the
-        //    destination warehouse and add the received quantity.
-        const affectedItemIds = new Set<string>();
-        for (const line of existing.items) {
-          if (!line.inventoryItemId) continue;
-          const qty = Number(line.quantity);
-          if (qty <= 0) continue;
-
-          const existingLot = await tx.stockLot.findFirst({
-            where: { itemId: line.inventoryItemId, warehouseId },
+    let order;
+    try {
+      order = await db.$transaction(
+        async (tx) => {
+          // ATOMIC DOUBLE-RECEIVE GUARD: only flip status to "received" if the
+          // row is currently in any non-"received" state. If two concurrent
+          // PUTs race here, Postgres row locks serialise the updateMany calls:
+          // the first commits (count=1), the second sees status="received"
+          // and matches zero rows (count=0) — we abort before touching stock.
+          // Throwing inside the tx rolls back any partial stock additions.
+          const guard = await tx.purchaseOrder.updateMany({
+            where: { id, status: { not: "received" } },
+            data,
           });
-          if (existingLot) {
-            await tx.stockLot.update({
-              where: { id: existingLot.id },
-              data: {
-                quantity: Number(existingLot.quantity) + qty,
-                receivedDate: new Date(),
-              },
+          if (guard.count === 0) {
+            throw new Error("ALREADY_RECEIVED");
+          }
+
+          // 1. For each linked line item, find-or-create a StockLot in the
+          //    destination warehouse and add the received quantity.
+          const affectedItemIds = new Set<string>();
+          for (const line of existing.items) {
+            if (!line.inventoryItemId) continue;
+            const qty = Number(line.quantity);
+            if (qty <= 0) continue;
+
+            const existingLot = await tx.stockLot.findFirst({
+              where: { itemId: line.inventoryItemId, warehouseId },
             });
-          } else {
-            await tx.stockLot.create({
+            if (existingLot) {
+              await tx.stockLot.update({
+                where: { id: existingLot.id },
+                data: {
+                  quantity: Number(existingLot.quantity) + qty,
+                  receivedDate: new Date(),
+                },
+              });
+            } else {
+              await tx.stockLot.create({
+                data: {
+                  id: randomUUID(),
+                  itemId: line.inventoryItemId,
+                  warehouseId,
+                  quantity: qty,
+                  receivedDate: new Date(),
+                },
+              });
+            }
+            affectedItemIds.add(line.inventoryItemId);
+          }
+
+          // 2. Recalculate InventoryItem.stockLevel = SUM(StockLot.quantity)
+          //    for every affected item, and bump lastRestocked.
+          for (const itemId of affectedItemIds) {
+            const totalAgg = await tx.stockLot.aggregate({
+              where: { itemId },
+              _sum: { quantity: true },
+            });
+            await tx.inventoryItem.update({
+              where: { id: itemId },
               data: {
-                id: randomUUID(),
-                itemId: line.inventoryItemId,
-                warehouseId,
-                quantity: qty,
-                receivedDate: new Date(),
+                stockLevel: Number(totalAgg._sum.quantity ?? 0),
+                lastRestocked: new Date(),
               },
             });
           }
-          affectedItemIds.add(line.inventoryItemId);
-        }
 
-        // 2. Recalculate InventoryItem.stockLevel = SUM(StockLot.quantity)
-        //    for every affected item, and bump lastRestocked.
-        for (const itemId of affectedItemIds) {
-          const totalAgg = await tx.stockLot.aggregate({
-            where: { itemId },
-            _sum: { quantity: true },
+          // 3. Re-fetch the updated PO (with line items) for the response.
+          //    `updateMany` doesn't return the row, so we re-query.
+          return await tx.purchaseOrder.findUnique({
+            where: { id },
+            include: { items: true },
           });
-          await tx.inventoryItem.update({
-            where: { id: itemId },
-            data: {
-              stockLevel: Number(totalAgg._sum.quantity ?? 0),
-              lastRestocked: new Date(),
-            },
-          });
-        }
-
-        // 3. Update the PO itself (status, notes, expectedDate, receivedDate).
-        return await tx.purchaseOrder.update({
-          where: { id },
-          data,
-          include: { items: true },
-        });
-      },
-      { timeout: 15000 }
-    );
+        },
+        { timeout: 15000 }
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message === "ALREADY_RECEIVED") {
+        return NextResponse.json(
+          { error: "Already received" },
+          { status: 400 }
+        );
+      }
+      throw err;
+    }
 
     if (body.status !== undefined) {
       await recordAudit({
         action: "status_change",
-        entityType: "settings",
+        entityType: "purchase_order",
         entityId: id,
         actor: session,
-        summary: `Purchase order ${order.poNumber} → ${body.status}`,
-        details: { poNumber: order.poNumber, newStatus: body.status },
+        summary: `Purchase order ${order?.poNumber ?? id} → ${body.status}`,
+        details: { poNumber: order?.poNumber, newStatus: body.status },
       });
     }
 
@@ -157,7 +182,7 @@ export async function PUT(
   if (body.status !== undefined) {
     await recordAudit({
       action: "status_change",
-      entityType: "settings",
+      entityType: "purchase_order",
       entityId: id,
       actor: session,
       summary: `Purchase order ${order.poNumber} → ${body.status}`,
@@ -183,7 +208,7 @@ export async function DELETE(
 
   await recordAudit({
     action: "delete",
-    entityType: "settings",
+    entityType: "purchase_order",
     entityId: id,
     actor: session,
     summary: `Deleted purchase order ${order.poNumber}`,

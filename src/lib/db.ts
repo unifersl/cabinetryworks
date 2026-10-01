@@ -18,7 +18,10 @@ if (!globalForPrima.prisma) {
     database: process.env.SUPABASE_DB || 'postgres',
     user: process.env.SUPABASE_USER || 'postgres.bxcelvhzzfqkcmmekaek',
     password: process.env.SUPABASE_PASSWORD || 'ciCJU2AnYRN6vH*7',
-    max: 1,
+    // `max: 1` would serialize ALL DB access — under any concurrent load the
+    // second request blocks up to `connectionTimeoutMillis` (15s) then 503s.
+    // 10 is a sensible default for a single-instance Next.js deployment.
+    max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 15000,
   })

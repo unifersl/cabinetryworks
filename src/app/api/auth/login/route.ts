@@ -36,13 +36,28 @@ function pruneStale(now: number) {
 }
 
 function clientIp(req: NextRequest): string {
-  // x-forwarded-for may be a list "client, proxy1, proxy2" — take the first.
+  // Prefer `x-real-ip` — it's set by our trusted reverse proxy (Caddy) and
+  // cannot be spoofed by the client. Only fall back to `x-forwarded-for`
+  // (which CAN be spoofed) if `x-real-ip` is absent. When we do fall back to
+  // XFF, we take the FIRST (leftmost) IP and strip whitespace, since that
+  // entry is the closest to the client in the proxy chain.
+  const xRealIp = req.headers.get("x-real-ip");
+  if (xRealIp) {
+    const trimmed = xRealIp.trim();
+    if (trimmed) return trimmed;
+  }
+
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
     const first = xff.split(",")[0]?.trim();
     if (first) return first;
   }
-  return req.headers.get("x-real-ip") || "unknown";
+
+  // Neither header present — we can't identify the client. Log a warning so
+  // ops knows the rate limiter is effectively disabled for these requests
+  // (every request looks like "unknown" so they all share one bucket).
+  console.warn("[auth/login] no x-real-ip or x-forwarded-for header present — rate limit cannot identify client");
+  return "unknown";
 }
 
 export async function POST(req: NextRequest) {

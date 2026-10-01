@@ -100,9 +100,14 @@ export function SettingsView() {
     queryFn: settingsApi.get,
   });
   const [form, setForm] = React.useState<Record<string, string>>(DEFAULTS);
+  // Only sync form state from server data on the FIRST successful load.
+  // Subsequent refetches (e.g., after Save's invalidation) must not overwrite
+  // in-flight user edits.
+  const hasLoadedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (data?.settings) {
+    if (data?.settings && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
       setForm({ ...DEFAULTS, ...data.settings });
     }
   }, [data]);

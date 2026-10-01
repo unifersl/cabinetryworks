@@ -1,11 +1,18 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import type { SessionUser } from "@/lib/auth";
 
 /**
  * Audit log helper — persists a record of significant actions for compliance
  * and traceability. Called from API route handlers.
+ *
+ * Callers that are inside a `db.$transaction(async (tx) => { ... })` block
+ * should pass `tx` so the audit write is committed (or rolled back) atomically
+ * with the business mutation. Without `tx`, the audit row is written on the
+ * global client OUTSIDE the transaction — a transaction rollback would leave
+ * an orphaned audit entry claiming success.
  */
 
 export type AuditAction =
@@ -48,7 +55,22 @@ export type AuditEntityType =
   | "warehouse"
   | "supplier"
   | "quote"
-  | "material_price";
+  | "material_price"
+  // Extended set — covers previously-missing entity types so routes can stop
+  // using the catch-all "settings" EntityType and breaking audit filtering.
+  | "purchase_order"
+  | "worker"
+  | "attendance"
+  | "production_schedule"
+  | "delivery"
+  | "job_document"
+  | "warranty_claim"
+  | "barcode"
+  | "job_transport"
+  | "job_food_beverage"
+  | "job_time_log"
+  | "job_template"
+  | "qc_checkpoint";
 
 export interface AuditInput {
   action: AuditAction;
@@ -57,11 +79,18 @@ export interface AuditInput {
   actor?: SessionUser | null;
   summary: string;
   details?: Record<string, unknown>;
+  /**
+   * Optional transaction client. When provided, the audit row is written via
+   * `tx.auditLog.create(...)` so it participates in the caller's transaction.
+   * When omitted, the global `db` client is used (audit is non-transactional).
+   */
+  tx?: Prisma.TransactionClient;
 }
 
 export async function recordAudit(input: AuditInput): Promise<void> {
+  const client = input.tx ?? db;
   try {
-    await db.auditLog.create({
+    await client.auditLog.create({
       data: {
         id: randomUUID(),
         action: input.action,

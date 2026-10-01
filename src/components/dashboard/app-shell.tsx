@@ -615,7 +615,7 @@ export function AppShell({ user }: { user: SessionUser }) {
 
         {/* Content — only this scrolls */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-4 lg:p-5 scrollbar-warm">
-          <ErrorBoundary fallbackTitle="View failed to load">
+          <ErrorBoundary key={active} fallbackTitle="View failed to load">
             {active === "job-orders" ? (
               <JobOrdersView focusJobId={focusJobId} onFocusConsumed={() => setFocusJobId(null)} />
             ) : active === "customers" ? (

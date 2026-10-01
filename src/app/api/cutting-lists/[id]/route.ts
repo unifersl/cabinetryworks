@@ -81,30 +81,23 @@ export async function DELETE(
           if (warehouseId && sheetsToRestore > 0) {
             await db.$transaction(async (tx) => {
               for (const inv of invItems) {
-                // Restore to an existing lot for this warehouse (or create a new one)
-                const existingLot = await tx.stockLot.findFirst({
-                  where: { itemId: inv.id, warehouseId },
+                // Don't try to restore to the original (FIFO-deducted) lots
+                // — we don't track which lots were originally consumed, so
+                // pretending FIFO-accurate restoration (by mutating existing
+                // lots) only inflates stock over repeated create/delete
+                // cycles. Instead create ONE adjustment lot per inventory
+                // item with an explicit note. This is simpler and doesn't
+                // pretend to be FIFO-accurate.
+                await tx.stockLot.create({
+                  data: {
+                    id: randomUUID(),
+                    itemId: inv.id,
+                    warehouseId,
+                    quantity: sheetsToRestore,
+                    receivedDate: new Date(),
+                    notes: `Restored from deleted cutting list ${cl.panelName ?? id}`,
+                  },
                 });
-                if (existingLot) {
-                  await tx.stockLot.update({
-                    where: { id: existingLot.id },
-                    data: {
-                      quantity: Number(existingLot.quantity) + sheetsToRestore,
-                      receivedDate: new Date(),
-                    },
-                  });
-                } else {
-                  await tx.stockLot.create({
-                    data: {
-                      id: randomUUID(),
-                      itemId: inv.id,
-                      warehouseId,
-                      quantity: sheetsToRestore,
-                      receivedDate: new Date(),
-                      notes: `Restored from deleted cutting list ${id}`,
-                    },
-                  });
-                }
 
                 // Recalculate InventoryItem.stockLevel from the new StockLot totals
                 const totalAgg = await tx.stockLot.aggregate({
@@ -118,7 +111,7 @@ export async function DELETE(
 
                 await recordAudit({
                   action: "update",
-                  entityType: "settings",
+                  entityType: "inventory_item",
                   entityId: inv.id,
                   actor: session,
                   summary: `Restored ${sheetsToRestore} ${inv.unit} to ${inv.name} (cutting list deleted)`,
@@ -130,6 +123,7 @@ export async function DELETE(
                     cuttingListId: id,
                     warehouseId,
                   },
+                  tx,
                 });
               }
             });

@@ -59,6 +59,19 @@ async function request<T>(
           if (typeof d.fallback === "string") err.fallback = d.fallback;
           if (typeof d.detail === "string") err.detail = d.detail;
         }
+        // Global 401 handler — clear the session cookie and redirect to the
+        // login screen so session-expired users don't see "fetch failed"
+        // toasts accumulate. Skip the redirect for the /api/auth/me probe
+        // itself (AuthProvider already routes null users to login).
+        if (
+          res.status === 401 &&
+          typeof window !== "undefined" &&
+          !url.includes("/api/auth/")
+        ) {
+          document.cookie =
+            "kcm_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;";
+          window.location.href = "/";
+        }
         throw err;
       }
       return data as T;

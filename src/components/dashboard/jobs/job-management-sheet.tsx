@@ -84,7 +84,7 @@ import {
 import { useAuth } from "@/components/providers";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import { cn, escapeHtml } from "@/lib/utils";
 import { JobReportDialog } from "./job-report-dialog";
 import {
   Loader2,
@@ -3023,33 +3023,36 @@ function ExpensesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
   function printReport() {
     const w = window.open("", "_blank");
     if (!w) return;
+    // Escape ALL user-controlled strings (description, receiptNo, paidBy, etc.)
+    // before interpolating into HTML — the print window inherits the opener's
+    // origin, so an unescaped value would execute injected scripts there.
     const rows = filtered
       .map(
         (e) => `<tr>
-          <td>${new Date(e.date).toLocaleDateString()}</td>
-          <td>${catLabel(e.category)}</td>
-          <td style="text-align:right">${e.amount.toLocaleString()} ${e.currency}</td>
-          <td>${e.description ?? ""}</td>
-          <td>${e.receiptNo ?? ""}</td>
-          <td>${e.paidBy ?? ""}</td>
+          <td>${escapeHtml(new Date(e.date).toLocaleDateString())}</td>
+          <td>${escapeHtml(catLabel(e.category))}</td>
+          <td style="text-align:right">${escapeHtml(Number(e.amount).toLocaleString())} ${escapeHtml(e.currency)}</td>
+          <td>${escapeHtml(e.description)}</td>
+          <td>${escapeHtml(e.receiptNo)}</td>
+          <td>${escapeHtml(e.paidBy)}</td>
         </tr>`,
       )
       .join("");
     const catRows = summary
       ? Object.entries(summary.byCategory)
           .sort((a, b) => b[1] - a[1])
-          .map(([cat, amt]) => `<tr><td>${catLabel(cat)}</td><td style="text-align:right">${amt.toLocaleString()}</td></tr>`)
+          .map(([cat, amt]) => `<tr><td>${escapeHtml(catLabel(cat))}</td><td style="text-align:right">${escapeHtml(Number(amt).toLocaleString())}</td></tr>`)
           .join("")
       : "";
     w.document.write(`<html><head><title>Expense Report</title>
       <style>body{font-family:Arial;padding:24px}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}th{background:#f5f5f5}h1{font-size:20px}h2{font-size:16px;margin-top:24px}.total{font-weight:bold;font-size:18px}</style>
       </head><body>
       <h1>Job Expense Report</h1>
-      <p>Date: ${new Date().toLocaleDateString()}</p>
-      <p class="total">Total Expenses: ${(summary?.total ?? 0).toLocaleString()} LKR</p>
+      <p>Date: ${escapeHtml(new Date().toLocaleDateString())}</p>
+      <p class="total">Total Expenses: ${escapeHtml(Number(summary?.total ?? 0).toLocaleString())} LKR</p>
       <h2>By Category</h2>
       <table><tr><th>Category</th><th style="text-align:right">Amount</th></tr>${catRows}</table>
-      <h2>Detailed Records (${filtered.length})</h2>
+      <h2>Detailed Records (${escapeHtml(filtered.length)})</h2>
       <table><tr><th>Date</th><th>Category</th><th>Amount</th><th>Description</th><th>Receipt</th><th>Paid By</th></tr>${rows}</table>
       </body></html>`);
     w.document.close();

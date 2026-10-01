@@ -11,6 +11,7 @@ export interface User {
   status: UserStatus;
   email?: string | null;
   phone?: string | null;
+  lastLoginAt?: string | null; // P1-2: matches Prisma User.lastLoginAt — login route should update on success
   createdAt?: string;
   updatedAt?: string;
 }
@@ -43,7 +44,9 @@ export interface Customer {
   email?: string | null;
   address?: string | null;
   notes?: string | null;
+  archived?: boolean; // P2: matches Prisma Customer.archived (default false) — customers API + UI must respect this
   createdAt?: string;
+  updatedAt?: string;
   _count?: { jobOrders: number };
 }
 
@@ -71,6 +74,7 @@ export interface JobOrder {
   archived?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  completedAt?: string | null; // P0-2: set when status transitions to Completed — API route must populate on PUT
   customer?: Pick<Customer, "id" | "name" | "phone">;
   assignedTo?: Pick<User, "id" | "fullName" | "role"> | null;
   parentJob?: Pick<JobOrder, "id" | "orderNumber" | "title"> | null;
@@ -80,7 +84,7 @@ export interface JobOrder {
 export interface SiteMeasurement {
   id: string;
   jobId: string;
-  takenById: string;
+  takenById?: string | null; // P1-1: matches Prisma SiteMeasurement.takenById String? (was incorrectly required)
   roomType?: string | null;
   wallLength?: string | null;
   ceilingHt?: string | null;
@@ -116,7 +120,7 @@ export interface CuttingListItem {
 export interface CuttingList {
   id: string;
   jobId: string;
-  createdById: string;
+  createdById?: string | null; // P1-1: matches Prisma CuttingList.createdById String? (was incorrectly required)
   panelName?: string | null;
   material?: string | null;
   items?: string | null;

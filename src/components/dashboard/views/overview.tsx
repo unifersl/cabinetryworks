@@ -75,6 +75,7 @@ import {
   Bar,
   Legend,
 } from "recharts";
+import { useMounted } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
   Pending: "#f59e0b",
@@ -120,8 +121,12 @@ const ACTIVITY_TINTS: Record<string, string> = {
   cutting_list: "bg-rose-500/10 text-rose-600",
 };
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+function timeAgo(iso: string, now: Date | null): string {
+  if (!now) {
+    // Stable pre-mount output (avoids SSR/CSR hydration mismatch).
+    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  const diff = now.getTime() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -141,9 +146,13 @@ function greetingFor(date: Date): string {
 }
 
 /** Returns "Today" / "Yesterday" / "Aug 19" (short locale). */
-function dayBucket(iso: string): string {
+function dayBucket(iso: string, now: Date | null): string {
   const d = new Date(iso);
-  const now = new Date();
+  if (!now) {
+    // Stable pre-mount output — render the date string without Today/Yesterday
+    // logic so SSR and the first client render agree across midnight boundaries.
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diffDays = Math.round(
@@ -176,6 +185,10 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
   const [range, setRange] = React.useState<number>(30);
   const [activityFilter, setActivityFilter] =
     React.useState<ActivityFilter>("all");
+  // Stable mount guard: defer all `new Date()` dependent rendering until after
+  // the first client render so SSR HTML matches hydration HTML.
+  const mounted = useMounted();
+  const now = React.useMemo(() => (mounted ? new Date() : null), [mounted]);
   const { data, isLoading } = useQuery({
     queryKey: ["stats", range],
     queryFn: () => statsApi.get(range),
@@ -863,7 +876,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
             // Group by day bucket, preserving chronological order
             const groups: { bucket: string; events: ActivityEvent[] }[] = [];
             for (const ev of filteredEvents) {
-              const bucket = dayBucket(ev.timestamp);
+              const bucket = dayBucket(ev.timestamp, now);
               const last = groups[groups.length - 1];
               if (last && last.bucket === bucket) last.events.push(ev);
               else groups.push({ bucket, events: [ev] });
@@ -902,7 +915,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                             </p>
                           </div>
                           <span className="shrink-0 text-[11px] text-muted-foreground/70">
-                            {timeAgo(event.timestamp)}
+                            {timeAgo(event.timestamp, now)}
                           </span>
                         </div>
                       );
@@ -1117,14 +1130,19 @@ function TodaysSnapshot({
   loading?: boolean;
   onNavigate?: (view: string) => void;
 }) {
-  const now = React.useMemo(() => new Date(), []);
-  const greeting = greetingFor(now);
-  const dateLabel = now.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  // Defer date-dependent rendering until after the first client render so
+  // the SSR greeting/date label matches the hydration pass.
+  const mounted = useMounted();
+  const now = React.useMemo(() => (mounted ? new Date() : null), [mounted]);
+  const greeting = now ? greetingFor(now) : "Welcome back";
+  const dateLabel = now
+    ? now.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
 
   const pills = [
     {

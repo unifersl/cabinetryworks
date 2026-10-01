@@ -64,7 +64,10 @@ export const PUT = apiHandler(async (
   // trail. Without this, the "issued" status was just a flag with no real
   // stock movement and InventoryItem.stockLevel was never updated.
   if (newStatus === "issued" && oldStatus !== "issued") {
-    // Pre-validate stock availability for every requested line
+    // Pre-validate stock availability for every requested line. This is a
+    // best-effort early rejection only — the authoritative race guard is
+    // the conditional `updateMany({ where: { id, status: { not: "issued" } } })`
+    // INSIDE the transaction below.
     for (const line of stockRequest.lines) {
       const qty = Number(line.quantity);
       if (qty <= 0) continue;
@@ -85,75 +88,101 @@ export const PUT = apiHandler(async (
 
     const issueNo = await generateIssueNo();
 
-    await db.$transaction(async (tx) => {
-      // Mark the request as issued
-      await tx.stockRequest.update({
-        where: { id },
-        data: { status: "issued", updatedAt: new Date() },
-      });
-
-      // Create a GoodsIssue record for the audit trail
-      const issue = await tx.goodsIssue.create({
-        data: {
-          id: randomUUID(),
-          issueNo,
-          jobId: stockRequest.jobId,
-          warehouseId: stockRequest.warehouseId,
-          requestId: stockRequest.id,
-          issuedBy: session.id,
-          status: "issued",
-          notes: `Auto-issued from stock request ${stockRequest.reqNo}`,
-          lines: {
-            create: stockRequest.lines
-              .filter((l) => Number(l.quantity) > 0)
-              .map((line) => ({
-                id: randomUUID(),
-                itemId: line.itemId,
-                quantity: Number(line.quantity),
-              })),
-          },
-        },
-      });
-
-      // Deduct stock from warehouse lots (FIFO) and recalc item totals
-      for (const line of stockRequest.lines) {
-        const qty = Number(line.quantity);
-        if (qty <= 0) continue;
-        let remaining = qty;
-        const lots = await tx.stockLot.findMany({
-          where: { itemId: line.itemId, warehouseId: stockRequest.warehouseId, quantity: { gt: 0 } },
-          orderBy: { receivedDate: "asc" },
+    let issue;
+    try {
+      issue = await db.$transaction(async (tx) => {
+        // ATOMIC DOUBLE-ISSUE GUARD: only flip status to "issued" if the row
+        // is currently in any non-"issued" state. If two concurrent PUTs
+        // race here, Postgres row locks serialise the updateMany calls: the
+        // first commits (count=1), the second sees status="issued" and
+        // matches zero rows (count=0) — we abort BEFORE creating a second
+        // GoodsIssue or deducting stock twice. Throwing inside the tx rolls
+        // back any partial work.
+        const guard = await tx.stockRequest.updateMany({
+          where: { id, status: { not: "issued" } },
+          data: { status: "issued", updatedAt: new Date() },
         });
-        for (const lot of lots) {
-          if (remaining <= 0) break;
-          const take = Math.min(Number(lot.quantity), remaining);
-          await tx.stockLot.update({
-            where: { id: lot.id },
-            data: { quantity: Number(lot.quantity) - take },
-          });
-          remaining -= take;
+        if (guard.count === 0) {
+          throw new Error("ALREADY_ISSUED");
         }
 
-        // Recalculate InventoryItem.stockLevel from the new StockLot totals
-        const totalAgg = await tx.stockLot.aggregate({
-          where: { itemId: line.itemId },
-          _sum: { quantity: true },
+        // Create a GoodsIssue record for the audit trail
+        const created = await tx.goodsIssue.create({
+          data: {
+            id: randomUUID(),
+            issueNo,
+            jobId: stockRequest.jobId,
+            warehouseId: stockRequest.warehouseId,
+            requestId: stockRequest.id,
+            issuedBy: session.id,
+            status: "issued",
+            notes: `Auto-issued from stock request ${stockRequest.reqNo}`,
+            lines: {
+              create: stockRequest.lines
+                .filter((l) => Number(l.quantity) > 0)
+                .map((line) => ({
+                  id: randomUUID(),
+                  itemId: line.itemId,
+                  quantity: Number(line.quantity),
+                })),
+            },
+          },
         });
-        await tx.inventoryItem.update({
-          where: { id: line.itemId },
-          data: { stockLevel: Number(totalAgg._sum.quantity ?? 0) },
-        });
-      }
 
-      await recordAudit({
-        action: "status_change",
-        entityType: "settings",
-        entityId: id,
-        actor: session,
-        summary: `Stock request ${stockRequest.reqNo}: ${oldStatus} → issued (Goods Issue ${issue.issueNo} created)`,
-        details: { issueId: issue.id, issueNo, requestId: id, oldStatus, newStatus },
+        // Deduct stock from warehouse lots (FIFO) and recalc item totals
+        for (const line of stockRequest.lines) {
+          const qty = Number(line.quantity);
+          if (qty <= 0) continue;
+          let remaining = qty;
+          const lots = await tx.stockLot.findMany({
+            where: { itemId: line.itemId, warehouseId: stockRequest.warehouseId, quantity: { gt: 0 } },
+            orderBy: { receivedDate: "asc" },
+          });
+          for (const lot of lots) {
+            if (remaining <= 0) break;
+            const take = Math.min(Number(lot.quantity), remaining);
+            await tx.stockLot.update({
+              where: { id: lot.id },
+              data: { quantity: Number(lot.quantity) - take },
+            });
+            remaining -= take;
+          }
+
+          // Recalculate InventoryItem.stockLevel from the new StockLot totals
+          const totalAgg = await tx.stockLot.aggregate({
+            where: { itemId: line.itemId },
+            _sum: { quantity: true },
+          });
+          await tx.inventoryItem.update({
+            where: { id: line.itemId },
+            data: { stockLevel: Number(totalAgg._sum.quantity ?? 0) },
+          });
+        }
+
+        await recordAudit({
+          action: "status_change",
+          entityType: "stock_request",
+          entityId: id,
+          actor: session,
+          summary: `Stock request ${stockRequest.reqNo}: ${oldStatus} → issued (Goods Issue ${created.issueNo} created)`,
+          details: { issueId: created.id, issueNo, requestId: id, oldStatus, newStatus },
+          tx,
+        });
+
+        return created;
       });
-    });
+    } catch (err) {
+      if (err instanceof Error && err.message === "ALREADY_ISSUED") {
+        return NextResponse.json(
+          { error: "Already issued or not pending" },
+          { status: 400 }
+        );
+      }
+      throw err;
+    }
+    // Reference `issue` so TS doesn't flag it as unused; the audit summary
+    // above already captures the issue number.
+    void issue;
   } else {
     // Non-issue status transitions — just update the flag.
     const data: Record<string, unknown> = { status: newStatus };
@@ -166,7 +195,7 @@ export const PUT = apiHandler(async (
 
     await recordAudit({
       action: "status_change",
-      entityType: "settings",
+      entityType: "stock_request",
       entityId: id,
       actor: session,
       summary: `Stock request ${stockRequest.reqNo}: ${oldStatus} → ${newStatus}`,
@@ -209,7 +238,7 @@ export const DELETE = apiHandler(async (
 
   await recordAudit({
     action: "delete",
-    entityType: "settings",
+    entityType: "stock_request",
     entityId: id,
     actor: session,
     summary: `Deleted stock request ${stockRequest.reqNo}`,

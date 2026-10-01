@@ -6,13 +6,14 @@ export const runtime = "nodejs";
 
 export async function POST() {
   const session = await getSession();
-  // Auto-backup on logout (non-blocking — don't delay logout)
+  // Auto-backup on logout. Fire-and-forget — don't delay the logout
+  // response. If the backup is slow (large DB), the user shouldn't wait.
+  // The promise is detached with a `.catch` so an unhandled rejection
+  // can't crash the process.
   if (session?.id) {
-    try {
-      await createBackup(session.id, "auto-logout");
-    } catch (e) {
-      console.error("[logout] Auto-backup failed:", e);
-    }
+    void createBackup(session.id, "auto-logout").catch((err) =>
+      console.error("[logout] Auto-backup failed:", err)
+    );
   }
   await destroySession();
   return NextResponse.json({ ok: true });

@@ -62,6 +62,32 @@ export function useAuth() {
   return ctx;
 }
 
+/**
+ * Applies the saved `kcm-theme` preference to <html> on mount and whenever the
+ * value changes in another tab/window. Hoisted to the Providers level so the
+ * theme applies globally — including the login screen — before the AppShell
+ * mounts. This eliminates the light-mode flash dark-mode users would
+ * otherwise see on the login screen.
+ */
+function GlobalThemeBoot() {
+  React.useEffect(() => {
+    const apply = () => {
+      try {
+        const stored = localStorage.getItem("kcm-theme");
+        const isDark = stored === "dark";
+        document.documentElement.classList.toggle("dark", isDark);
+      } catch {
+        // localStorage may be unavailable (private mode, etc.) — fall back
+        // to the default light theme.
+      }
+    };
+    apply();
+    window.addEventListener("storage", apply);
+    return () => window.removeEventListener("storage", apply);
+  }, []);
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
     () =>
@@ -78,6 +104,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <GlobalThemeBoot />
       <AuthProvider>{children}</AuthProvider>
     </QueryClientProvider>
   );

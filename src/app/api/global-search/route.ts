@@ -34,8 +34,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.jobOrder.findMany({
       where: {
         OR: [
-          { orderNumber: { contains: q } },
-          { title: { contains: q } },
+          { orderNumber: { contains: q, mode: "insensitive" } },
+          { title: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,
@@ -53,9 +53,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.customer.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { phone: { contains: q } },
-          { email: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,
@@ -66,9 +66,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.inventoryItem.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { code: { contains: q } },
-          { material: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { code: { contains: q, mode: "insensitive" } },
+          { material: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,
@@ -88,8 +88,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.supplier.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { contactName: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { contactName: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,
@@ -100,9 +100,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.worker.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { code: { contains: q } },
-          { role: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { code: { contains: q, mode: "insensitive" } },
+          { role: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,
@@ -113,8 +113,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     db.jobTemplate.findMany({
       where: {
         OR: [
-          { name: { contains: q } },
-          { category: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { category: { contains: q, mode: "insensitive" } },
         ],
       },
       take: limit,

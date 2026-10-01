@@ -121,6 +121,18 @@ export function CustomersView({
     timeoutId: ReturnType<typeof setTimeout>;
   } | null>(null);
 
+  // Clear any pending undo-delete timeout when the component unmounts so
+  // the mutation doesn't fire against the cache of an unmounted view
+  // after the user has navigated away.
+  React.useEffect(() => {
+    return () => {
+      if (undoRef.current) {
+        clearTimeout(undoRef.current.timeoutId);
+        undoRef.current = null;
+      }
+    };
+  }, []);
+
   function deleteCustomerWithUndo(customer: Customer) {
     // Capture for undo
     const timeoutId = setTimeout(() => {
@@ -264,13 +276,23 @@ export function CustomersView({
                       .join("")
                       .toUpperCase();
                     const jobCount = c._count?.jobOrders ?? 0;
+                    const openDetail = () => {
+                      setDetailId(c.id);
+                      setDetailOpen(true);
+                    };
                     return (
                       <TableRow
                         key={c.id}
-                        className={`cursor-pointer hover:bg-muted/50 ${idx % 2 === 1 ? "bg-muted/40" : ""}`}
-                        onClick={() => {
-                          setDetailId(c.id);
-                          setDetailOpen(true);
+                        className={`cursor-pointer outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${idx % 2 === 1 ? "bg-muted/40" : ""}`}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Open customer ${c.name}`}
+                        onClick={openDetail}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openDetail();
+                          }
                         }}
                       >
                         <TableCell>

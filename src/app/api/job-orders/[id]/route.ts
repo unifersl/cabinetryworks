@@ -67,32 +67,6 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json();
 
-  // Server-side status-transition validation. We must read the CURRENT status
-  // from the DB (not from the body) so we evaluate against the actual state,
-  // not the user's claimed state. If `body.status` is provided and is not in
-  // the allowed transitions from the current status, reject with 400.
-  if (body.status !== undefined) {
-    const current = await db.jobOrder.findUnique({
-      where: { id },
-      select: { status: true, orderNumber: true },
-    });
-    if (!current) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    const newStatus = String(body.status);
-    const allowed = ALLOWED_TRANSITIONS[current.status] ?? [];
-    if (newStatus !== current.status && !allowed.includes(newStatus)) {
-      return NextResponse.json(
-        {
-          error: `Status transition not allowed: ${current.status} → ${newStatus}. Allowed from ${current.status}: ${
-            allowed.length ? allowed.join(", ") : "(none — terminal state)"
-          }.`,
-        },
-        { status: 400 }
-      );
-    }
-  }
-
   const data: Record<string, unknown> = {};
   for (const k of [
     "title",
@@ -109,14 +83,92 @@ export async function PUT(
   if (body.deliveryDate !== undefined)
     data.deliveryDate = body.deliveryDate ? new Date(body.deliveryDate) : null;
 
-  const job = await db.jobOrder.update({
-    where: { id },
-    data,
-    include: {
-      customer: { select: { id: true, name: true, phone: true } },
-      assignedTo: { select: { id: true, fullName: true } },
-    },
-  });
+  // Server-side status-transition validation. We must read the CURRENT status
+  // from the DB (not from the body) so we evaluate against the actual state.
+  // The read + validate + update are wrapped in a single transaction with a
+  // conditional `updateMany` (where: { id, status: current.status }) so a
+  // concurrent PUT can't sneak a status change between our read and update.
+  // If the conditional update matches zero rows, another request changed the
+  // status out from under us — we abort with 409 Conflict.
+  let job;
+  try {
+    job = await db.$transaction(async (tx) => {
+      if (body.status !== undefined) {
+        const current = await tx.jobOrder.findUnique({
+          where: { id },
+          select: { status: true, orderNumber: true },
+        });
+        if (!current) {
+          const e = new Error("Not found");
+          e.name = "NOT_FOUND";
+          throw e;
+        }
+        const newStatus = String(body.status);
+        const allowed = ALLOWED_TRANSITIONS[current.status] ?? [];
+        if (newStatus !== current.status && !allowed.includes(newStatus)) {
+          const e = new Error(
+            `Status transition not allowed: ${current.status} → ${newStatus}. Allowed from ${current.status}: ${
+              allowed.length ? allowed.join(", ") : "(none — terminal state)"
+            }.`
+          );
+          e.name = "INVALID_TRANSITION";
+          throw e;
+        }
+
+        // Conditional update — the `status: current.status` guard is what
+        // catches the TOCTOU race. If another concurrent tx has already
+        // changed the status, this matches zero rows and we abort.
+        const guard = await tx.jobOrder.updateMany({
+          where: { id, status: current.status },
+          data,
+        });
+        if (guard.count === 0) {
+          const e = new Error("Status changed by another request — please retry");
+          e.name = "RACE";
+          throw e;
+        }
+        // updateMany doesn't return included relations — re-fetch.
+        return await tx.jobOrder.findUnique({
+          where: { id },
+          include: {
+            customer: { select: { id: true, name: true, phone: true } },
+            assignedTo: { select: { id: true, fullName: true } },
+          },
+        });
+      }
+
+      // No status change — unconditional update (no race to worry about).
+      return await tx.jobOrder.update({
+        where: { id },
+        data,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          assignedTo: { select: { id: true, fullName: true } },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "NOT_FOUND") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (err instanceof Error && err.name === "INVALID_TRANSITION") {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof Error && err.name === "RACE") {
+      return NextResponse.json(
+        { error: "This job's status was changed by another request. Please reload and try again." },
+        { status: 409 }
+      );
+    }
+    throw err;
+  }
+
+  // `job` is non-null here — the only paths that return null (NOT_FOUND,
+  // INVALID_TRANSITION, RACE) all throw and exit via the catch above.
+  // TypeScript can't see that, so we guard defensively.
+  if (!job) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   // Audit: status change or assignment
   if (body.status !== undefined) {

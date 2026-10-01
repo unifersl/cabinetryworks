@@ -71,9 +71,18 @@ function friendlyError(err: unknown): { message: string; status: number } {
     status = 400;
     message = "Some of the data you entered isn't valid. Please review and try again.";
   }
-  // Fallback — keep the raw message but guard against leaking internals
+  // Fallback — only surface the raw error message in non-production. In
+  // production we return a generic "Internal server error" so we don't leak
+  // Prisma/DB internals (table names, constraint names, stack snippets) to
+  // clients. The raw message is still logged server-side by the apiHandler
+  // wrapper, and the `detail` field (also gated) preserves it for devs in
+  // non-production environments.
   else {
-    message = raw || message;
+    if (process.env.NODE_ENV === "production") {
+      message = "Internal server error";
+    } else {
+      message = raw || message;
+    }
   }
 
   return { message, status };

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, hashPassword, canManageUsers, isSuperAdmin } from "@/lib/auth";
+import { getSession, hashPassword, canManageUsers, isSuperAdmin, validatePassword } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { apiHandler } from "@/lib/api-handler";
 import { randomUUID } from "crypto";
@@ -81,8 +81,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const errors: string[] = [];
     if (!username) errors.push("Username is required");
     if (!fullName) errors.push("Full name is required");
-    if (!password || password.length < 6)
-      errors.push("Password must be at least 6 characters");
+    // Enforce the same password policy as the direct-create fallback
+    // (8+ chars, upper + lower + number) — previously this route only
+    // checked `length >= 6`, which allowed trivially weak passwords.
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) errors.push(pwCheck.message);
     if (!["Admin", "SuperAdmin", "Manager", "Storekeeper", "Auditor", "Technician"].includes(role))
       errors.push("Invalid role");
     if (errors.length) {

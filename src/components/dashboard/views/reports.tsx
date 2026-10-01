@@ -42,6 +42,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/ui-helpers";
+import { useMounted } from "@/lib/utils";
 
 const MATERIAL_COLORS = [
   "#b45309",
@@ -53,14 +54,22 @@ const MATERIAL_COLORS = [
 ];
 
 export function ReportsView() {
-  const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // Initialize as empty strings and populate the default 30-day window in a
+  // useEffect after mount. This avoids an SSR/CSR hydration mismatch when the
+  // server and client render across a UTC midnight boundary.
+  const [from, setFrom] = React.useState("");
+  const [to, setTo] = React.useState("");
+  const mounted = useMounted();
 
-  const [from, setFrom] = React.useState(
-    thirtyDaysAgo.toISOString().slice(0, 10)
-  );
-  const [to, setTo] = React.useState(today.toISOString().slice(0, 10));
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (from || to) return;
+    const now = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    setFrom(start.toISOString().slice(0, 10));
+    setTo(now.toISOString().slice(0, 10));
+  }, [mounted, from, to]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["reports", "consumption", from, to],
