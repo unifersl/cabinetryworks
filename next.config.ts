@@ -1,8 +1,14 @@
 import type { NextConfig } from "next";
 
 const securityHeaders = [
-  // Clickjacking defense — never allow this app to be framed.
-  { key: "X-Frame-Options", value: "DENY" },
+  // Clickjacking defense — allow framing by the Z.ai preview panel
+  // (preview-chat-*.space-z.ai) and same-origin, but block arbitrary sites.
+  // NOTE: X-Frame-Options: DENY would block the preview panel iframe entirely.
+  // Using CSP frame-ancestors instead for fine-grained control.
+  {
+    key: "Content-Security-Policy",
+    value: "frame-ancestors 'self' https://*.space-z.ai http://*.space-z.ai http://localhost:* http://127.0.0.1:*",
+  },
   // MIME-type sniffing defense.
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Don't leak the full URL of internal pages via the Referer header.
