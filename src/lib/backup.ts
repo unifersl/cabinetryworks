@@ -27,9 +27,18 @@ export interface BackupData {
   data: Record<string, unknown[]>;
 }
 
-function serializeRecord(r: any): Record<string, unknown> {
+// Fields to exclude when serializing each model. Most importantly, never
+// export the User.password column (bcrypt hashes) — that would let anyone
+// with a backup file attempt offline cracking.
+const EXCLUDED_FIELDS: Record<string, Set<string>> = {
+  user: new Set(["password"]),
+};
+
+function serializeRecord(model: string, r: any): Record<string, unknown> {
+  const excluded = EXCLUDED_FIELDS[model];
   const serialized: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(r)) {
+    if (excluded?.has(k)) continue;
     if (v !== null && typeof v === "object" && "toString" in v && typeof v.toString === "function") {
       const numVal = Number(v.toString());
       serialized[k] = Number.isFinite(numVal) ? numVal : v.toString();
@@ -47,8 +56,26 @@ export async function createBackup(userId: string | null, type: string = "manual
 
   for (const model of MODELS) {
     try {
-      const records = await db[model].findMany();
-      data[model] = records.map(serializeRecord);
+      // For the user model, use select to omit the password hash at the
+      // Prisma layer (defense in depth — never trust the serializer alone).
+      const findArgs =
+        model === "user"
+          ? {
+              select: {
+                id: true,
+                username: true,
+                fullName: true,
+                role: true,
+                status: true,
+                email: true,
+                phone: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            }
+          : undefined;
+      const records = await (db as any)[model].findMany(findArgs);
+      data[model] = records.map((r: any) => serializeRecord(model, r));
     } catch {
       data[model] = [];
     }

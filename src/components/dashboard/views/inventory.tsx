@@ -342,7 +342,7 @@ export function InventoryView() {
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <div className="sticky top-0 z-20 -mx-1 px-1 py-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
           <div className="relative overflow-x-auto scrollbar-warm">
-            <TabsList className="flex w-max h-auto gap-0.5">
+            <TabsList className="flex w-max h-auto gap-0.5 flex-nowrap">
               <TabsTrigger value="dashboard"><Activity className="h-3.5 w-3.5" />Dashboard</TabsTrigger>
               <TabsTrigger value="items"><Package className="h-3.5 w-3.5" />Items</TabsTrigger>
               <TabsTrigger value="warehouses"><WarehouseIcon className="h-3.5 w-3.5" />Warehouses</TabsTrigger>
@@ -675,10 +675,10 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Healthy</span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Healthy</span>
                   </div>
                   <p className="mt-1 text-lg font-bold tabular-nums text-emerald-600">{healthyCount}</p>
-                  <p className="text-[10px] text-muted-foreground">{healthyPct}%</p>
+                  <p className="text-[11px] text-muted-foreground">{healthyPct}%</p>
                 </button>
                 <button
                   type="button"
@@ -687,10 +687,10 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">At Reorder</span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">At Reorder</span>
                   </div>
                   <p className="mt-1 text-lg font-bold tabular-nums text-amber-600">{reorderCount}</p>
-                  <p className="text-[10px] text-muted-foreground">{reorderPct}%</p>
+                  <p className="text-[11px] text-muted-foreground">{reorderPct}%</p>
                 </button>
                 <button
                   type="button"
@@ -699,10 +699,10 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Out of Stock</span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Out of Stock</span>
                   </div>
                   <p className="mt-1 text-lg font-bold tabular-nums text-rose-600">{outCount}</p>
-                  <p className="text-[10px] text-muted-foreground">{outPct}%</p>
+                  <p className="text-[11px] text-muted-foreground">{outPct}%</p>
                 </button>
               </div>
             </div>
@@ -827,7 +827,7 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                         <p className="text-xs text-muted-foreground truncate">{m.description}</p>
                       </div>
                       <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                        <Badge variant="outline" className="text-[11px] uppercase tracking-wide">
                           {m.type}
                         </Badge>
                         <span className="text-[11px] text-muted-foreground" title={fmtDateTime(m.date)}>
@@ -893,7 +893,7 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                             {stock} <span className="text-xs font-normal text-muted-foreground">{i.unit}</span>
                           </p>
                           {shortage > 0 && (
-                            <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-[10px] text-rose-700">
+                            <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-700">
                               −{shortage} short
                             </Badge>
                           )}
@@ -906,7 +906,7 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="w-20 shrink-0 text-right text-[10px] text-muted-foreground tabular-nums">
+                        <span className="w-20 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
                           reorder @ {reorder}
                         </span>
                       </div>
@@ -971,11 +971,11 @@ function DashboardTab({ onNavigate }: { onNavigate?: (tab: string) => void }) {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{w.name}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                           {w.code} · {w.type}
                         </p>
                       </div>
-                      <Badge variant="outline" className={`text-[10px] ${tint}`}>
+                      <Badge variant="outline" className={`text-[11px] ${tint}`}>
                         {status}
                       </Badge>
                     </div>
@@ -1405,21 +1405,21 @@ function ItemsTab() {
       {/* ===== Summary Stats Cards ===== */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-3">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Items</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Items</p>
           <p className="text-2xl font-bold tabular-nums">{items.length}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Stock Qty</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Stock Qty</p>
           <p className="text-2xl font-bold tabular-nums text-primary">
             {items.reduce((s, i) => s + num(i.stockLevel), 0).toLocaleString()}
           </p>
         </Card>
         <Card className="p-3 border-red-500/30 bg-red-500/5">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Low Stock</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Low Stock</p>
           <p className="text-2xl font-bold tabular-nums text-red-600">{lowStockItems.length}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Categories</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Categories</p>
           <p className="text-2xl font-bold tabular-nums">{catSummary.length}</p>
         </Card>
       </div>
@@ -1435,12 +1435,12 @@ function ItemsTab() {
                 categoryFilter === catId ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-card"
               }`}
             >
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{s.name}</p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{s.name}</p>
               <p className="text-xl font-bold text-amber-600 tabular-nums">{s.totalStock.toLocaleString()}</p>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">{s.count} items</span>
+                <span className="text-[11px] text-muted-foreground">{s.count} items</span>
                 {s.lowCount > 0 && (
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[11px] font-bold text-red-600">
                     <AlertTriangle className="h-2.5 w-2.5" /> {s.lowCount} low
                   </span>
                 )}
@@ -1497,13 +1497,13 @@ function ItemsTab() {
                 <div key={i.id} className="flex items-center justify-between rounded-md border border-red-500/20 bg-card px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-medium">{i.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{i.category?.name ?? "Uncategorized"}</p>
+                    <p className="text-[11px] text-muted-foreground">{i.category?.name ?? "Uncategorized"}</p>
                   </div>
                   <div className="ml-2 flex items-center gap-1.5">
                     <span className={`text-sm font-bold tabular-nums ${stock === 0 ? "text-red-600" : "text-amber-600"}`}>
                       {stock}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">/ {reorder} {i.unit}</span>
+                    <span className="text-[11px] text-muted-foreground">/ {reorder} {i.unit}</span>
                     <Button
                       variant="outline"
                       size="icon"
@@ -1604,7 +1604,7 @@ function ItemsTab() {
                         <TableCell>
                           <p className="text-sm font-medium">{i.name}</p>
                           {low && (
-                            <p className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600">
+                            <p className="flex items-center gap-0.5 text-[11px] font-medium text-amber-600">
                               <AlertTriangle className="h-2.5 w-2.5" /> Low stock
                             </p>
                           )}
@@ -1617,7 +1617,7 @@ function ItemsTab() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {i.category ? (
-                            <Badge variant="outline" className="text-[10px]">{i.category.name}</Badge>
+                            <Badge variant="outline" className="text-[11px]">{i.category.name}</Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -1633,7 +1633,7 @@ function ItemsTab() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7 border-red-500/20 text-red-600 hover:bg-red-500/10"
+                              className="h-9 w-9 border-red-500/20 text-red-600 hover:bg-red-500/10"
                               onClick={() => quickAdjust(i, -1)}
                               disabled={stock <= 0 || adjustMutation.isPending}
                               title="Remove 1"
@@ -1644,7 +1644,7 @@ function ItemsTab() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7 border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10"
+                              className="h-9 w-9 border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10"
                               onClick={() => quickAdjust(i, 1)}
                               disabled={adjustMutation.isPending}
                               title="Add 1"
@@ -1656,10 +1656,10 @@ function ItemsTab() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditing(i); setCreateOpen(true); }} aria-label={`Edit item ${i.name}`}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditing(i); setCreateOpen(true); }} aria-label={`Edit item ${i.name}`}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(i)} aria-label={`Delete item ${i.name}`}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(i)} aria-label={`Delete item ${i.name}`}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1826,7 +1826,7 @@ function ItemDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2033,10 +2033,10 @@ function WarehousesTab() {
                 <Button variant="ghost" size="sm" onClick={() => setViewing(w)}>
                   <FileText className="mr-1.5 h-3.5 w-3.5" /> View Stock
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditing(w); setCreateOpen(true); }}>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditing(w); setCreateOpen(true); }}>
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(w)}>
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(w)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -2145,7 +2145,7 @@ function WarehouseDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2158,7 +2158,7 @@ function WarehouseDialog({
           }
           mutation.mutate();
         }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="wh-code">Code <span className="text-destructive">*</span></Label>
               <Input id="wh-code" placeholder="WH-MAIN" value={form.code} onChange={(e) => setForm((s) => ({ ...s, code: e.target.value }))} disabled={mutation.isPending || !!warehouse} />
@@ -2228,7 +2228,7 @@ function WarehouseStockDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2341,10 +2341,10 @@ function CategoriesTab() {
                     <TableCell className="text-right tabular-nums">{c.itemCount ?? 0}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditing(c); setCreateOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditing(c); setCreateOpen(true); }}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(c)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeleting(c)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -2436,7 +2436,7 @@ function CategoryDialog({
                 <DialogDescription className="mt-0.5">{category ? "Update category details." : "Create a new inventory category."}</DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2660,7 +2660,7 @@ function TransferDialog({
                 <DialogDescription className="mt-0.5">Move stock from one warehouse to another.</DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2703,8 +2703,8 @@ function TransferDialog({
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-12 sm:col-span-6">
+                  <div key={idx} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-12">
+                    <div className="col-span-1 sm:col-span-6">
                       <Select value={line.itemId} onValueChange={(v) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, itemId: v } : l))}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select item" /></SelectTrigger>
                         <SelectContent>
@@ -2712,13 +2712,13 @@ function TransferDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-5 sm:col-span-3">
+                    <div className="col-span-1 sm:col-span-3">
                       <Input type="number" min="0" step="0.5" placeholder="Qty" value={line.quantity} onChange={(e) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))} className="h-9" />
                     </div>
-                    <div className="col-span-5 sm:col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <Input placeholder="Batch" value={line.batchNo} onChange={(e) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, batchNo: e.target.value } : l))} className="h-9" />
                     </div>
-                    <div className="col-span-2 sm:col-span-1 flex justify-end">
+                    <div className="col-span-1 sm:col-span-1 flex justify-end">
                       <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => removeLine(idx)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -2886,7 +2886,7 @@ function StockTakeCreateDialog({
                 <DialogDescription className="mt-0.5">Auto-loads all items with their system quantities.</DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2986,7 +2986,7 @@ function StockTakeCountDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -3147,7 +3147,7 @@ function RequestsTab() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8"
+                            className="h-9 w-9"
                             onClick={() => setViewing(r)}
                             title="View / Print"
                           >
@@ -3158,7 +3158,7 @@ function RequestsTab() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-emerald-600 hover:bg-emerald-500/10"
+                                className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10"
                                 disabled={updateMutation.isPending}
                                 onClick={() => updateMutation.mutate({ id: r.id, status: "approved" })}
                                 title="Approve"
@@ -3168,7 +3168,7 @@ function RequestsTab() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                                className="h-9 w-9 text-destructive hover:bg-destructive/10"
                                 disabled={updateMutation.isPending}
                                 onClick={() => updateMutation.mutate({ id: r.id, status: "rejected" })}
                                 title="Reject"
@@ -3297,7 +3297,7 @@ function RequestDetailDialog({ request, onClose }: { request: StockRequest; onCl
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -3448,7 +3448,7 @@ function RequestDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -3535,7 +3535,7 @@ function RequestDialog({
                               className="h-8 text-right tabular-nums" />
                           </TableCell>
                           <TableCell>
-                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive"
+                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive"
                               onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -3814,7 +3814,7 @@ function IssueDialog({
                 <DialogDescription className="mt-0.5">Issue stock from a warehouse to a job or site.</DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -3888,8 +3888,8 @@ function IssueDialog({
                   const enteredQty = Number(line.quantity) || 0;
                   const exceedsStock = !!item && enteredQty > available;
                   return (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-12 sm:col-span-8">
+                    <div key={idx} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-12">
+                      <div className="col-span-1 sm:col-span-8">
                         <Select value={line.itemId} onValueChange={(v) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, itemId: v } : l))}>
                           <SelectTrigger className="h-9"><SelectValue placeholder="Select item" /></SelectTrigger>
                           <SelectContent>
@@ -3905,10 +3905,10 @@ function IssueDialog({
                           <p className="text-xs text-destructive mt-0.5">⚠ Quantity exceeds available stock ({available} {item?.unit}).</p>
                         )}
                       </div>
-                      <div className="col-span-9 sm:col-span-3">
+                      <div className="col-span-1 sm:col-span-3">
                         <Input type="number" min="0" step="0.5" placeholder="Qty" value={line.quantity} onChange={(e) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))} className="h-9" />
                       </div>
-                      <div className="col-span-3 sm:col-span-1 flex justify-end">
+                      <div className="col-span-1 sm:col-span-1 flex justify-end">
                         <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -4187,7 +4187,7 @@ function ReturnDialog({
                 </DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -4264,7 +4264,7 @@ function ReturnDialog({
                 ) : (
                   <div className="space-y-1.5">
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_90px_28px] items-center gap-2 px-2 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <div className="grid grid-cols-[1fr_90px_28px] items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       <span>Item</span>
                       <span className="text-center">Return Qty</span>
                       <span></span>
@@ -4273,7 +4273,7 @@ function ReturnDialog({
                       <div key={idx} className="grid grid-cols-[1fr_90px_28px] items-center gap-2 rounded-md border border-border bg-card p-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{line.itemName}</p>
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-[11px] text-muted-foreground">
                             {line.source === "issue" ? "From Issue" : "From Outside Purchase"} · Max: {line.maxQty}
                           </p>
                         </div>
@@ -4287,7 +4287,7 @@ function ReturnDialog({
                           onChange={(e) => updateQty(idx, e.target.value)}
                           title={`Max: ${line.maxQty}`}
                         />
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => removeLine(idx)}>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => removeLine(idx)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -4358,7 +4358,7 @@ function ReturnDialog({
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <div className="grid grid-cols-[1fr_90px_28px] items-center gap-2 px-2 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <div className="grid grid-cols-[1fr_90px_28px] items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       <span>Item</span>
                       <span className="text-center">Return Qty</span>
                       <span></span>
@@ -4367,7 +4367,7 @@ function ReturnDialog({
                       <div key={idx} className="grid grid-cols-[1fr_90px_28px] items-center gap-2 rounded-md border border-border bg-card p-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{line.itemName}</p>
-                          <p className="text-[10px] text-muted-foreground">Admin override</p>
+                          <p className="text-[11px] text-muted-foreground">Admin override</p>
                         </div>
                         <Input
                           type="number"
@@ -4377,7 +4377,7 @@ function ReturnDialog({
                           value={line.quantity}
                           onChange={(e) => updateQty(idx, e.target.value)}
                         />
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => removeLine(idx)}>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => removeLine(idx)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -4589,7 +4589,7 @@ function OutsidePurchaseDialog({
                 <DialogDescription className="mt-0.5">Direct site purchase — line items are free-text, optionally linked to inventory items.</DialogDescription>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -4646,8 +4646,8 @@ function OutsidePurchaseDialog({
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-12 sm:col-span-5">
+                  <div key={idx} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-12">
+                    <div className="col-span-1 sm:col-span-5">
                       <Input
                         placeholder="Item name (free text)"
                         value={line.itemName}
@@ -4655,7 +4655,7 @@ function OutsidePurchaseDialog({
                         className="h-9"
                       />
                     </div>
-                    <div className="col-span-7 sm:col-span-4">
+                    <div className="col-span-1 sm:col-span-4">
                       <Select value={line.itemId || "__none__"} onValueChange={(v) => {
                         const id = v === "__none__" ? "" : v;
                         const it = items.find((x) => x.id === id);
@@ -4668,13 +4668,13 @@ function OutsidePurchaseDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-3 sm:col-span-1">
+                    <div className="col-span-1 sm:col-span-1">
                       <Input type="number" min="0" step="0.5" placeholder="Qty" value={line.quantity} onChange={(e) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))} className="h-9" />
                     </div>
-                    <div className="col-span-2 sm:col-span-1">
+                    <div className="col-span-1 sm:col-span-1">
                       <Input placeholder="Unit" value={line.unit} onChange={(e) => setLines((ls) => ls.map((l, i) => i === idx ? { ...l, unit: e.target.value } : l))} className="h-9" />
                     </div>
-                    <div className="col-span-12 sm:col-span-1 flex justify-end">
+                    <div className="col-span-1 sm:col-span-1 flex justify-end">
                       <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}>
                         <Trash2 className="h-4 w-4" />
                       </Button>

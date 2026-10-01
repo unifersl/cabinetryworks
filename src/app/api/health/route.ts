@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
+/**
+ * GET /api/health — lightweight liveness probe.
+ *
+ * No auth required. Returns only the bare minimum needed for uptime
+ * monitoring — never leaks user counts, DB error text, or any other
+ * internal state that an attacker could use for reconnaissance.
+ */
 export async function GET() {
-  try {
-    const userCount = await db.user.count();
-    return NextResponse.json({ status: "ok", database: "connected", users: userCount });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ status: "error", database: "failed", error: msg.substring(0, 300) }, { status: 500 });
-  }
+  return NextResponse.json({
+    ok: true,
+    timestamp: new Date().toISOString(),
+  });
 }

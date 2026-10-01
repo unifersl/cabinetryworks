@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, hashPassword, canManageUsers } from "@/lib/auth";
+import {
+  getSession,
+  hashPassword,
+  canManageUsers,
+  isSuperAdmin,
+  validatePassword,
+} from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -12,6 +19,14 @@ export const runtime = "nodejs";
  * when the primary RPC handler (`admin_create_user` → POST /api/users) fails.
  * It performs minimal validation and inserts directly, using the
  * frontend-supplied UUID so the non-null id constraint is never violated.
+ *
+ * SECURITY: this route is reachable from the client (create-user-dialog.tsx)
+ * and previously granted SuperAdmin to any Manager who triggered the fallback
+ * path. It now enforces:
+ *   - canManageUsers (Admin/SuperAdmin/Manager) — same as the primary route.
+ *   - SuperAdmin creation only by a SuperAdmin (privilege-escalation guard).
+ *   - validatePassword (matches the rest of the app's strength rules).
+ *   - recordAudit (the primary route already audited; this one didn't).
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -33,18 +48,32 @@ export async function POST(req: NextRequest) {
     const fullName =
       String(body?.full_name ?? body?.fullName ?? "").trim() || username;
     const password = String(body?.password ?? "");
-    const role = ["Admin", "SuperAdmin", "Technician"].includes(
+    const role = ["Admin", "SuperAdmin", "Manager", "Storekeeper", "Auditor", "Technician"].includes(
       String(body?.role)
     )
       ? String(body.role)
       : "Technician";
     const status = "active";
 
+    // Security: only SuperAdmin can create new SuperAdmin accounts.
+    if (role === "SuperAdmin" && !isSuperAdmin(session.role)) {
+      return NextResponse.json(
+        { error: "Only a SuperAdmin can create a SuperAdmin account." },
+        { status: 403 }
+      );
+    }
+
     if (!username || !password) {
       return NextResponse.json(
         { error: "Username and password are required for direct insert" },
         { status: 400 }
       );
+    }
+
+    // Enforce the same password strength rules as the rest of the app.
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) {
+      return NextResponse.json({ error: pwdCheck.message }, { status: 400 });
     }
 
     const existing = await db.user.findUnique({ where: { username } });
@@ -78,6 +107,15 @@ export async function POST(req: NextRequest) {
         phone: true,
         createdAt: true,
       },
+    });
+
+    await recordAudit({
+      action: "create",
+      entityType: "user",
+      entityId: created.id,
+      actor: session,
+      summary: `Created user @${created.username} (${created.fullName}) as ${created.role} (direct fallback)`,
+      details: { username: created.username, role: created.role, status: created.status },
     });
 
     return NextResponse.json({ user: created }, { status: 201 });

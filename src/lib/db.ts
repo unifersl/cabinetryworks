@@ -7,13 +7,17 @@ const globalForPrima = globalThis as unknown as {
 }
 
 if (!globalForPrima.prisma) {
-  // Use explicit params — pg Pool URL parsing is unreliable with special chars
+  // Read DB credentials from the environment. The hardcoded values below
+  // are kept ONLY as a fallback so existing deployments keep working
+  // without an `.env` change — but you should set SUPABASE_HOST / USER /
+  // PASSWORD in production and rotate them if the fallback values were
+  // ever checked into version control.
   const pool = new Pool({
-    host: 'aws-0-ap-southeast-2.pooler.supabase.com',
-    port: 6543,
-    database: 'postgres',
-    user: 'postgres.bxcelvhzzfqkcmmekaek',
-    password: 'ciCJU2AnYRN6vH*7',
+    host: process.env.SUPABASE_HOST || 'aws-0-ap-southeast-2.pooler.supabase.com',
+    port: Number(process.env.SUPABASE_PORT) || 6543,
+    database: process.env.SUPABASE_DB || 'postgres',
+    user: process.env.SUPABASE_USER || 'postgres.bxcelvhzzfqkcmmekaek',
+    password: process.env.SUPABASE_PASSWORD || 'ciCJU2AnYRN6vH*7',
     max: 1,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 15000,

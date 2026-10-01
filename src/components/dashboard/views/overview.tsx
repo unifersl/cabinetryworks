@@ -326,7 +326,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                   <Icon className="h-4 w-4" />
                 </div>
                 <span
-                  className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[10px] font-semibold opacity-90 ${c.up ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}
+                  className={`flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[11px] font-semibold opacity-90 ${c.up ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}
                   title={`Trend ${c.up ? "up" : "down"}`}
                 >
                   {c.up ? (
@@ -342,7 +342,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
               ) : (
                 <p className="mt-1.5 text-xl font-bold tabular-nums">{c.value}</p>
               )}
-              <p className="text-[10px] text-muted-foreground">{c.label}</p>
+              <p className="text-[11px] text-muted-foreground">{c.label}</p>
             </Card>
           );
         })}
@@ -363,7 +363,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
             <button
               key={a.label}
               onClick={() => onNavigate?.(a.view)}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+              className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
             >
               <Icon className="h-3.5 w-3.5 text-primary" />
               {a.label}
@@ -418,7 +418,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                     key={d}
                     variant={range === d ? "default" : "ghost"}
                     size="sm"
-                    className="h-7 px-2.5 text-xs"
+                    className="h-9 px-2.5 text-xs"
                     onClick={() => setRange(d)}
                   >
                     {d}d
@@ -543,7 +543,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4 sm:flex-row">
-                <ResponsiveContainer width="100%" height={220} className="!w-[50%]">
+                <ResponsiveContainer width="100%" minHeight={220} className="w-full sm:w-1/2">
                   <PieChart>
                     <Pie
                       data={statusPieData}
@@ -623,7 +623,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                 No priority data yet
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" minHeight={220}>
                 <BarChart
                   data={priorityData}
                   layout="vertical"
@@ -688,7 +688,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" minHeight={180}>
                   <PieChart>
                     <Pie
                       data={materialPieData}
@@ -757,7 +757,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                 No assigned jobs yet
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" minHeight={180}>
                 <BarChart
                   data={workload}
                   margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
@@ -873,7 +873,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                 {groups.map((g) => (
                   <div key={g.bucket} className="space-y-1">
                     <div className="flex items-center gap-2 px-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {g.bucket}
                       </span>
                       <div className="h-px flex-1 bg-border/60" />
@@ -901,7 +901,7 @@ export function OverviewView({ onNavigate }: { onNavigate?: (view: string) => vo
                               {event.description}
                             </p>
                           </div>
-                          <span className="shrink-0 text-[10px] text-muted-foreground/70">
+                          <span className="shrink-0 text-[11px] text-muted-foreground/70">
                             {timeAgo(event.timestamp)}
                           </span>
                         </div>
@@ -1058,7 +1058,7 @@ function NeedsAttention({
             <AlertTriangle className={`h-4 w-4 ${hasAttention ? "text-amber-600" : "text-emerald-600"}`} />
             Needs Attention
           </CardTitle>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
             hasAttention
               ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
               : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
@@ -1092,7 +1092,7 @@ function NeedsAttention({
                     <p className="text-lg font-bold tabular-nums leading-tight">{it.value}</p>
                   )}
                   <p className="truncate text-[11px] font-medium">{it.label}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">{it.sub}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{it.sub}</p>
                 </div>
               </button>
             );
@@ -1181,7 +1181,7 @@ function TodaysSnapshot({
               <button
                 key={p.label}
                 onClick={() => onNavigate?.(p.view)}
-                className={`flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5 sm:px-3 sm:py-1.5 sm:text-xs ${p.tint}`}
+                className={`flex min-h-[36px] items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5 sm:px-3 sm:py-1.5 sm:text-xs ${p.tint}`}
                 title={p.label}
               >
                 <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -1406,7 +1406,7 @@ function WhatsNewBanner({ onNavigate }: { onNavigate?: (view: string) => void })
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0"
+            className="h-9 w-9 shrink-0"
             onClick={dismiss}
             title="Dismiss"
           >
@@ -1421,7 +1421,7 @@ function WhatsNewBanner({ onNavigate }: { onNavigate?: (view: string) => void })
                 <button
                   key={f.label}
                   onClick={() => onNavigate?.(f.view)}
-                  className="flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  className="flex min-h-[36px] items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/5"
                 >
                   <Icon className="h-3 w-3 text-primary" />
                   {f.label}

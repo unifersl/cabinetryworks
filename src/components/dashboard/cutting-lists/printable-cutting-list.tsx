@@ -71,7 +71,7 @@ export function PrintableCuttingList({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} aria-describedby={undefined} className="no-print sm:max-w-[900px] max-h-[92vh] overflow-y-auto scrollbar-warm">
+      <DialogContent showCloseButton={false} aria-describedby={undefined} className="no-print w-full max-w-none sm:max-w-[900px] max-h-[92vh] overflow-y-auto scrollbar-warm">
         <DialogTitle className="sr-only">Print cutting list</DialogTitle>
         <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 pb-2 -mt-2 pt-1 border-b">
           <h2 className="text-base font-bold flex items-center gap-2">
@@ -86,14 +86,14 @@ export function PrintableCuttingList({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9"
               onClick={() => onOpenChange(false)}
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-white p-6 text-black print-area">
+        <div className="overflow-x-auto rounded-lg border border-border bg-white p-4 sm:p-6 text-black print-area">
           <PrintContent data={data} pieces={pieces} areaM2={areaM2} bandingM={bandingM} />
         </div>
       </DialogContent>
@@ -130,20 +130,20 @@ function PrintContent({
             <Hammer className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">CABINETRYWORKS</h1>
-            <p className="text-[9px] uppercase tracking-wider text-gray-600">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight">CABINETRYWORKS</h1>
+            <p className="text-[11px] uppercase tracking-wider text-gray-600">
               Kitchen &amp; Cabinetry Manufacturing
             </p>
           </div>
         </div>
         <div className="text-right">
-          <p className="rounded bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white inline-block">
+          <p className="rounded bg-black px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white inline-block">
             Cutting List
           </p>
-          <p className="mt-1 font-mono text-[10px] text-gray-700">
+          <p className="mt-1 font-mono text-[11px] text-gray-700">
             {data.jobOrderNumber}
           </p>
-          <p className="text-[9px] text-gray-600">
+          <p className="text-[11px] text-gray-600">
             Issued {new Date(data.createdAt).toLocaleDateString(undefined, {
               year: "numeric",
               month: "short",
@@ -154,28 +154,28 @@ function PrintContent({
       </header>
 
       {/* ── Job & material info ── */}
-      <section className="grid grid-cols-2 gap-2">
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="rounded border border-gray-300 bg-gray-50 p-2.5">
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Job Order
           </p>
           <p className="font-mono text-xs font-bold">{data.jobOrderNumber}</p>
           <p className="text-[11px]">{data.jobTitle}</p>
           {data.customerName && (
-            <p className="mt-0.5 text-[10px] text-gray-700">
+            <p className="mt-0.5 text-[11px] text-gray-700">
               Customer: <span className="font-medium">{data.customerName}</span>
             </p>
           )}
         </div>
         <div className="rounded border border-gray-300 bg-gray-50 p-2.5">
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Panel Group
           </p>
           <p className="text-xs font-bold">{data.panelName}</p>
-          <p className="mt-0.5 text-[10px] text-gray-700">
+          <p className="mt-0.5 text-[11px] text-gray-700">
             Material: <span className="font-medium">{data.material}</span>
           </p>
-          <p className="text-[10px] text-gray-700">
+          <p className="text-[11px] text-gray-700">
             Prepared by {data.createdBy}
           </p>
         </div>
@@ -188,35 +188,36 @@ function PrintContent({
             <Scissors className="h-3.5 w-3.5" />
             Parts Schedule
           </h2>
-          <p className="text-[9px] text-gray-600">
+          <p className="text-[11px] text-gray-600">
             {data.items.length} part types · {pieces} pieces
           </p>
         </div>
-        <Table className="border-collapse text-[10px]">
+        <div className="overflow-x-auto">
+        <Table className="border-collapse text-[11px]">
           <TableHeader>
             <TableRow className="border border-black bg-black text-white">
-              <TableHead className="w-7 border-r border-gray-700 px-1.5 py-1 text-center text-[9px] font-bold text-white">
+              <TableHead className="w-7 border-r border-gray-700 px-1.5 py-1 text-center text-[11px] font-bold text-white">
                 #
               </TableHead>
-              <TableHead className="border-r border-gray-700 px-2 py-1 text-[9px] font-bold uppercase text-white">
+              <TableHead className="border-r border-gray-700 px-2 py-1 text-[11px] font-bold uppercase text-white">
                 Part Name
               </TableHead>
-              <TableHead className="w-8 border-r border-gray-700 px-1 py-1 text-center text-[9px] font-bold text-white">
+              <TableHead className="w-8 border-r border-gray-700 px-1 py-1 text-center text-[11px] font-bold text-white">
                 Qty
               </TableHead>
-              <TableHead className="w-20 border-r border-gray-700 px-1.5 py-1 text-center text-[9px] font-bold uppercase text-white">
+              <TableHead className="w-20 border-r border-gray-700 px-1.5 py-1 text-center text-[11px] font-bold uppercase text-white">
                 Finish L × W
               </TableHead>
-              <TableHead className="w-24 border-r border-gray-700 px-1.5 py-1 text-center text-[9px] font-bold uppercase text-white">
+              <TableHead className="w-24 border-r border-gray-700 px-1.5 py-1 text-center text-[11px] font-bold uppercase text-white">
                 Cut L × W
               </TableHead>
-              <TableHead className="w-14 border-r border-gray-700 px-1.5 py-1 text-center text-[9px] font-bold uppercase text-white">
+              <TableHead className="w-14 border-r border-gray-700 px-1.5 py-1 text-center text-[11px] font-bold uppercase text-white">
                 Thk
               </TableHead>
-              <TableHead className="w-28 border-r border-gray-700 px-1.5 py-1 text-center text-[9px] font-bold uppercase text-white">
+              <TableHead className="w-28 border-r border-gray-700 px-1.5 py-1 text-center text-[11px] font-bold uppercase text-white">
                 Edge Banding
               </TableHead>
-              <TableHead className="w-10 px-1 py-1 text-center text-[9px] font-bold uppercase text-white">
+              <TableHead className="w-10 px-1 py-1 text-center text-[11px] font-bold uppercase text-white">
                 Grain
               </TableHead>
             </TableRow>
@@ -240,7 +241,7 @@ function PrintContent({
                   <TableCell className="border-r border-gray-300 px-2 py-1 font-medium">
                     {it.part}
                     {it.note && (
-                      <span className="block text-[9px] italic text-gray-500">
+                      <span className="block text-[11px] italic text-gray-500">
                         {it.note}
                       </span>
                     )}
@@ -256,7 +257,7 @@ function PrintContent({
                       {fmtMm(cL)} × {fmtMm(cW)}
                     </span>
                     {differs && (
-                      <span className="block text-[8px] text-gray-500">
+                      <span className="block text-[11px] text-gray-500">
                         −{dL}L/−{dW}W
                       </span>
                     )}
@@ -266,7 +267,7 @@ function PrintContent({
                   </TableCell>
                   <TableCell className="border-r border-gray-300 px-1.5 py-1 text-center">
                     {band ? (
-                      <span className="font-mono text-[9px]">
+                      <span className="font-mono text-[11px]">
                         <span className="font-bold">{t}mm</span>
                         <span className="ml-1 text-gray-600">
                           [
@@ -281,7 +282,7 @@ function PrintContent({
                             .join(" ")}
                           ]
                         </span>
-                        <span className="block text-[8px] text-gray-500">
+                        <span className="block text-[11px] text-gray-500">
                           {lg > 0 ? `${lg} long` : ""}
                           {lg > 0 && sh > 0 ? " · " : ""}
                           {sh > 0 ? `${sh} short` : ""}
@@ -305,10 +306,11 @@ function PrintContent({
             })}
           </TableBody>
         </Table>
+        </div>
       </section>
 
       {/* ── Engineering note ── */}
-      <section className="rounded border border-gray-300 bg-amber-50 p-2 text-[9px] leading-snug text-gray-800">
+      <section className="rounded border border-gray-300 bg-amber-50 p-2 text-[11px] leading-snug text-gray-800">
         <p className="font-semibold uppercase tracking-wider text-amber-800">
           Cutting Notes
         </p>
@@ -335,38 +337,38 @@ function PrintContent({
       </section>
 
       {/* ── Summary bar ── */}
-      <section className="grid grid-cols-4 gap-2 border-y-2 border-black py-2 text-center">
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-y-2 border-black py-2 text-center">
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Part Types
           </p>
-          <p className="text-base font-bold">{data.items.length}</p>
+          <p className="text-sm sm:text-base font-bold">{data.items.length}</p>
         </div>
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Total Pieces
           </p>
-          <p className="text-base font-bold">{pieces}</p>
+          <p className="text-sm sm:text-base font-bold">{pieces}</p>
         </div>
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Material Area
           </p>
-          <p className="text-base font-bold">{areaM2.toFixed(2)} m²</p>
+          <p className="text-sm sm:text-base font-bold">{areaM2.toFixed(2)} m²</p>
         </div>
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wider text-gray-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
             Banding Length
           </p>
-          <p className="text-base font-bold">{bandingM.toFixed(1)} m</p>
+          <p className="text-sm sm:text-base font-bold">{bandingM.toFixed(1)} m</p>
         </div>
       </section>
 
       {/* ── Signatures ── */}
-      <section className="grid grid-cols-3 gap-6 pt-10">
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-6 sm:pt-10">
         <div>
           <div className="border-t border-black pt-1">
-            <p className="text-[8px] uppercase tracking-wider text-gray-600">
+            <p className="text-[11px] uppercase tracking-wider text-gray-600">
               Prepared by
             </p>
             <p className="text-[11px] font-medium">{data.createdBy}</p>
@@ -374,7 +376,7 @@ function PrintContent({
         </div>
         <div>
           <div className="border-t border-black pt-1">
-            <p className="text-[8px] uppercase tracking-wider text-gray-600">
+            <p className="text-[11px] uppercase tracking-wider text-gray-600">
               Cutting station — received
             </p>
             <p className="text-[11px]">&nbsp;</p>
@@ -382,7 +384,7 @@ function PrintContent({
         </div>
         <div>
           <div className="border-t border-black pt-1">
-            <p className="text-[8px] uppercase tracking-wider text-gray-600">
+            <p className="text-[11px] uppercase tracking-wider text-gray-600">
               QC — checked
             </p>
             <p className="text-[11px]">&nbsp;</p>
@@ -391,7 +393,7 @@ function PrintContent({
       </section>
 
       {/* ── Footer ── */}
-      <footer className="flex items-center justify-between border-t border-gray-300 pt-2 text-[8px] text-gray-500">
+      <footer className="flex items-center justify-between border-t border-gray-300 pt-2 text-[11px] text-gray-500">
         <span>
           CabinetryWorks · Internal Manufacturing Document · {numBandedParts} banded part(s)
         </span>

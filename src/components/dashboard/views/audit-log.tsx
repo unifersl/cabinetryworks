@@ -181,7 +181,7 @@ function DetailsDiff({ details }: { details: Record<string, unknown> }) {
         {changes.map((c, i) => (
           <div
             key={i}
-            className="grid grid-cols-[120px_1fr_1fr] items-start gap-2 rounded border border-border bg-muted/30 px-2 py-1.5 text-xs"
+            className="grid grid-cols-1 items-start gap-1 rounded border border-border bg-muted/30 px-2 py-1.5 text-xs sm:grid-cols-[120px_1fr_1fr] sm:gap-2"
           >
             <span className="font-mono font-semibold text-foreground">
               {String(c.key ?? "—")}
@@ -210,7 +210,7 @@ function DetailsDiff({ details }: { details: Record<string, unknown> }) {
       {entries.map(([k, v]) => (
         <div
           key={k}
-          className="grid grid-cols-[120px_1fr] gap-2 rounded border border-border bg-muted/30 px-2 py-1 text-xs"
+          className="grid grid-cols-1 gap-1 rounded border border-border bg-muted/30 px-2 py-1 text-xs sm:grid-cols-[120px_1fr] sm:gap-2"
         >
           <span className="font-mono font-semibold text-foreground">{k}</span>
           <span className="font-mono text-muted-foreground break-all">
@@ -375,7 +375,7 @@ export function AuditLogView() {
                     placeholder="Search summary, actor…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="h-9 pl-8 sm:w-56"
+                    className="h-9 w-full pl-9 sm:w-56"
                   />
                 </div>
                 <Select
@@ -415,7 +415,7 @@ export function AuditLogView() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9"
+                    className="h-9 w-full sm:w-auto"
                     onClick={clearFilters}
                   >
                     <X className="mr-1.5 h-3.5 w-3.5" />
@@ -567,7 +567,7 @@ function AuditRow({ log }: { log: AuditLogEntry }) {
           {log.actorName ? (
             <div className="flex items-center gap-2">
               <Avatar className="h-6 w-6 border border-border">
-                <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                <AvatarFallback className="bg-primary/10 text-[11px] font-semibold text-primary">
                   {initials}
                 </AvatarFallback>
               </Avatar>

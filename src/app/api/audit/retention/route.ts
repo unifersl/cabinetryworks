@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, canManageUsers } from "@/lib/auth";
+import { getSession, isSuperAdmin } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -9,12 +9,20 @@ export const runtime = "nodejs";
  * POST /api/audit/retention
  * Delete audit log entries older than N days.
  * Body: { days: number } (default 90)
+ *
+ * Security: SuperAdmin-only — a Manager who could delete audit entries
+ * could erase the evidence of their own actions. Even though canManageUsers
+ * already gates most admin actions, audit trail deletion is destructive and
+ * must require the highest privilege level.
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canManageUsers(session.role))
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isSuperAdmin(session.role))
+    return NextResponse.json(
+      { error: "Forbidden — SuperAdmin access required to modify the audit trail" },
+      { status: 403 }
+    );
 
   const body = await req.json();
   const days = Math.max(Number(body?.days ?? 90), 1);

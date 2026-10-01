@@ -228,12 +228,12 @@ export function CustomerDetailSheet({
 
               {/* Job history */}
               <div className="p-5 pt-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="flex items-center gap-2 text-sm font-medium">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     Job History
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {jobs.length} of {totalJobs} shown
                     </Badge>
@@ -241,7 +241,7 @@ export function CustomerDetailSheet({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 gap-1.5 text-xs"
+                        className="h-9 gap-1.5 text-xs"
                         onClick={() => setShowAllJobs(true)}
                       >
                         <ClipboardList className="h-3.5 w-3.5" />
@@ -342,7 +342,7 @@ function StatBox({
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-xl font-bold tabular-nums">{value}</p>
-      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -378,7 +378,7 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
         <Button
           variant="outline"
           size="sm"
-          className="h-7 gap-1.5 text-xs"
+          className="h-9 gap-1.5 text-xs"
           onClick={() => window.print()}
         >
           <Printer className="h-3.5 w-3.5" />
@@ -389,19 +389,19 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
       {/* Summary stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-[10px] uppercase text-muted-foreground">Total Jobs</p>
+          <p className="text-[11px] uppercase text-muted-foreground">Total Jobs</p>
           <p className="text-xl font-bold">{summary.totalJobs}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-[10px] uppercase text-muted-foreground">Active</p>
+          <p className="text-[11px] uppercase text-muted-foreground">Active</p>
           <p className="text-xl font-bold text-amber-600">{summary.activeJobs}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-[10px] uppercase text-muted-foreground">Completed</p>
+          <p className="text-[11px] uppercase text-muted-foreground">Completed</p>
           <p className="text-xl font-bold text-emerald-600">{summary.completedJobs}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-[10px] uppercase text-muted-foreground">Quotes</p>
+          <p className="text-[11px] uppercase text-muted-foreground">Quotes</p>
           <p className="text-xl font-bold">{summary.totalQuotes}</p>
         </div>
       </div>
@@ -425,7 +425,7 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
           <p className="mt-1 text-lg font-bold text-emerald-600">
             ${summary.totalAccepted.toFixed(2)}
           </p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {summary.acceptedQuotes} of {summary.totalQuotes} quotes
           </p>
         </div>
@@ -437,7 +437,7 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
           <p className="mt-1 text-lg font-bold text-amber-600">
             {summary.pendingQuotes}
           </p>
-          <p className="text-[10px] text-muted-foreground">awaiting response</p>
+          <p className="text-[11px] text-muted-foreground">awaiting response</p>
         </div>
       </div>
 
@@ -445,7 +445,7 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
       {quotes.length > 0 && (
         <div className="mt-3">
           <p className="mb-2 text-xs font-medium text-muted-foreground">QUOTE HISTORY</p>
-          <div className="max-h-48 overflow-y-auto scrollbar-warm rounded-md border border-border">
+          <div className="max-h-48 overflow-x-auto overflow-y-auto scrollbar-warm rounded-md border border-border">
             <Table>
               <TableHeader className="sticky top-0 bg-muted/60">
                 <TableRow>
@@ -459,7 +459,9 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
                 {quotes.map((q) => (
                   <TableRow key={q.id}>
                     <TableCell className="py-1.5 font-mono text-xs text-primary">
-                      {q.quoteNumber}
+                      <span className="block max-w-[120px] truncate">
+                        {q.quoteNumber}
+                      </span>
                     </TableCell>
                     <TableCell className="py-1.5 text-right text-xs font-semibold tabular-nums">
                       ${Number(q.total).toFixed(2)}
@@ -467,7 +469,7 @@ function CustomerStatementSection({ customerId }: { customerId: string }) {
                     <TableCell className="py-1.5">
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${
+                        className={`text-[11px] ${
                           q.status === "accepted"
                             ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
                             : q.status === "rejected"

@@ -214,7 +214,7 @@ export function CustomersView({
                 placeholder="Search name, email, phone…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-8 sm:w-64"
+                className="h-9 w-full pl-9 sm:w-64"
               />
             </div>
           </div>
@@ -336,7 +336,7 @@ export function CustomersView({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-9 w-9"
                               onClick={() => handleEdit(c)}
                               aria-label={`Edit ${c.name}`}
                             >
@@ -345,7 +345,7 @@ export function CustomersView({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => setDeleting(c)}
                               disabled={jobCount > 0}
                               aria-label={`Delete ${c.name}`}
@@ -521,7 +521,7 @@ function CustomerDialog({ open, onOpenChange, mode, customer }: CustomerDialogPr
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-9 w-9"
               onClick={() => onOpenChange(false)}
               aria-label="Close"
             >

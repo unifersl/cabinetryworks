@@ -115,6 +115,7 @@ export function ReportsView() {
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
+                className="w-full"
               />
             </div>
             <div className="space-y-1.5 flex-1">
@@ -124,6 +125,7 @@ export function ReportsView() {
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
+                className="w-full"
               />
             </div>
           </div>
@@ -132,7 +134,7 @@ export function ReportsView() {
 
       {/* Summary stats */}
       {totals && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <Card>
             <CardContent className="flex items-center gap-3 p-4">
               <div className="rounded-lg bg-primary/10 p-2">
@@ -201,39 +203,41 @@ export function ReportsView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={chartData}
-                margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12, fill: "var(--foreground)" }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--muted)" }}
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Bar dataKey="area" radius={[6, 6, 0, 0]} barSize={50} name="Area (m²)">
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={MATERIAL_COLORS[i % MATERIAL_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="min-h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)" }}
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Bar dataKey="area" radius={[6, 6, 0, 0]} barSize={50} name="Area (m²)">
+                    {chartData.map((_, i) => (
+                      <Cell key={i} fill={MATERIAL_COLORS[i % MATERIAL_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       )}

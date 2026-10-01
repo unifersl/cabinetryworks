@@ -120,7 +120,7 @@ export function CuttingListsView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 mb-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
             <Scissors className="h-5 w-5 text-primary" />
@@ -199,10 +199,11 @@ export function CuttingListsView() {
                         )}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => {
                           setPrintData({
                             panelName: cl.panelName ?? "Cutting List",
@@ -224,6 +225,7 @@ export function CuttingListsView() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() => {
                           setNestingItems(items);
                           setNestingPanelName(cl.panelName ?? "Cutting List");
@@ -237,6 +239,7 @@ export function CuttingListsView() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="w-full sm:w-auto"
                         onClick={() =>
                           exportCuttingListCsv(items, cl.panelName ?? "list")
                         }
@@ -283,7 +286,7 @@ export function CuttingListsView() {
                                 <TableCell className="font-medium">
                                   {it.part}
                                   {it.note ? (
-                                    <span className="block text-[10px] text-muted-foreground">
+                                    <span className="block text-[11px] text-muted-foreground">
                                       {it.note}
                                     </span>
                                   ) : null}
@@ -299,7 +302,7 @@ export function CuttingListsView() {
                                     {fmtMm(cL)} × {fmtMm(cW)}
                                   </span>
                                   {differs && (
-                                    <span className="block text-[9px] text-amber-600 dark:text-amber-400">
+                                    <span className="block text-[11px] text-amber-600 dark:text-amber-400">
                                       −{dL}/{dW}mm banding
                                     </span>
                                   )}
@@ -310,10 +313,10 @@ export function CuttingListsView() {
                                 <TableCell className="text-xs">
                                   {hasBand ? (
                                     <span className="inline-flex items-center gap-1">
-                                      <span className="font-mono text-[10px] text-primary">
+                                      <span className="font-mono text-[11px] text-primary">
                                         {edgeThickness(it)}mm
                                       </span>
-                                      <span className="font-mono text-[9px] text-muted-foreground">
+                                      <span className="font-mono text-[11px] text-muted-foreground">
                                         [
                                         {[
                                           it.edgeLong1 ? "L1" : "",
@@ -444,7 +447,7 @@ function CreateCuttingListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="sm:max-w-[920px] max-h-[92vh] overflow-y-auto scrollbar-warm">
+      <DialogContent showCloseButton={false} className="w-full max-w-[calc(100vw-1rem)] sm:max-w-[920px] max-h-[92vh] overflow-y-auto scrollbar-warm">
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div>
@@ -460,7 +463,7 @@ function CreateCuttingListDialog({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-9 w-9"
               onClick={() => onOpenChange(false)}
             >
               <X className="h-4 w-4" />
@@ -549,7 +552,7 @@ function CreateCuttingListDialog({
             </div>
 
             {/* Column headers */}
-            <div className="grid grid-cols-[28px_1.6fr_44px_0.8fr_0.8fr_0.55fr_0.95fr_28px] items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="hidden sm:grid sm:grid-cols-[28px_1.6fr_44px_0.8fr_0.8fr_0.55fr_0.95fr_28px] sm:items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <span className="text-center">#</span>
               <span>Part Name</span>
               <span className="text-center">Qty</span>
@@ -558,6 +561,10 @@ function CreateCuttingListDialog({
               <span className="text-center">Thk</span>
               <span className="text-center">Edge Banding</span>
               <span></span>
+            </div>
+            {/* Mobile headers — compact label row visible only on phones */}
+            <div className="sm:hidden rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Tap a part card to edit. Long-press trash icon to delete.
             </div>
 
             <div className="max-h-[44vh] space-y-1.5 overflow-y-auto scrollbar-warm rounded-md border p-2">
@@ -573,37 +580,39 @@ function CreateCuttingListDialog({
                     className="rounded border border-border/60 p-2 hover:border-primary/30 transition-colors"
                   >
                     {/* Main row */}
-                    <div className="grid grid-cols-[28px_1.6fr_44px_0.8fr_0.8fr_0.55fr_0.95fr_28px] items-center gap-1.5">
-                      <span className="text-center font-mono text-xs font-semibold text-muted-foreground">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-[28px_1.6fr_44px_0.8fr_0.8fr_0.55fr_0.95fr_28px] sm:items-center gap-1.5 sm:gap-1.5">
+                      <div className="hidden sm:flex sm:justify-center">
+                        <span className="font-mono text-xs font-semibold text-muted-foreground">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                      </div>
                       <Input
-                        className="h-8 text-xs"
+                        className="h-9 text-xs"
                         placeholder="Part name (e.g. Side panel LH)"
                         value={it.part}
                         onChange={(e) => updateItem(i, { part: e.target.value })}
                       />
                       <Input
-                        className="h-8 text-center text-xs tabular-nums"
+                        className="h-9 text-center text-xs tabular-nums"
                         type="number"
                         min={1}
                         value={it.qty}
                         onChange={(e) => updateItem(i, { qty: Number(e.target.value) })}
                       />
                       <Input
-                        className="h-8 text-xs tabular-nums"
+                        className="h-9 text-xs tabular-nums"
                         placeholder="720mm"
                         value={it.length}
                         onChange={(e) => updateItem(i, { length: e.target.value })}
                       />
                       <Input
-                        className="h-8 text-xs tabular-nums"
+                        className="h-9 text-xs tabular-nums"
                         placeholder="580mm"
                         value={it.width}
                         onChange={(e) => updateItem(i, { width: e.target.value })}
                       />
                       <Input
-                        className="h-8 text-xs tabular-nums"
+                        className="h-9 text-xs tabular-nums"
                         placeholder="18mm"
                         value={it.thickness}
                         onChange={(e) => updateItem(i, { thickness: e.target.value })}
@@ -618,15 +627,15 @@ function CreateCuttingListDialog({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                        className="h-9 w-9 text-destructive hover:bg-destructive/10 shrink-0 sm:ml-auto"
                         onClick={() => removeItem(i)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
 
                     {/* Cut-dimension preview row */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-9 text-[10px]">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-4 sm:pl-9 text-[11px]">
                       <span className="text-muted-foreground">
                         Cut size:
                       </span>
@@ -656,7 +665,7 @@ function CreateCuttingListDialog({
                         placeholder="note (optional)"
                         value={it.note ?? ""}
                         onChange={(e) => updateItem(i, { note: e.target.value })}
-                        className="h-5 flex-1 min-w-[80px] rounded border border-border/60 bg-transparent px-1.5 text-[10px] placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="h-7 flex-1 min-w-[80px] rounded border border-border/60 bg-transparent px-1.5 text-[11px] placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                   </div>
@@ -681,7 +690,7 @@ function CreateCuttingListDialog({
                 <span className="font-bold">{liveAreaM2.toFixed(2)} m²</span>
               </span>
             </div>
-            <span className="text-muted-foreground">
+            <span className="hidden text-muted-foreground sm:inline">
               Cut size = finish size − (banded edges × banding thickness)
             </span>
           </div>
@@ -738,7 +747,7 @@ function EdgeBandingMini({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[9px] font-mono font-semibold transition-colors ${
+        className={`inline-flex min-h-[36px] items-center gap-1 rounded px-1.5 py-1 text-[11px] font-mono font-semibold transition-colors ${
           any
             ? "bg-primary/15 text-primary hover:bg-primary/25"
             : "bg-muted text-muted-foreground hover:bg-muted/70"
@@ -755,14 +764,14 @@ function EdgeBandingMini({
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-3 shadow-lg">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Edge Banding
           </div>
           <EdgeBandingSelector
             value={value}
             onChange={(v) => onChange(v)}
           />
-          <div className="mt-2 flex items-center justify-between text-[10px]">
+          <div className="mt-2 flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground">Tap edges to toggle</span>
             <button
               type="button"

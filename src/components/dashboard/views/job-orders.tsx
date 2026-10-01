@@ -651,7 +651,7 @@ export function JobOrdersView({
                 }
               }}
             >
-              <SelectTrigger className="h-8 w-[150px]">
+              <SelectTrigger className="h-8 w-full sm:w-[150px]">
                 <ArrowRightCircle className="mr-1.5 h-3.5 w-3.5" />
                 <span className="text-xs">Set status…</span>
               </SelectTrigger>
@@ -678,7 +678,7 @@ export function JobOrdersView({
                 }
               }}
             >
-              <SelectTrigger className="h-8 w-[160px]">
+              <SelectTrigger className="h-8 w-full sm:w-[160px]">
                 <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                 <span className="text-xs">Assign to…</span>
               </SelectTrigger>
@@ -883,7 +883,7 @@ export function JobOrdersView({
               <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                 <ClipboardList className="h-7 w-7 text-primary" />
                 {activeFilterCount > 0 && (
-                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[11px] font-bold text-white">
                     {activeFilterCount}
                   </span>
                 )}
@@ -1040,7 +1040,7 @@ export function JobOrdersView({
                           {job.status}
                         </Badge>
                         {job.jobType && job.jobType !== "New" && (
-                          <Badge variant="outline" className="ml-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[9px]">
+                          <Badge variant="outline" className="ml-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[11px]">
                             {job.jobType}
                           </Badge>
                         )}
@@ -1065,7 +1065,7 @@ export function JobOrdersView({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0"
+                                className="h-9 w-9 p-0"
                                 title="More actions"
                                 aria-label={`More actions for job ${job.orderNumber}`}
                               >
@@ -1073,7 +1073,7 @@ export function JobOrdersView({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 {job.orderNumber}
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
@@ -1153,7 +1153,7 @@ export function JobOrdersView({
                                           </DropdownMenuShortcut>
                                         )}
                                         {!allowed && !isCurrent && (
-                                          <span className="ml-auto text-[10px] text-muted-foreground/60">
+                                          <span className="ml-auto text-[11px] text-muted-foreground/60">
                                             blocked
                                           </span>
                                         )}
@@ -1426,7 +1426,7 @@ function CreateJobDialog({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-9 w-9"
               onClick={() => onOpenChange(false)}
             >
               <X className="h-4 w-4" />
@@ -1651,13 +1651,13 @@ function BoardView({
                 <span className={`h-2 w-2 rounded-full ${col.dot}`} />
                 <span className="text-xs font-semibold">{col.status}</span>
               </div>
-              <span className="rounded-full bg-card px-1.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+              <span className="rounded-full bg-card px-1.5 text-[11px] font-medium text-muted-foreground tabular-nums">
                 {colJobs.length}
               </span>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto scrollbar-warm pr-1">
               {colJobs.length === 0 ? (
-                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border/60 text-[10px] text-muted-foreground">
+                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border/60 text-[11px] text-muted-foreground">
                   Drop here
                 </div>
               ) : (
@@ -1681,7 +1681,7 @@ function BoardView({
                     >
                       <div className="flex items-start justify-between gap-1.5">
                         <div className="min-w-0 flex-1">
-                          <p className="font-mono text-[10px] text-primary">
+                          <p className="font-mono text-[11px] text-primary">
                             {job.orderNumber}
                           </p>
                           <p className="truncate text-xs font-medium">
@@ -1699,23 +1699,23 @@ function BoardView({
                       <div className="mt-1.5 flex items-center justify-between">
                         <Badge
                           variant="outline"
-                          className={`h-4 px-1 text-[9px] ${PRIORITY_BADGE[job.priority]}`}
+                          className={`h-4 px-1 text-[11px] ${PRIORITY_BADGE[job.priority]}`}
                         >
                           {job.priority}
                         </Badge>
                         {job.assignedTo ? (
-                          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
                             <UserIcon className="h-2.5 w-2.5" />
                             {job.assignedTo.fullName.split(" ")[0]}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             Unassigned
                           </span>
                         )}
                       </div>
                       {job.deliveryDate && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
                           <Calendar className="h-2.5 w-2.5" />
                           {new Date(job.deliveryDate).toLocaleDateString(undefined, {
                             month: "short",
@@ -1788,13 +1788,13 @@ function CalendarView({
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{monthLabel}</h3>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="h-9 w-9 min-h-[36px]"
             onClick={() => setCursor(new Date(year, month - 1, 1))}
             title="Previous month"
           >
@@ -1803,7 +1803,7 @@ function CalendarView({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="h-9 min-h-[36px] px-2 text-xs"
             onClick={() => {
               const now = new Date();
               setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -1814,7 +1814,7 @@ function CalendarView({
           <Button
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="h-9 w-9 min-h-[36px]"
             onClick={() => setCursor(new Date(year, month + 1, 1))}
             title="Next month"
           >
@@ -1826,7 +1826,7 @@ function CalendarView({
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div
             key={d}
-            className="px-1 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className="px-1 py-1 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
           >
             {d}
           </div>
@@ -1842,7 +1842,7 @@ function CalendarView({
               } ${isToday(d) ? "ring-1 ring-primary" : ""}`}
             >
               <span
-                className={`text-[10px] font-medium ${
+                className={`text-[11px] font-medium ${
                   isToday(d)
                     ? "text-primary"
                     : inMonth
@@ -1861,7 +1861,7 @@ function CalendarView({
                       e.preventDefault();
                       onContextMenu(j.id, e.clientX, e.clientY);
                     }}
-                    className={`truncate rounded px-1 py-0.5 text-left text-[9px] font-medium transition-colors ${
+                    className={`truncate rounded px-1 py-0.5 text-left text-[11px] font-medium transition-colors ${
                       j.status === "Completed"
                         ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25"
                         : j.status === "Cancelled"
@@ -1874,7 +1874,7 @@ function CalendarView({
                   </button>
                 ))}
                 {dayJobs.length > 3 && (
-                  <span className="px-1 text-[9px] text-muted-foreground">
+                  <span className="px-1 text-[11px] text-muted-foreground">
                     +{dayJobs.length - 3} more
                   </span>
                 )}
@@ -1926,7 +1926,7 @@ function ContextMenu({
       style={{ left, top }}
       onClick={(e) => e.stopPropagation()}
     >
-      <DropdownMenuLabel className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+      <DropdownMenuLabel className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
         <span className="truncate">{job.orderNumber}</span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
@@ -1937,10 +1937,10 @@ function ContextMenu({
       >
         <Eye className="h-3.5 w-3.5 text-muted-foreground" />
         View Details
-        <span className="ml-auto text-[10px] text-muted-foreground">⏎</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">⏎</span>
       </button>
       {/* Edit Status submenu (inline, expanded) */}
-      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         Edit status
       </div>
       <div className="max-h-44 overflow-y-auto scrollbar-warm">
@@ -1955,7 +1955,7 @@ function ContextMenu({
             <ArrowRightCircle className="h-3 w-3 text-muted-foreground" />
             {s}
             {s === job.status && (
-              <span className="ml-auto text-[9px] text-muted-foreground">current</span>
+              <span className="ml-auto text-[11px] text-muted-foreground">current</span>
             )}
           </button>
         ))}
@@ -1968,7 +1968,7 @@ function ContextMenu({
       >
         <Copy className="h-3.5 w-3.5 text-muted-foreground" />
         Duplicate
-        <span className="ml-auto text-[10px] text-muted-foreground">⌘D</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">⌘D</span>
       </button>
       <button
         type="button"
@@ -1988,7 +1988,7 @@ function ContextMenu({
           >
             <Trash2 className="h-3.5 w-3.5" />
             Delete
-            <span className="ml-auto text-[10px] opacity-70">⌫</span>
+            <span className="ml-auto text-[11px] opacity-70">⌫</span>
           </button>
         </>
       )}
@@ -1996,7 +1996,7 @@ function ContextMenu({
       <button
         type="button"
         onClick={onClose}
-        className="flex w-full items-center justify-center gap-1 rounded-sm px-2 py-1 text-[10px] text-muted-foreground hover:bg-accent"
+        className="flex w-full items-center justify-center gap-1 rounded-sm px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent"
       >
         <X className="h-3 w-3" />
         Close
@@ -2023,7 +2023,7 @@ function JobStockStatusBadge({ jobId }: { jobId: string }) {
 
   if (isLoading) {
     return (
-      <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
+      <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground/70">
         <Boxes className="h-3 w-3 animate-pulse" />
         Stock…
       </span>
@@ -2034,7 +2034,7 @@ function JobStockStatusBadge({ jobId }: { jobId: string }) {
   if (reqs.length === 0) {
     return (
       <span
-        className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70"
+        className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground/70"
         title="No material requirements recorded for this job"
       >
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
@@ -2047,7 +2047,7 @@ function JobStockStatusBadge({ jobId }: { jobId: string }) {
   if (shortages.length === 0) {
     return (
       <span
-        className="mt-1 inline-flex items-center gap-1 text-[10px] text-emerald-600"
+        className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600"
         title={`All ${reqs.length} material(s) have enough stock`}
       >
         <CheckCircle2 className="h-3 w-3" />
@@ -2058,7 +2058,7 @@ function JobStockStatusBadge({ jobId }: { jobId: string }) {
 
   return (
     <span
-      className="mt-1 inline-flex items-center gap-1 text-[10px] text-amber-600"
+      className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-600"
       title={`${shortages.length} of ${reqs.length} material(s) have a shortage`}
     >
       <AlertTriangle className="h-3 w-3" />

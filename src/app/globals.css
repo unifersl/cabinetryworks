@@ -246,8 +246,11 @@ input[type="time"]::-webkit-outer-spin-button {
 }
 
 /* ===== Tablet / Touch / Pen Support ===== */
-/* Ensure minimum touch target size (44px) for interactive elements on touch devices */
-@media (pointer: coarse) {
+/* Ensure minimum touch target size (44px) for interactive elements on mobile & tablet.
+   Uses max-width: 1024px instead of (pointer: coarse) so hybrid devices
+   (Surface, iPad with keyboard, touchscreen laptops with a fine pointer)
+   also receive the bumped touch targets. */
+@media (max-width: 1024px) {
   button,
   [role="button"],
   a,
@@ -411,8 +414,10 @@ table td, table th { padding: 6px 8px; }
   table td, table th { padding: 6px 10px; }
 }
 
-/* More compact button sizes */
-button[class*="h-9"] { height: 2rem; }
+/* NOTE: The previous `button[class*="h-9"] { height: 2rem; }` rule was removed —
+   it conflicted with the mobile touch-target bump (lines 568-575) which sets
+   h-9 buttons to 2.5rem (40px) on mobile. Let Tailwind's `h-9` (2.25rem) and
+   the mobile bump apply natively. */
 
 /* Reduce dialog padding */
 [data-radix-dialog-content] { padding: 1rem !important; }
@@ -657,6 +662,15 @@ body {
 @media (max-width: 640px) {
   .scrollbar-warm::-webkit-scrollbar {
     height: 4px;
+  }
+  /* Cleaner mobile scroll — hide scrollbars on .no-scrollbar elements but
+     keep scroll functionality (e.g. horizontal tab strips, pill rows). */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 

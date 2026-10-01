@@ -23,6 +23,31 @@ const MODELS = [
   "jobExpense", "worker", "attendanceRecord",
 ];
 
+// Fields to strip from each model during export. The User.password column
+// contains bcrypt hashes and must NEVER be exported — a stolen backup would
+// otherwise allow offline cracking.
+const EXCLUDED_FIELDS: Record<string, Set<string>> = {
+  user: new Set(["password"]),
+};
+
+function serializeRecord(model: string, r: any): Record<string, unknown> {
+  const excluded = EXCLUDED_FIELDS[model];
+  const serialized: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(r)) {
+    if (excluded?.has(k)) continue;
+    if (v !== null && typeof v === "object" && "toString" in v && typeof v.toString === "function") {
+      // Prisma Decimal — convert to number
+      const numVal = Number(v.toString());
+      serialized[k] = Number.isFinite(numVal) ? numVal : v.toString();
+    } else if (v instanceof Date) {
+      serialized[k] = v.toISOString();
+    } else {
+      serialized[k] = v;
+    }
+  }
+  return serialized;
+}
+
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,23 +63,26 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const data: Record<string, unknown[]> = {};
   for (const model of MODELS) {
     try {
-      const records = await (db as any)[model].findMany();
-      // Serialize Decimal fields
-      data[model] = records.map((r: any) => {
-        const serialized: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(r)) {
-          if (v !== null && typeof v === "object" && "toString" in v && typeof v.toString === "function") {
-            // Prisma Decimal — convert to number
-            const numVal = Number(v.toString());
-            serialized[k] = Number.isFinite(numVal) ? numVal : v.toString();
-          } else if (v instanceof Date) {
-            serialized[k] = v.toISOString();
-          } else {
-            serialized[k] = v;
-          }
-        }
-        return serialized;
-      });
+      // For the user model, use select to omit the password hash at the
+      // Prisma layer (defense in depth — never trust the serializer alone).
+      const findArgs =
+        model === "user"
+          ? {
+              select: {
+                id: true,
+                username: true,
+                fullName: true,
+                role: true,
+                status: true,
+                email: true,
+                phone: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            }
+          : undefined;
+      const records = await (db as any)[model].findMany(findArgs);
+      data[model] = records.map((r: any) => serializeRecord(model, r));
     } catch {
       // Model might not exist yet — skip
       data[model] = [];
@@ -121,20 +149,24 @@ export async function autoBackup(userId: string) {
     const data: Record<string, unknown[]> = {};
     for (const model of MODELS) {
       try {
-        const records = await (db as any)[model].findMany();
-        data[model] = records.map((r: any) => {
-          const serialized: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(r)) {
-            if (v !== null && typeof v === "object" && "toString" in v) {
-              serialized[k] = Number(v.toString()) || v.toString();
-            } else if (v instanceof Date) {
-              serialized[k] = v.toISOString();
-            } else {
-              serialized[k] = v;
-            }
-          }
-          return serialized;
-        });
+        const findArgs =
+          model === "user"
+            ? {
+                select: {
+                  id: true,
+                  username: true,
+                  fullName: true,
+                  role: true,
+                  status: true,
+                  email: true,
+                  phone: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              }
+            : undefined;
+        const records = await (db as any)[model].findMany(findArgs);
+        data[model] = records.map((r: any) => serializeRecord(model, r));
       } catch {
         data[model] = [];
       }

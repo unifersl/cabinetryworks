@@ -100,6 +100,13 @@ const ALLOWED_KEYS = new Set<string>([
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Restrict to Admin/SuperAdmin/Manager — settings include factory name,
+  // contact email/phone, tax rate, and other operational details that non-
+  // admin roles have no business reading. The nav-config already hides the
+  // Settings view from Technician/Auditor/Storekeeper, but the API must
+  // enforce the same gate independently.
+  if (!canManageUsers(session.role))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const rows = await db.systemSetting.findMany();
   const settings = rows.reduce<Record<string, string>>((acc, r) => {

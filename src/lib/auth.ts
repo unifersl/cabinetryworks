@@ -4,12 +4,18 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import type { User } from "@prisma/client";
+import * as crypto from "crypto";
 
 /**
- * Lightweight cookie-based session.
- * Session token = base64(JSON { uid, role, username, ts }).
- * For Phase 1 this avoids external auth deps while remaining secure enough
- * for an internal manufacturing tool. Passwords are bcrypt-hashed.
+ * Cookie-based session with HMAC-SHA256 signature.
+ *
+ * Session token format: `base64(payload) + "." + hex(hmac_sha256(base64(payload)))`.
+ * The HMAC prevents tampering — without the secret an attacker cannot forge a
+ * valid token, even if they can read the (base64-encoded) payload.
+ *
+ * The secret is `process.env.SESSION_SECRET`. If unset, a derived fallback is
+ * used so the app keeps working in dev, but a console warning is emitted.
+ * Always set SESSION_SECRET in production.
  */
 
 export type SessionUser = Pick<
@@ -21,13 +27,58 @@ const SESSION_COOKIE = "kcm_session";
 const SESSION_MAX_AGE = 60 * 60 * 8; // 8 hours (session timeout)
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes inactivity → auto-logout
 
-function encode(s: Record<string, unknown>): string {
-  return Buffer.from(JSON.stringify(s), "utf-8").toString("base64");
+/**
+ * Resolve the HMAC secret. If SESSION_SECRET is not provided, derive a
+ * per-deployment fallback so dev environments work without configuration —
+ * but warn loudly that it must be set for production.
+ */
+const SESSION_SECRET: string = process.env.SESSION_SECRET
+  ? String(process.env.SESSION_SECRET)
+  : (() => {
+      if (process.env.NODE_ENV === "production") {
+        console.warn(
+          "[auth] SESSION_SECRET not set — using derived fallback. Set SESSION_SECRET env var for production."
+        );
+      }
+      return crypto
+        .createHash("sha256")
+        .update("kcm-fallback-" + (process.env.DATABASE_URL || "dev"))
+        .digest("hex");
+    })();
+
+function sign(payloadB64: string): string {
+  return crypto
+    .createHmac("sha256", SESSION_SECRET)
+    .update(payloadB64)
+    .digest("hex");
 }
 
-function decode<T = Record<string, unknown>>(t: string): T | null {
+function encode(s: Record<string, unknown>): string {
+  const payloadB64 = Buffer.from(JSON.stringify(s), "utf-8").toString("base64");
+  return `${payloadB64}.${sign(payloadB64)}`;
+}
+
+/**
+ * Decode AND verify the HMAC signature. Returns null on any failure
+ * (malformed, missing signature, bad signature). Treat invalid tokens as
+ * "not logged in" rather than throwing.
+ */
+function decodeAndVerify<T = Record<string, unknown>>(token: string): T | null {
+  const dot = token.lastIndexOf(".");
+  if (dot <= 0 || dot === token.length - 1) return null;
+  const payloadB64 = token.slice(0, dot);
+  const signature = token.slice(dot + 1);
+  // Timing-safe comparison of the expected vs provided HMAC.
+  const expected = sign(payloadB64);
   try {
-    return JSON.parse(Buffer.from(t, "base64").toString("utf-8")) as T;
+    const a = Buffer.from(signature, "hex");
+    const b = Buffer.from(expected, "hex");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  } catch {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.from(payloadB64, "base64").toString("utf-8")) as T;
   } catch {
     return null;
   }
@@ -50,12 +101,14 @@ export async function createSession(user: SessionUser) {
     role: user.role,
     username: user.username,
     fullName: user.fullName,
+    status: user.status,
     ts: Date.now(),
   });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
@@ -63,6 +116,13 @@ export async function createSession(user: SessionUser) {
 
 export async function destroySession() {
   const store = await cookies();
+  store.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
   store.delete(SESSION_COOKIE);
 }
 
@@ -70,16 +130,25 @@ export async function getSession(): Promise<SessionUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const payload = decode<{ uid: string; role: string; username: string; fullName: string; ts: number }>(token);
+  // Verify HMAC signature — rejects forged/tampered tokens.
+  const payload = decodeAndVerify<{
+    uid: string;
+    role: string;
+    username: string;
+    fullName: string;
+    status?: string;
+    ts: number;
+  }>(token);
   if (!payload?.uid) return null;
 
   // Session timeout: if session is older than 8 hours, it's expired
   const sessionAge = Date.now() - (payload.ts ?? 0);
   if (sessionAge > SESSION_MAX_AGE * 1000) return null; // Session expired
 
-  // For performance, use the cached session data from the token if it's
-  // less than 5 minutes old. This avoids a DB query on every API call.
-  const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+  // Cache the session for a short window (60s) to avoid a DB hit on every
+  // API call. Previously this was 5 minutes — too long for status/role
+  // changes (demoted/suspended users kept access). 60s is a safe compromise.
+  const MAX_CACHE_AGE = 60 * 1000; // 60 seconds
 
   if (sessionAge < MAX_CACHE_AGE) {
     return {
@@ -87,11 +156,12 @@ export async function getSession(): Promise<SessionUser | null> {
       username: payload.username,
       fullName: payload.fullName,
       role: payload.role as SessionUser["role"],
-      status: "active",
+      status: (payload.status ?? "active") as SessionUser["status"],
     };
   }
 
-  // Re-validate against DB for older sessions.
+  // Re-validate against DB for older sessions. Suspended / inactive users
+  // are denied access immediately rather than waiting for the cache to expire.
   const user = await db.user.findUnique({
     where: { id: payload.uid },
     select: { id: true, username: true, fullName: true, role: true, status: true },

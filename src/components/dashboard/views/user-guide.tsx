@@ -11,6 +11,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   BookOpen,
   Rocket,
   LayoutDashboard,
@@ -178,15 +185,15 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-4">
+    <section id={id} className="scroll-mt-20">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="h-5 w-5" />
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <CardTitle className="flex items-center gap-2 text-lg font-bold">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
                 <span className="text-muted-foreground/60 tabular-nums">
                   {String(number).padStart(2, "0")}
                 </span>
@@ -196,7 +203,7 @@ function SectionCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="max-w-none text-sm text-muted-foreground">
           {children}
         </CardContent>
       </Card>
@@ -306,7 +313,41 @@ export function UserGuideView() {
 
       {/* Layout: TOC sidebar + content */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        {/* Sticky TOC */}
+        {/* Mobile / tablet TOC — collapsible Select visible only below lg breakpoint */}
+        <div className="lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ListChecks className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Jump to section
+              </p>
+              <Select
+                value={activeId}
+                onValueChange={(v) => {
+                  scrollToSection(v);
+                }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="Select a section" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTIONS.map((s, i) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="tabular-nums text-muted-foreground/70 mr-2">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky TOC — desktop only */}
         <aside className="hidden lg:block">
           <div className="sticky top-0 max-h-[calc(100vh-2rem)] overflow-y-auto scrollbar-warm pr-2">
             <Card className="border-border/60">

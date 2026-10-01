@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, hashPassword, canManageUsers } from "@/lib/auth";
+import { getSession, hashPassword, canManageUsers, isSuperAdmin } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -48,6 +48,16 @@ export async function PUT(
   if (session.id === id && body.role === "SuperAdmin" && session.role !== "SuperAdmin") {
     return NextResponse.json(
       { error: "You cannot promote yourself to SuperAdmin." },
+      { status: 403 }
+    );
+  }
+
+  // Security: only SuperAdmin can promote ANY user (including themselves is
+  // already handled above) to SuperAdmin. Prevents a Manager from promoting
+  // a co-conspirator or a dormant account to SuperAdmin.
+  if (body.role === "SuperAdmin" && !isSuperAdmin(session.role)) {
+    return NextResponse.json(
+      { error: "Only a SuperAdmin can grant SuperAdmin privileges." },
       { status: 403 }
     );
   }

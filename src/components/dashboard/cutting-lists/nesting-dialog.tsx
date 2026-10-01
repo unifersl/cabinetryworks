@@ -318,7 +318,7 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
               const s = STANDARD_SHEETS.find((s) => s.label === v);
               if (s) setSheetSize(s);
             }}>
-              <SelectTrigger className="h-9 w-56 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-56 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STANDARD_SHEETS.map((s) => <SelectItem key={s.label} value={s.label}>{s.label}</SelectItem>)}
               </SelectContent>
@@ -326,17 +326,17 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Saw Blade (mm)</Label>
-            <Input type="number" min="0" step="0.5" value={sawBlade} onChange={(e) => setSawBlade(e.target.value)} className="h-9 w-24 text-xs" />
+            <Input type="number" min="0" step="0.5" value={sawBlade} onChange={(e) => setSawBlade(e.target.value)} className="h-9 w-full sm:w-24 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Trim Edge (mm)</Label>
-            <Input type="number" min="0" step="1" value={trimEdge} onChange={(e) => setTrimEdge(e.target.value)} className="h-9 w-24 text-xs" />
+            <Input type="number" min="0" step="1" value={trimEdge} onChange={(e) => setTrimEdge(e.target.value)} className="h-9 w-full sm:w-24 text-xs" />
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={printNesting} disabled={sheets.length === 0}>
               <Printer className="mr-1.5 h-4 w-4" /> Print Layout
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -352,7 +352,7 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-sm border border-violet-400 bg-violet-200" />
             Normal
@@ -386,7 +386,8 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
         <div className="space-y-4">
           {sheets.map((sheet, si) => {
             const usedPct = ((sheet.usedArea / (sheet.length * sheet.width)) * 100).toFixed(1);
-            const maxW = 760;
+            // Mobile-aware max SVG width: clamp to viewport width to prevent overflow
+            const maxW = Math.min(760, typeof window !== "undefined" ? window.innerWidth - 80 : 700);
             const scale = Math.min(maxW / sheet.length, 360 / sheet.width);
             const trimEdgeNum = Number(trimEdge) || 0;
 
@@ -403,8 +404,8 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
                     </span>
                   </h4>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px]">{sheet.parts.length} parts</Badge>
-                    <Badge variant="outline" className="text-[10px] text-emerald-600">{usedPct}% used</Badge>
+                    <Badge variant="outline" className="text-[11px]">{sheet.parts.length} parts</Badge>
+                    <Badge variant="outline" className="text-[11px] text-emerald-600">{usedPct}% used</Badge>
                   </div>
                 </div>
                 {/* SVG layout */}
@@ -443,7 +444,7 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
                               y={(p.y + p.width / 2) * scale - 4}
                               textAnchor="middle"
                               dominantBaseline="middle"
-                              fontSize={Math.max(7, Math.min(10, scale * 7))}
+                              fontSize={Math.max(9, Math.min(11, scale * 7))}
                               fill="#1e293b"
                               fontFamily="monospace"
                               fontWeight="bold"
@@ -457,7 +458,7 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
                               y={(p.y + p.width / 2) * scale + 6}
                               textAnchor="middle"
                               dominantBaseline="middle"
-                              fontSize={Math.max(6, Math.min(8, scale * 6))}
+                              fontSize={Math.max(8, Math.min(9, scale * 6))}
                               fill="#475569"
                               fontFamily="monospace"
                             >
@@ -479,7 +480,7 @@ export function NestingDialog({ open, onOpenChange, items, panelName }: NestingD
                 {/* Part list for this sheet */}
                 <div className="mt-2 flex flex-wrap gap-1">
                   {sheet.parts.map((p) => (
-                    <span key={p.id} className={`rounded px-1.5 py-0.5 text-[9px] font-mono ${
+                    <span key={p.id} className={`rounded px-1.5 py-0.5 text-[11px] font-mono ${
                       p.grain
                         ? "bg-amber-100 text-amber-800"
                         : p.rotated
@@ -506,8 +507,8 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "go
     tone === "bad" ? "text-red-600" :
     "text-foreground";
   return (
-    <div className="rounded-lg border border-border p-2.5 text-center">
-      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+    <div className="min-h-[60px] rounded-lg border border-border p-2.5 text-center">
+      <p className="text-[11px] uppercase text-muted-foreground">{label}</p>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
     </div>
   );

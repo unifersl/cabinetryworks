@@ -411,12 +411,12 @@ function MaterialStatusCard({ jobId }: { jobId: string }) {
                         </TableCell>
                         <TableCell className="text-center">
                           {hasShortage ? (
-                            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 text-[10px]">
+                            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 text-[11px]">
                               <AlertTriangle className="mr-1 h-3 w-3" />
                               shortage
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 text-[10px]">
+                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 text-[11px]">
                               <CheckCircle2 className="mr-1 h-3 w-3" />
                               fulfilled
                             </Badge>
@@ -699,7 +699,7 @@ function OverviewTab({
     <div className="space-y-4">
       {/* Editable core fields */}
       {canEdit && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Status</Label>
             <Select value={job.status} onValueChange={(v) => onPatch({ status: v })}>
@@ -1026,10 +1026,10 @@ function TimeLogsTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                 <TableHead className="h-9 text-xs">Worker</TableHead>
                 <TableHead className="h-9 text-xs">Date</TableHead>
                 <TableHead className="h-9 text-xs">Type</TableHead>
-                <TableHead className="h-9 text-xs">Clock In</TableHead>
-                <TableHead className="h-9 text-xs">Clock Out</TableHead>
+                <TableHead className="h-9 text-xs hidden md:table-cell">Clock In</TableHead>
+                <TableHead className="h-9 text-xs hidden md:table-cell">Clock Out</TableHead>
                 <TableHead className="h-9 text-right text-xs">Hours</TableHead>
-                <TableHead className="h-9 text-right text-xs">Rate</TableHead>
+                <TableHead className="h-9 text-right text-xs hidden lg:table-cell">Rate</TableHead>
                 <TableHead className="h-9 text-right text-xs">Labor Cost</TableHead>
                 <TableHead className="h-9 text-xs">Notes</TableHead>
                 {canEdit && <TableHead className="h-9 text-right text-xs">Actions</TableHead>}
@@ -1041,12 +1041,12 @@ function TimeLogsTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                   <TableCell className="text-xs font-medium">{l.workerName}</TableCell>
                   <TableCell className="text-xs">{fmtDate(l.workDate)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize text-[10px]">{l.workType}</Badge>
+                    <Badge variant="outline" className="capitalize text-[11px]">{l.workType}</Badge>
                   </TableCell>
-                  <TableCell className="text-xs">{fmtDateTime(l.clockIn)}</TableCell>
-                  <TableCell className="text-xs">{fmtDateTime(l.clockOut)}</TableCell>
+                  <TableCell className="text-xs hidden md:table-cell">{fmtDateTime(l.clockIn)}</TableCell>
+                  <TableCell className="text-xs hidden md:table-cell">{fmtDateTime(l.clockOut)}</TableCell>
                   <TableCell className="text-right text-xs font-medium tabular-nums">{num(l.hoursWorked).toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right text-xs tabular-nums hidden lg:table-cell">
                     {num(l.hourlyRate) > 0 ? `${num(l.hourlyRate).toLocaleString()} LKR` : "—"}
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium tabular-nums">
@@ -1056,13 +1056,13 @@ function TimeLogsTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                   {canEdit && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(l)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditing(l)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm("Delete this time log?")) removeMutation.mutate(l.id);
                           }}
@@ -1196,7 +1196,7 @@ function TimeLogDialog({
               <DialogTitle>{log ? "Edit Time Log" : "Add Time Log"}</DialogTitle>
               <DialogDescription>Track worker hours for this job.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1212,7 +1212,7 @@ function TimeLogDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Worker (system user)</Label>
               <Select value={userId} onValueChange={(v) => setUserId(v === "__none" ? "" : v)}>
@@ -1280,7 +1280,7 @@ function TimeLogDialog({
           </div>
 
           {useClock ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Clock In</Label>
                 <Input
@@ -1309,7 +1309,7 @@ function TimeLogDialog({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Hours Worked</Label>
                 <Input
@@ -1468,7 +1468,7 @@ function TransportTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                     ) : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       {TRANSPORT_PURPOSES.find((p) => p.value === t.purpose)?.label ?? t.purpose}
                     </Badge>
                   </TableCell>
@@ -1479,13 +1479,13 @@ function TransportTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                   {canEdit && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(t)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditing(t)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm("Delete this transport record?")) removeMutation.mutate(t.id);
                           }}
@@ -1599,7 +1599,7 @@ function TransportDialog({
               <DialogTitle>{transport ? "Edit Transport" : "Add Transport"}</DialogTitle>
               <DialogDescription>Log a vehicle trip or delivery.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1611,7 +1611,7 @@ function TransportDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Date</Label>
               <Input type="date" className="h-9" value={date} onChange={(e) => setDate(e.target.value)} required />
@@ -1772,7 +1772,7 @@ function FoodBeverageTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }
                 <TableRow key={i.id}>
                   <TableCell className="text-xs">{fmtDate(i.date)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize text-[10px]">{i.mealType}</Badge>
+                    <Badge variant="outline" className="capitalize text-[11px]">{i.mealType}</Badge>
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium tabular-nums">{i.personCount}</TableCell>
                   <TableCell className="text-right text-xs font-medium tabular-nums">
@@ -1782,13 +1782,13 @@ function FoodBeverageTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }
                   {canEdit && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(i)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditing(i)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm("Delete this F&B record?")) removeMutation.mutate(i.id);
                           }}
@@ -1890,7 +1890,7 @@ function FoodBeverageDialog({
               <DialogTitle>{item ? "Edit F&B Record" : "Add F&B Record"}</DialogTitle>
               <DialogDescription>Log meals provided to workers.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -1902,7 +1902,7 @@ function FoodBeverageDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Date</Label>
               <Input type="date" className="h-9" value={date} onChange={(e) => setDate(e.target.value)} required />
@@ -2087,7 +2087,7 @@ function ToolsCatalogTab({ canEdit }: { canEdit: boolean }) {
                   </TableCell>
                   <TableCell className="text-xs">{t.code ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       {TOOL_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
                     </Badge>
                   </TableCell>
@@ -2095,13 +2095,13 @@ function ToolsCatalogTab({ canEdit }: { canEdit: boolean }) {
                   {canEdit && (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(t)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditing(t)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm(`Delete tool "${t.name}"?`)) removeMutation.mutate(t.id);
                           }}
@@ -2195,7 +2195,7 @@ function ToolDialog({
               <DialogTitle>{tool ? "Edit Tool" : "Add Tool"}</DialogTitle>
               <DialogDescription>Add a reusable tool to the catalog.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2211,7 +2211,7 @@ function ToolDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Name *</Label>
               <Input className="h-9" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Cordless Drill" required />
@@ -2338,12 +2338,12 @@ function ToolIssuesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) 
                 </div>
                 <div className="flex items-center gap-1">
                   <StatusBadge status={iss.status} />
-                  <Badge variant="outline" className="text-[10px]">{iss.lines.length} item(s)</Badge>
+                  <Badge variant="outline" className="text-[11px]">{iss.lines.length} item(s)</Badge>
                   {canEdit && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      className="h-9 w-9 text-destructive hover:bg-destructive/10"
                       onClick={() => {
                         if (confirm(`Delete issue ${iss.issueNo}? Tool statuses will be reverted.`)) removeMutation.mutate(iss.id);
                       }}
@@ -2498,7 +2498,7 @@ function ToolIssueDialog({
               <DialogTitle>Issue Tools</DialogTitle>
               <DialogDescription>Select tools from catalog to issue to a worker.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2510,7 +2510,7 @@ function ToolIssueDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Issued To</Label>
               <Input className="h-9" value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} placeholder="Worker name" />
@@ -2535,10 +2535,10 @@ function ToolIssueDialog({
             ) : (
               <div className="space-y-2">
                 {lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2">
-                    <div className="col-span-6">
+                  <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                    <div className="sm:col-span-6">
                       <Select value={line.toolId} onValueChange={(v) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, toolId: v } : l))}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {tools.map((t) => (
                             <SelectItem key={t.id} value={t.id}>{t.name}{t.code ? ` (${t.code})` : ""}</SelectItem>
@@ -2546,18 +2546,18 @@ function ToolIssueDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <Input
                         type="number"
                         min="1"
-                        className="h-8 text-xs"
+                        className="h-9 text-xs"
                         value={line.quantity}
                         onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: parseInt(e.target.value, 10) || 1 } : l))}
                       />
                     </div>
-                    <div className="col-span-3">
+                    <div className="sm:col-span-3">
                       <Select value={line.condition} onValueChange={(v) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, condition: v } : l))}>
-                        <SelectTrigger className="h-8 text-xs capitalize"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs capitalize"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {ISSUE_CONDITIONS.map((c) => (
                             <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
@@ -2565,12 +2565,12 @@ function ToolIssueDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-1">
+                    <div className="sm:col-span-1 flex justify-end">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive"
+                        className="h-9 w-9 text-destructive"
                         onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
                       >
                         <X className="h-3 w-3" />
@@ -2675,12 +2675,12 @@ function ToolReturnsTab({ jobId, canEdit }: { jobId: string; canEdit: boolean })
                 </div>
                 <div className="flex items-center gap-1">
                   <StatusBadge status={ret.status} />
-                  <Badge variant="outline" className="text-[10px]">{ret.lines.length} item(s)</Badge>
+                  <Badge variant="outline" className="text-[11px]">{ret.lines.length} item(s)</Badge>
                   {canEdit && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                      className="h-9 w-9 text-destructive hover:bg-destructive/10"
                       onClick={() => {
                         if (confirm(`Delete return ${ret.returnNo}?`)) removeMutation.mutate(ret.id);
                       }}
@@ -2826,7 +2826,7 @@ function ToolReturnDialog({
               <DialogTitle>Return Tools</DialogTitle>
               <DialogDescription>Optionally link to an original issue to auto-fill lines.</DialogDescription>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -2838,7 +2838,7 @@ function ToolReturnDialog({
           }}
           className="space-y-3"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Link to Issue (optional)</Label>
               <Select value={issueId || "__none"} onValueChange={(v) => setIssueId(v === "__none" ? "" : v)}>
@@ -2875,10 +2875,10 @@ function ToolReturnDialog({
             ) : (
               <div className="space-y-2">
                 {lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2">
-                    <div className="col-span-6">
+                  <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                    <div className="sm:col-span-6">
                       <Select value={line.toolId} onValueChange={(v) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, toolId: v } : l))}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {tools.map((t) => (
                             <SelectItem key={t.id} value={t.id}>{t.name}{t.code ? ` (${t.code})` : ""}</SelectItem>
@@ -2886,18 +2886,18 @@ function ToolReturnDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <Input
                         type="number"
                         min="1"
-                        className="h-8 text-xs"
+                        className="h-9 text-xs"
                         value={line.quantity}
                         onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: parseInt(e.target.value, 10) || 1 } : l))}
                       />
                     </div>
-                    <div className="col-span-3">
+                    <div className="sm:col-span-3">
                       <Select value={line.condition} onValueChange={(v) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, condition: v } : l))}>
-                        <SelectTrigger className="h-8 text-xs capitalize"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs capitalize"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {RETURN_CONDITIONS.map((c) => (
                             <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
@@ -2905,12 +2905,12 @@ function ToolReturnDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-1">
+                    <div className="sm:col-span-1 flex justify-end">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive"
+                        className="h-9 w-9 text-destructive"
                         onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
                       >
                         <X className="h-3 w-3" />
@@ -3103,7 +3103,7 @@ function ExpensesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
             .slice(0, 5)
             .map(([cat, amt]) => (
               <Card key={cat} className="p-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{catLabel(cat)}</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{catLabel(cat)}</p>
                 <p className="text-sm font-bold">{amt.toLocaleString()} LKR</p>
               </Card>
             ))}
@@ -3176,7 +3176,7 @@ function ExpensesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                 <TableRow key={e.id}>
                   <TableCell className="text-xs">{new Date(e.date).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[11px]">
                       {catLabel(e.category)}
                     </Badge>
                   </TableCell>
@@ -3192,7 +3192,7 @@ function ExpensesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9"
                           onClick={() => {
                             setEditing(e);
                             setDialogOpen(true);
@@ -3203,7 +3203,7 @@ function ExpensesTab({ jobId, canEdit }: { jobId: string; canEdit: boolean }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10"
                           onClick={() => deleteMut.mutate(e.id)}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -3684,10 +3684,10 @@ function JobAttendanceTab({ jobId }: { jobId: string }) {
 
       {/* Summary by worker */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-3"><p className="text-[10px] uppercase text-muted-foreground">Records</p><p className="text-xl font-bold">{records.length}</p></Card>
-        <Card className="p-3"><p className="text-[10px] uppercase text-muted-foreground">Total Hours</p><p className="text-xl font-bold">{totalHours}h</p></Card>
-        <Card className="p-3"><p className="text-[10px] uppercase text-muted-foreground">Present Days</p><p className="text-xl font-bold">{presentCount}</p></Card>
-        <Card className="p-3"><p className="text-[10px] uppercase text-muted-foreground">Workers</p><p className="text-xl font-bold">{byWorker.size}</p></Card>
+        <Card className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Records</p><p className="text-xl font-bold">{records.length}</p></Card>
+        <Card className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Total Hours</p><p className="text-xl font-bold">{totalHours}h</p></Card>
+        <Card className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Present Days</p><p className="text-xl font-bold">{presentCount}</p></Card>
+        <Card className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Workers</p><p className="text-xl font-bold">{byWorker.size}</p></Card>
       </div>
 
       {/* Worker summary */}
@@ -3730,7 +3730,7 @@ function JobAttendanceTab({ jobId }: { jobId: string }) {
               <TableRow key={r.id}>
                 <TableCell className="text-xs">{new Date(r.date).toLocaleDateString()}</TableCell>
                 <TableCell className="font-medium text-sm">{r.worker?.name ?? "—"}</TableCell>
-                <TableCell><Badge variant="outline" className="text-[10px] capitalize">{r.status.replace(/_/g, " ")}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className="text-[11px] capitalize">{r.status.replace(/_/g, " ")}</Badge></TableCell>
                 <TableCell className="text-right text-xs font-mono">{r.clockIn ?? "—"}</TableCell>
                 <TableCell className="text-right text-xs font-mono">{r.clockOut ?? "—"}</TableCell>
                 <TableCell className="text-right font-mono font-semibold">{r.hoursWorked}h</TableCell>
@@ -3998,7 +3998,7 @@ function InsightsTab({ jobId }: { jobId: string }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div>
               <p className="text-2xl font-bold tabular-nums">{insights.stock.issuesCount}</p>
               <p className="text-[11px] text-muted-foreground">Goods Issues</p>

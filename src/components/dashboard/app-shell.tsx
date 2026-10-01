@@ -188,7 +188,7 @@ function NavList({
               <>
                 <span className="flex-1 truncate">{item.label}</span>
                 {item.isNew && !isActive && (
-                  <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[8px] font-bold leading-none text-white">
+                  <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
                     NEW
                   </span>
                 )}
@@ -444,7 +444,7 @@ export function AppShell({ user }: { user: SessionUser }) {
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side="left"
-          className="w-[280px] max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+          className="w-[280px] max-w-[92vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
         >
           <SheetTitle className="sr-only">Navigation menu</SheetTitle>
           <SidebarBrand />
@@ -470,7 +470,7 @@ export function AppShell({ user }: { user: SessionUser }) {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="md:hidden min-h-[44px] min-w-[44px]"
             aria-label="Open menu"
             onClick={() => setMobileOpen(true)}
           >
@@ -503,7 +503,7 @@ export function AppShell({ user }: { user: SessionUser }) {
             variant="ghost"
             size="icon"
             onClick={() => setSearchOpen(true)}
-            className="hidden md:inline-flex lg:hidden"
+            className="hidden md:inline-flex lg:hidden min-h-[44px] min-w-[44px]"
             aria-label="Search"
           >
             <Search className="h-[18px] w-[18px]" />
@@ -514,7 +514,7 @@ export function AppShell({ user }: { user: SessionUser }) {
             variant="ghost"
             size="icon"
             onClick={() => handleNavigate("settings")}
-            className="hidden md:inline-flex"
+            className="hidden md:inline-flex min-h-[44px] min-w-[44px]"
             aria-label="Module Settings"
             title="Enable/Disable Modules"
           >
@@ -531,7 +531,7 @@ export function AppShell({ user }: { user: SessionUser }) {
             variant="ghost"
             size="icon"
             onClick={toggle}
-            className="hidden md:inline-flex"
+            className="hidden md:inline-flex min-h-[44px] min-w-[44px]"
             aria-label="Toggle theme"
           >
             {theme === "light" ? (
@@ -547,7 +547,7 @@ export function AppShell({ user }: { user: SessionUser }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="md:hidden min-h-[44px] min-w-[44px]"
                 aria-label="More options"
               >
                 <EllipsisVertical className="h-5 w-5" />
@@ -576,7 +576,7 @@ export function AppShell({ user }: { user: SessionUser }) {
           {/* User profile — avatar always; name on tablet+; username on desktop+ */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-1 md:pr-2 transition-colors hover:bg-muted">
+              <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-1 md:pr-2 min-h-[44px] transition-colors hover:bg-muted">
                 <Avatar className="h-8 w-8 border border-border">
                   <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                     {initials}
@@ -634,10 +634,10 @@ export function AppShell({ user }: { user: SessionUser }) {
 
         {/* Footer — fixed at bottom, always visible. Mobile: ultra-compact single line. */}
         <footer className="shrink-0 border-t border-border bg-background/95 px-3 py-1.5 backdrop-blur-md sm:px-5 sm:py-2">
-          <div className="flex items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
             <button
               onClick={() => setLegalOpen(true)}
-              className="truncate transition-colors hover:text-foreground hover:underline"
+              className="truncate min-h-[44px] py-2 transition-colors hover:text-foreground hover:underline"
             >
               <span className="sm:hidden">© 2026 Kitchen Workspace</span>
               <span className="hidden sm:inline">

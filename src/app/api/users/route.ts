@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSession, hashPassword, canManageUsers } from "@/lib/auth";
+import { getSession, hashPassword, canManageUsers, isSuperAdmin } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { apiHandler } from "@/lib/api-handler";
 import { randomUUID } from "crypto";
@@ -66,6 +66,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const status = String(body?.status ?? "active");
     const email = body?.email ? String(body.email).trim() : null;
     const phone = body?.phone ? String(body.phone).trim() : null;
+
+    // Security: only SuperAdmin can create new SuperAdmin accounts.
+    // Prevents a Manager (who canManageUsers) from creating a SuperAdmin
+    // to bypass the SuperAdmin-only restrictions (backup restore, etc).
+    if (role === "SuperAdmin" && !isSuperAdmin(session.role)) {
+      return NextResponse.json(
+        { error: "Only a SuperAdmin can create a SuperAdmin account." },
+        { status: 403 }
+      );
+    }
 
     // Validation
     const errors: string[] = [];
