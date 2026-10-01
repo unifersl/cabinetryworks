@@ -1,14 +1,6 @@
 import type { NextConfig } from "next";
 
 const securityHeaders = [
-  // Clickjacking defense — allow framing by the Z.ai preview panel
-  // (preview-chat-*.space-z.ai) and same-origin, but block arbitrary sites.
-  // NOTE: X-Frame-Options: DENY would block the preview panel iframe entirely.
-  // Using CSP frame-ancestors instead for fine-grained control.
-  {
-    key: "Content-Security-Policy",
-    value: "frame-ancestors 'self' https://*.space-z.ai http://*.space-z.ai http://localhost:* http://127.0.0.1:*",
-  },
   // MIME-type sniffing defense.
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Don't leak the full URL of internal pages via the Referer header.
@@ -19,7 +11,8 @@ const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
   },
   // HSTS — force HTTPS for a year on all subdomains once deployed behind TLS.
-  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  // NOTE: disabled in dev to avoid blocking the preview panel iframe.
+  // { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
 ];
 
 const nextConfig: NextConfig = {
