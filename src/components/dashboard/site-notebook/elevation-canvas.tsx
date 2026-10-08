@@ -1138,26 +1138,34 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
 
   // Close inspector on Escape or click outside (but NOT when clicking on the
   // cabinet itself or inside the inspector popup or any Radix portal)
+  const inspectorRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!inspector) return;
-    // Use mousedown instead of click — it fires BEFORE focus changes or
-    // re-renders, so the DOM tree is stable when we check target.closest().
     function close(e: MouseEvent) {
       const target = e.target as HTMLElement;
-      // Don't close if clicking inside the inspector popup
-      if (target.closest("[data-inspector-popup]")) return;
+      // Don't close if clicking inside the inspector popup (use ref — most
+      // reliable, works even if CSS selectors miss Radix portal wrappers)
+      if (inspectorRef.current && inspectorRef.current.contains(target)) return;
       // Don't close if clicking on a cabinet module (the canvas)
       if (target.closest("[data-cabinet-module]")) return;
-      // Don't close if clicking on any interactive control:
-      // - form inputs, selects, textareas, buttons, labels
-      // - Radix combobox triggers and option list items
-      // - Radix portal content (Select dropdown, Popover, etc.)
-      if (target.closest(
-        "input, select, textarea, button, label, " +
-        "[role='combobox'], [role='option'], [role='listbox'], " +
+      // Don't close if ANY Radix dropdown/popover/portal is open anywhere in
+      // the document. Radix Select, Popover, etc. render their content in a
+      // portal at document.body level — checking for these attributes catches
+      // option clicks even when the portal wrapper has no identifiable parent.
+      if (document.querySelector(
         "[data-radix-popper-content-wrapper], " +
         "[data-radix-select-content], " +
         "[data-radix-popup-content], " +
+        "[data-radix-portal], " +
+        "[role='listbox']:not([data-inspector-popup] [role='listbox'])"
+      )) return;
+      // Also check if the click target itself is inside any portal
+      if (target.closest(
+        "[data-radix-popper-content-wrapper], " +
+        "[data-radix-select-content], " +
+        "[data-radix-popup-content], " +
+        "[data-radix-portal], " +
+        "[role='listbox'], [role='option'], " +
         "[role='dialog'], [role='presentation']"
       )) return;
       setInspector(null);
@@ -1977,6 +1985,7 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
         const notes = meta?.notes ?? "";
         return (
           <div
+            ref={inspectorRef}
             className="fixed z-[60] w-[320px] max-h-[70vh] overflow-y-auto scrollbar-warm rounded-lg border border-amber-500/40 bg-card shadow-2xl"
             data-inspector-popup=""
             style={{ left: inspector.x, top: inspector.y }}
