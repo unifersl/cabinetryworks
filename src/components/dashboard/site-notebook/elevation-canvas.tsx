@@ -1137,27 +1137,48 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
   }
 
   // Close inspector on Escape or click outside (but NOT when clicking on the
-  // cabinet itself or inside the inspector popup)
+  // cabinet itself or inside the inspector popup or any Radix portal)
   React.useEffect(() => {
     if (!inspector) return;
+    // Use mousedown instead of click — it fires BEFORE focus changes or
+    // re-renders, so the DOM tree is stable when we check target.closest().
     function close(e: MouseEvent) {
       const target = e.target as HTMLElement;
       // Don't close if clicking inside the inspector popup
       if (target.closest("[data-inspector-popup]")) return;
       // Don't close if clicking on a cabinet module (the canvas)
       if (target.closest("[data-cabinet-module]")) return;
-      // Don't close if clicking on any interactive control (inputs, buttons, selects)
-      if (target.closest("input, select, textarea, button, [role='combobox'], [role='option']")) return;
+      // Don't close if clicking on any interactive control:
+      // - form inputs, selects, textareas, buttons, labels
+      // - Radix combobox triggers and option list items
+      // - Radix portal content (Select dropdown, Popover, etc.)
+      if (target.closest(
+        "input, select, textarea, button, label, " +
+        "[role='combobox'], [role='option'], [role='listbox'], " +
+        "[data-radix-popper-content-wrapper], " +
+        "[data-radix-select-content], " +
+        "[data-radix-popup-content], " +
+        "[role='dialog'], [role='presentation']"
+      )) return;
       setInspector(null);
     }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") setInspector(null); }
-    window.addEventListener("click", close);
+    window.addEventListener("mousedown", close);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("click", close);
+      window.removeEventListener("mousedown", close);
       window.removeEventListener("keydown", onKey);
     };
   }, [inspector]);
+
+  // Close inspector if the module it references is no longer in the modules
+  // array (e.g. deleted or undo restored to a state without it). Using an
+  // effect avoids calling setState during render.
+  React.useEffect(() => {
+    if (inspector && !modules.find(m => m.id === inspector.id)) {
+      setInspector(null);
+    }
+  }, [inspector, modules]);
 
   // --- Main keyboard shortcut handler ---
   React.useEffect(() => {
@@ -1941,7 +1962,13 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
       {/* Inspector popup (double-click or long-press) */}
       {inspector && (() => {
         const mod = modules.find(m => m.id === inspector.id);
-        if (!mod) { setInspector(null); return null; }
+        if (!mod) {
+          // Module was deleted while inspector was open — close it in an
+          // effect, NOT during render (setState during render is an
+          // anti-pattern that can cause issues in React strict mode).
+          // We render nothing here; the effect below handles cleanup.
+          return null;
+        }
         const cabType = CABINET_TYPES.find(t => t.value === mod.type);
         const opening = OPENING_STYLES.find(t => t.value === mod.openingStyle);
         const isLocked = lockedIds.has(mod.id);
