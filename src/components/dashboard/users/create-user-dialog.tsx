@@ -208,10 +208,18 @@ export function CreateUserDialog({
     },
   });
 
+  // Match the backend validatePassword() policy exactly:
+  // 8+ chars, at least one uppercase, one lowercase, one number.
+  const pwValid =
+    form.password.length >= 8 &&
+    /[A-Z]/.test(form.password) &&
+    /[a-z]/.test(form.password) &&
+    /[0-9]/.test(form.password);
+
   const valid =
     form.username.trim() &&
     form.fullName.trim() &&
-    form.password.length >= 6;
+    pwValid;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -301,7 +309,7 @@ export function CreateUserDialog({
               <Input
                 id="cu-password"
                 type="password"
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 chars, 1 upper, 1 lower, 1 number"
                 value={form.password}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, password: e.target.value }))
@@ -310,6 +318,11 @@ export function CreateUserDialog({
                 disabled={submitting}
                 autoComplete="new-password"
               />
+              {form.password.length > 0 && !pwValid && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Must be 8+ chars with uppercase, lowercase, and a number.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Passwords are bcrypt-hashed before storage.
               </p>

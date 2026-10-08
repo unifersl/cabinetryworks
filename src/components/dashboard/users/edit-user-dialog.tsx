@@ -68,7 +68,13 @@ export function EditUserDialog({
         phone: phone.trim() || null,
         status: active ? "active" : "suspended",
       };
-      if (resetPwd && password.length >= 6) patch.password = password;
+      // Match backend validatePassword(): 8+ chars, upper, lower, number
+      const pwValid =
+        password.length >= 8 &&
+        /[A-Z]/.test(password) &&
+        /[a-z]/.test(password) &&
+        /[0-9]/.test(password);
+      if (resetPwd && pwValid) patch.password = password;
       return usersApi.update(user.id, patch);
     },
     onSuccess: (data) => {
@@ -219,7 +225,7 @@ export function EditUserDialog({
             {resetPwd && (
               <Input
                 type="password"
-                placeholder="New password (min. 6 chars)"
+                placeholder="Min. 8 chars, 1 upper, 1 lower, 1 number"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={updateMutation.isPending}
@@ -240,7 +246,12 @@ export function EditUserDialog({
               type="submit"
               disabled={
                 updateMutation.isPending ||
-                (resetPwd && password.length < 6)
+                (resetPwd && !(
+                  password.length >= 8 &&
+                  /[A-Z]/.test(password) &&
+                  /[a-z]/.test(password) &&
+                  /[0-9]/.test(password)
+                ))
               }
             >
               {updateMutation.isPending ? (
