@@ -30,6 +30,9 @@ import {
   MousePointerClick,
   Maximize,
   Minimize,
+  Copy,
+  Grid3x3,
+  Magnet,
 } from "lucide-react";
 
 type Tool = "select" | "pen" | "line" | "dashed" | "box" | "circle" | "arrow" | "curve" | "text" | "eraser";
@@ -52,6 +55,20 @@ interface Shape {
 }
 
 const COLORS = ["#1e293b", "#ef4444", "#facc15", "#0ea5e9", "#10b981", "#8b5cf6"];
+
+/** Pure helper — returns the axis-aligned bounding box of a shape's points. */
+function getShapeBounds(s: Shape): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  if (!s.points || s.points.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of s.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
 
 interface BlueprintSketchpadProps {
   onSave?: (dataUrl: string) => void;
@@ -93,6 +110,22 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
   }, []);
+
+  // Select tool: state for selected shape (declared early so draw + handlers can use it)
+  const [selectedShape, setSelectedShape] = React.useState<string | null>(null);
+  const [movingShape, setMovingShape] = React.useState<string | null>(null);
+  const moveOffset = React.useRef<Point>({ x: 0, y: 0 });
+
+  // Selection manipulation state
+  const [resizingShape, setResizingShape] = React.useState<string | null>(null);
+  const [resizeHandle, setResizeHandle] = React.useState<string | null>(null); // "nw"|"ne"|"sw"|"se"
+  const [snapEnabled, setSnapEnabled] = React.useState(true);
+  const [showGrid, setShowGrid] = React.useState(true);
+  const SNAP_GRID = 10;
+  const SNAP_THRESHOLD = 8;
+  const undoStack = React.useRef<Shape[][]>([]);
+  const redoStack = React.useRef<Shape[][]>([]);
+  const [, forceRedraw] = React.useReducer((x: number) => x + 1, 0);
 
   // ---- Drawing helpers ----
 
@@ -258,6 +291,87 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
     };
   }
 
+  // ---- Selection / manipulation helpers ----
+
+  function getResizeHandleAt(p: Point, s: Shape): string | null {
+    if (s.tool !== "box" && s.tool !== "circle") return null;
+    const b = getShapeBounds(s);
+    if (!b) return null;
+    const handles: { id: string; x: number; y: number }[] = [
+      { id: "nw", x: b.minX, y: b.minY },
+      { id: "ne", x: b.maxX, y: b.minY },
+      { id: "sw", x: b.minX, y: b.maxY },
+      { id: "se", x: b.maxX, y: b.maxY },
+    ];
+    const r = SNAP_THRESHOLD + 4;
+    for (const h of handles) {
+      if (Math.hypot(p.x - h.x, p.y - h.y) <= r) return h.id;
+    }
+    return null;
+  }
+
+  function snapValue(val: number): number {
+    if (!snapEnabled) return val;
+    return Math.round(val / SNAP_GRID) * SNAP_GRID;
+  }
+
+  function cloneShapes(arr: Shape[]): Shape[] {
+    return arr.map((s) => ({ ...s, points: s.points.map((p) => ({ ...p })) }));
+  }
+
+  function pushHistory() {
+    undoStack.current.push(cloneShapes(shapes));
+    if (undoStack.current.length > 50) undoStack.current.shift();
+    redoStack.current = [];
+  }
+
+  function undoHistory() {
+    const prev = undoStack.current.pop();
+    if (!prev) {
+      toast.message("Nothing to undo");
+      return;
+    }
+    redoStack.current.push(cloneShapes(shapes));
+    setShapes(prev);
+    setSelectedShape(null);
+    forceRedraw();
+  }
+
+  function redoHistory() {
+    const next = redoStack.current.pop();
+    if (!next) {
+      toast.message("Nothing to redo");
+      return;
+    }
+    undoStack.current.push(cloneShapes(shapes));
+    setShapes(next);
+    setSelectedShape(null);
+    forceRedraw();
+  }
+
+  function duplicateSelected() {
+    if (!selectedShape) return;
+    const sel = shapes.find((s) => s.id === selectedShape);
+    if (!sel) return;
+    pushHistory();
+    const clone: Shape = {
+      ...sel,
+      id: crypto.randomUUID(),
+      points: sel.points.map((p) => ({ x: p.x + 20, y: p.y + 20 })),
+    };
+    setShapes((s) => [...s, clone]);
+    setSelectedShape(clone.id);
+    toast.success("Shape duplicated");
+  }
+
+  function deleteSelected() {
+    if (!selectedShape) return;
+    pushHistory();
+    setShapes((s) => s.filter((sh) => sh.id !== selectedShape));
+    setSelectedShape(null);
+    toast.success("Shape deleted");
+  }
+
   const draw = React.useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -270,15 +384,17 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, cw, ch);
 
-    // Grid
-    const gridSize = Math.max(20, Math.floor(cw / 40));
-    ctx.strokeStyle = "#e2e8f0";
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x <= cw; x += gridSize) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
-    }
-    for (let y = 0; y <= ch; y += gridSize) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke();
+    // Grid (conditional on showGrid)
+    if (showGrid) {
+      const gridSize = Math.max(20, Math.floor(cw / 40));
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x <= cw; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+      }
+      for (let y = 0; y <= ch; y += gridSize) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke();
+      }
     }
 
     const drawShape = (s: Shape) => {
@@ -414,24 +530,130 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
 
     shapes.forEach(drawShape);
     if (currentShape) drawShape(currentShape);
-  }, [shapes, currentShape, hoveredShape]);
+
+    // Selection bounding box + resize handles (drawn on top of everything)
+    if (selectedShape) {
+      const sel = shapes.find((s) => s.id === selectedShape)
+        || (currentShape && currentShape.id === selectedShape ? currentShape : null);
+      if (sel) {
+        const b = getShapeBounds(sel);
+        if (b) {
+          const pad = 4;
+          ctx.save();
+          ctx.strokeStyle = "#2563eb";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(
+            b.minX - pad,
+            b.minY - pad,
+            (b.maxX - b.minX) + pad * 2,
+            (b.maxY - b.minY) + pad * 2
+          );
+          ctx.setLineDash([]);
+          // Resize handles for box/circle shapes (4 corners)
+          if (sel.tool === "box" || sel.tool === "circle") {
+            const corners: { x: number; y: number }[] = [
+              { x: b.minX, y: b.minY },
+              { x: b.maxX, y: b.minY },
+              { x: b.minX, y: b.maxY },
+              { x: b.maxX, y: b.maxY },
+            ];
+            const hs = 8;
+            for (const c of corners) {
+              ctx.fillStyle = "#ffffff";
+              ctx.strokeStyle = "#2563eb";
+              ctx.lineWidth = 1.5;
+              ctx.fillRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+              ctx.strokeRect(c.x - hs / 2, c.y - hs / 2, hs, hs);
+            }
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }, [shapes, currentShape, hoveredShape, selectedShape, showGrid]);
 
   React.useEffect(() => { draw(); }, [draw, canvasSize]);
 
-  // Keyboard: Ctrl+Z for undo, Esc to exit fullscreen
+  // Keyboard shortcuts: undo/redo, duplicate, delete, nudge, escape
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-        e.preventDefault();
-        setShapes((s) => s.slice(0, -1));
+      // Don't fire when typing in inputs/dialogs
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
       }
-      if (e.key === "Escape" && isFullscreen) {
-        setIsFullscreen(false);
+      // Ctrl+Z — undo (use history stack in select mode if available, else remove last shape)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (tool === "select" && undoStack.current.length > 0) {
+          undoHistory();
+        } else {
+          setShapes((s) => s.slice(0, -1));
+        }
+        return;
+      }
+      // Ctrl+Shift+Z or Ctrl+Y — redo
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ((e.shiftKey && (e.key === "z" || e.key === "Z")) || e.key === "y" || e.key === "Y")
+      ) {
+        e.preventDefault();
+        redoHistory();
+        return;
+      }
+      // Ctrl+D — duplicate selected shape
+      if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();
+        duplicateSelected();
+        return;
+      }
+      // Delete / Backspace — delete selected shape
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedShape) {
+        e.preventDefault();
+        deleteSelected();
+        return;
+      }
+      // Arrow keys — nudge selected shape (Shift = 10px)
+      if (
+        selectedShape &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight")
+      ) {
+        e.preventDefault();
+        const delta = e.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (e.key === "ArrowUp") dy = -delta;
+        else if (e.key === "ArrowDown") dy = delta;
+        else if (e.key === "ArrowLeft") dx = -delta;
+        else if (e.key === "ArrowRight") dx = delta;
+        setShapes((s) =>
+          s.map((shape) =>
+            shape.id === selectedShape
+              ? { ...shape, points: shape.points.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })) }
+              : shape
+          )
+        );
+        return;
+      }
+      // Escape — deselect, or exit fullscreen if already deselected
+      if (e.key === "Escape") {
+        if (selectedShape) {
+          setSelectedShape(null);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFullscreen]);
+  }, [isFullscreen, tool, shapes, selectedShape]);
 
   function getPos(e: React.PointerEvent): Point {
     const canvas = canvasRef.current!;
@@ -459,9 +681,23 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
   function handlePointerDown(e: React.PointerEvent) {
     const p = getPos(e);
 
-    // Select tool — click to select, drag to move
+    // Select tool — resize handle, click to select, drag to move
     if (tool === "select") {
-      // Find shape under cursor
+      // First: check if clicking a resize handle on the currently selected shape
+      if (selectedShape) {
+        const selShape = shapes.find((s) => s.id === selectedShape);
+        if (selShape) {
+          const handle = getResizeHandleAt(p, selShape);
+          if (handle) {
+            pushHistory();
+            setResizingShape(selectedShape);
+            setResizeHandle(handle);
+            canvasRef.current?.setPointerCapture(e.pointerId);
+            return;
+          }
+        }
+      }
+      // Otherwise: find a shape under cursor (topmost first)
       let foundId: string | null = null;
       for (let i = shapes.length - 1; i >= 0; i--) {
         const s = shapes[i];
@@ -474,10 +710,14 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
           break;
         }
       }
-      setSelectedShape(foundId);
       if (foundId) {
+        pushHistory();
+        setSelectedShape(foundId);
         setMovingShape(foundId);
         canvasRef.current?.setPointerCapture(e.pointerId);
+      } else {
+        // Click empty space — deselect
+        setSelectedShape(null);
       }
       return;
     }
@@ -541,6 +781,30 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
   }
 
   function handlePointerMove(e: React.PointerEvent) {
+    // Resizing branch — highest priority (compute new bounds from snapped pointer)
+    if (tool === "select" && resizingShape) {
+      const raw = getPos(e);
+      const sx = snapValue(raw.x);
+      const sy = snapValue(raw.y);
+      setShapes((s) =>
+        s.map((shape) => {
+          if (shape.id !== resizingShape) return shape;
+          const b = getShapeBounds(shape);
+          if (!b) return shape;
+          let minX = b.minX, minY = b.minY, maxX = b.maxX, maxY = b.maxY;
+          if (resizeHandle === "nw") { minX = sx; minY = sy; }
+          else if (resizeHandle === "ne") { maxX = sx; minY = sy; }
+          else if (resizeHandle === "sw") { minX = sx; maxY = sy; }
+          else if (resizeHandle === "se") { maxX = sx; maxY = sy; }
+          // Guard against inverted / zero-size shapes
+          if (maxX < minX + 1) maxX = minX + 1;
+          if (maxY < minY + 1) maxY = minY + 1;
+          return { ...shape, points: [{ x: minX, y: minY }, { x: maxX, y: maxY }] };
+        })
+      );
+      return;
+    }
+
     // Select tool — move selected shape
     if (tool === "select" && movingShape) {
       const p = getPos(e);
@@ -591,9 +855,11 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
   }
 
   function handlePointerUp() {
-    // Select tool — stop moving
+    // Select tool — stop moving / resizing
     if (tool === "select") {
       setMovingShape(null);
+      setResizingShape(null);
+      setResizeHandle(null);
       return;
     }
     if (tool === "text") return;
@@ -715,11 +981,6 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
   const showDimHint = ["pen", "line", "dashed", "box", "circle", "arrow", "curve"].includes(tool);
   const isBoxOrCircle = dimDialog?.shapeType === "box" || dimDialog?.shapeType === "circle";
 
-  // Select tool: state for selected shape
-  const [selectedShape, setSelectedShape] = React.useState<string | null>(null);
-  const [movingShape, setMovingShape] = React.useState<string | null>(null);
-  const moveOffset = React.useRef<Point>({ x: 0, y: 0 });
-
   return (
     <div className="space-y-2 sm:space-y-3">
       {/* Toolbar — icon-only with tooltips */}
@@ -777,6 +1038,36 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
 
         <Separator orientation="vertical" className="h-6 mx-0.5" />
 
+        {/* View & selection actions */}
+        <div className="flex gap-0.5">
+          <button onClick={() => setShowGrid((g) => !g)} title={showGrid ? "Hide grid" : "Show grid"}
+            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              showGrid ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}>
+            <Grid3x3 className="h-4 w-4" />
+          </button>
+          <button onClick={() => setSnapEnabled((s) => !s)} title={snapEnabled ? "Disable snap-to-grid" : "Enable snap-to-grid"}
+            className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              snapEnabled ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}>
+            <Magnet className="h-4 w-4" />
+          </button>
+          {selectedShape && (
+            <>
+              <button onClick={duplicateSelected} title="Duplicate selected (Ctrl+D)"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <Copy className="h-4 w-4" />
+              </button>
+              <button onClick={deleteSelected} title="Delete selected (Del)"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+
+        <Separator orientation="vertical" className="h-6 mx-0.5" />
+
         {/* Actions — icon only */}
         <div className="flex gap-0.5 ml-auto">
           <button onClick={undo} title="Undo (Ctrl+Z)"
@@ -812,7 +1103,7 @@ export function BlueprintSketchpad({ onSave }: BlueprintSketchpadProps) {
         <div className="flex items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/5 px-2.5 py-1.5 text-[11px] sm:text-xs text-sky-700 dark:text-sky-400">
           <Ruler className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
           {tool === "select" ? (
-            <span>Click a shape to select &amp; drag to move. Click again on selected shape to add dimension. Ctrl+Z to undo.</span>
+            <span>Click a shape to select. Drag to move. Drag corner handles to resize. Ctrl+D to duplicate, Del to delete, arrows to nudge. Ctrl+Z/Y to undo/redo.</span>
           ) : tool === "pen" ? (
             <span>Click 3 points: start → bend/control → end to draw a curve.</span>
           ) : tool === "text" ? (
