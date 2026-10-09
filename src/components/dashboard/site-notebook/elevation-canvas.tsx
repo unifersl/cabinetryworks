@@ -1141,25 +1141,17 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
   const inspectorRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!inspector) return;
-    function close(e: MouseEvent) {
+    // Use pointerdown with capture phase — this fires BEFORE Radix's own
+    // pointerdown handler, giving us a stable DOM state to check.
+    function close(e: PointerEvent | MouseEvent) {
       const target = e.target as HTMLElement;
-      // Don't close if clicking inside the inspector popup (use ref — most
-      // reliable, works even if CSS selectors miss Radix portal wrappers)
+      // Don't close if clicking inside the inspector popup
       if (inspectorRef.current && inspectorRef.current.contains(target)) return;
       // Don't close if clicking on a cabinet module (the canvas)
       if (target.closest("[data-cabinet-module]")) return;
-      // Don't close if ANY Radix dropdown/popover/portal is open anywhere in
-      // the document. Radix Select, Popover, etc. render their content in a
-      // portal at document.body level — checking for these attributes catches
-      // option clicks even when the portal wrapper has no identifiable parent.
-      if (document.querySelector(
-        "[data-radix-popper-content-wrapper], " +
-        "[data-radix-select-content], " +
-        "[data-radix-popup-content], " +
-        "[data-radix-portal], " +
-        "[role='listbox']:not([data-inspector-popup] [role='listbox'])"
-      )) return;
-      // Also check if the click target itself is inside any portal
+      // Don't close if clicking on any Radix portal content (Select dropdown,
+      // Popover, etc.) — these render at document.body level, outside the
+      // inspector popup div.
       if (target.closest(
         "[data-radix-popper-content-wrapper], " +
         "[data-radix-select-content], " +
@@ -1168,13 +1160,25 @@ export function ElevationCanvas({ data, height = 500, onUpdateModules }: Elevati
         "[role='listbox'], [role='option'], " +
         "[role='dialog'], [role='presentation']"
       )) return;
+      // Also check if the click target is a Select trigger (combobox) —
+      // these open portals that may not be mounted yet at pointerdown time.
+      if (target.closest("[role='combobox'], [data-radix-collection-item]")) return;
+      // Final check: if any Radix portal is currently open in the document,
+      // don't close (catches edge cases where the target is in a wrapper).
+      if (document.querySelector(
+        "[data-radix-popper-content-wrapper], " +
+        "[data-radix-select-content], " +
+        "[data-radix-portal]"
+      )) return;
       setInspector(null);
     }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") setInspector(null); }
-    window.addEventListener("mousedown", close);
+    // Use pointerdown (fires before click, before Radix opens its portal)
+    // AND capture phase (fires before React's synthetic event system).
+    window.addEventListener("pointerdown", close, true);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("mousedown", close);
+      window.removeEventListener("pointerdown", close, true);
       window.removeEventListener("keydown", onKey);
     };
   }, [inspector]);

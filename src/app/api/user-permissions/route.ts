@@ -10,15 +10,26 @@ export const runtime = "nodejs";
 /**
  * GET /api/user-permissions?userId=xxx
  * Returns all permission overrides for a user (or all users if no userId).
+ *
+ * Permission rules:
+ *  - SuperAdmin can query ANY user's permissions (for the User Central panel).
+ *  - Any authenticated user can query their OWN permissions (so the nav
+ *    sidebar can hide revoked modules). The userId param must match their
+ *    own session.id when they're not SuperAdmin.
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isSuperAdmin(session.role))
-    return NextResponse.json({ error: "Forbidden — SuperAdmin only" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
+
+  // Non-SuperAdmin users can only query their OWN permissions.
+  if (!isSuperAdmin(session.role)) {
+    if (!userId || userId !== session.id) {
+      return NextResponse.json({ error: "Forbidden — can only view your own permissions" }, { status: 403 });
+    }
+  }
 
   const where = userId ? { userId } : {};
   const perms = await db.userPermission.findMany({
