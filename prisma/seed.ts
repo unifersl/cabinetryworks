@@ -29,7 +29,7 @@ async function main() {
     console.log("Seed: admin user already exists, skipping.");
     return;
   }
-  const password = await bcrypt.hash("admin123", 10);
+  const password = await bcrypt.hash("Admin123", 10); // meets validatePassword: 8+ chars, upper, lower, number
   await db.user.create({
     data: {
       id: randomUUID(),
@@ -44,7 +44,7 @@ async function main() {
   });
 
   // A technician demo user
-  const techPass = await bcrypt.hash("tech123", 10);
+  const techPass = await bcrypt.hash("Tech1234", 10); // meets validatePassword policy
   await db.user.create({
     data: {
       id: randomUUID(),
@@ -59,7 +59,7 @@ async function main() {
   });
 
   // Create additional role demo users
-  const managerPass = await bcrypt.hash("manager123", 10);
+  const managerPass = await bcrypt.hash("Manager123", 10); // meets validatePassword policy
   await db.user.create({
     data: {
       id: randomUUID(),
@@ -73,7 +73,7 @@ async function main() {
     },
   }).catch(() => console.log("Seed: manager already exists"));
 
-  const storekeeperPass = await bcrypt.hash("store123", 10);
+  const storekeeperPass = await bcrypt.hash("Store1234", 10); // meets validatePassword policy
   await db.user.create({
     data: {
       id: randomUUID(),

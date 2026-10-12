@@ -30,7 +30,9 @@ async function request<T>(
           "Content-Type": "application/json",
           ...(options?.headers || {}),
         },
-        credentials: "same-origin",
+        // Use "include" so cookies are sent in cross-origin iframe contexts
+        // (the preview panel embeds the app from a different origin).
+        credentials: "include",
         signal: controller.signal,
       });
 

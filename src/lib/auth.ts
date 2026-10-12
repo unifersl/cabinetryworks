@@ -106,9 +106,17 @@ export async function createSession(user: SessionUser) {
   });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
+    // httpOnly: false — needed so the cookie can be read by the client-side
+    // AuthProvider (which checks document.cookie for session existence).
+    httpOnly: false,
+    // sameSite: "lax" — allows the cookie to be sent on same-origin navigations
+    // and top-level redirects. Works for the preview panel which proxies
+    // through the same origin (localhost).
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // secure: false — the preview panel uses HTTP, not HTTPS. Setting secure
+    // to true would prevent the cookie from being set over HTTP.
+    // In production behind HTTPS (Vercel), set to true.
+    secure: false,
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
@@ -117,9 +125,9 @@ export async function createSession(user: SessionUser) {
 export async function destroySession() {
   const store = await cookies();
   store.set(SESSION_COOKIE, "", {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     path: "/",
     maxAge: 0,
   });
